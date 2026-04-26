@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — Bonken</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #555;
+      --accent: #3949ab;
+      --rule: #e5e5e5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --fg: #ececec;
+        --muted: #aaa;
+        --accent: #9fa8da;
+        --rule: #2a2a2a;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      line-height: 1.6;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    nav.lang {
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    nav.lang a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-right: 0.75rem;
+    }
+    nav.lang a:hover { color: var(--fg); }
+    h1 {
+      font-size: 2rem;
+      margin: 0 0 0.25rem;
+      color: var(--accent);
+    }
+    h2 {
+      font-size: 1.25rem;
+      margin: 2rem 0 0.5rem;
+    }
+    p, ul { margin: 0.75rem 0; }
+    ul { padding-left: 1.5rem; }
+    li { margin: 0.25rem 0; }
+    a { color: var(--accent); }
+    .meta {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 1.5rem;
+    }
+    /* Language switching: hide both, show the one whose id matches the URL
+       fragment.  Default to English when no fragment is set. */
+    section { display: none; }
+    section:target { display: block; }
+    main:not(:has(section:target)) section#en { display: block; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav class="lang">
+      <a href="#en">English</a>
+      <a href="#nl">Nederlands</a>
+    </nav>
+
+    <!-- ============================ ENGLISH ============================ -->
+    <section id="en" lang="en">
+      <h1>Privacy Policy</h1>
+      <p class="meta">Bonken — last updated 26 April 2026</p>
+
+      <p>
+        Bonken is a score calculator for the Dutch card game Bonken. It runs
+        entirely on your device and is designed to work fully offline. This
+        policy explains what data the app handles and what it does not.
+      </p>
+
+      <h2>Data we collect</h2>
+      <p><strong>None.</strong> Bonken does not collect, transmit, sell, share,
+         or otherwise process any personal data. There are no analytics, no
+         telemetry, no advertising identifiers, and no crash reporting.</p>
+
+      <h2>Data stored on your device</h2>
+      <p>The app saves the following information locally on your device so that
+         you can resume games and review past results:</p>
+      <ul>
+        <li>Player names you enter while setting up a game.</li>
+        <li>Scores and round details for games you have played.</li>
+        <li>Your selected app preferences (such as light/dark theme).</li>
+      </ul>
+      <p>This information never leaves your device. It is stored in the app's
+         local storage and can be removed at any time by deleting individual
+         games inside the app, by clearing the app's data through your
+         device settings, or by uninstalling the app.</p>
+
+      <h2>Network use</h2>
+      <p>The app does not require an internet connection to function. The only
+         network requests it makes are:</p>
+      <ul>
+        <li><strong>Checking for app updates</strong> — on Android via the
+            Google Play Store, and on the web version via the standard browser
+            mechanism for Progressive Web Apps. These checks are handled by
+            Google Play and your browser respectively, not by Bonken itself,
+            and are subject to their own privacy policies.</li>
+      </ul>
+      <p>No other network communication takes place. The app does not contact
+         any server operated by us.</p>
+
+      <h2>Permissions</h2>
+      <p>Bonken does not request access to your contacts, location, camera,
+         microphone, photos, files, or any other sensitive device feature.</p>
+
+      <h2>Children's privacy</h2>
+      <p>Because the app collects no personal data, it does not knowingly
+         collect data from anyone, including children under the age of 13.</p>
+
+      <h2>Changes to this policy</h2>
+      <p>If this policy changes in the future, the updated version will be
+         posted at this URL with a new "last updated" date.</p>
+
+      <h2>Contact</h2>
+      <p>For questions about this policy, please open an issue on the
+         project's source repository.</p>
+    </section>
+
+    <!-- ============================ NEDERLANDS ============================ -->
+    <section id="nl" lang="nl">
+      <h1>Privacybeleid</h1>
+      <p class="meta">Bonken — laatst bijgewerkt op 26 april 2026</p>
+
+      <p>
+        Bonken is een scoreberekenaar voor het Nederlandse kaartspel Bonken.
+        De app draait volledig op je eigen apparaat en is ontworpen om
+        zonder internetverbinding te werken. Dit beleid beschrijft welke
+        gegevens de app verwerkt en welke niet.
+      </p>
+
+      <h2>Gegevens die wij verzamelen</h2>
+      <p><strong>Geen.</strong> Bonken verzamelt, verstuurt, verkoopt, deelt
+         of verwerkt geen enkel persoonsgegeven. Er is geen analytics, geen
+         telemetrie, geen advertentie-identificatie en geen crashrapportage.</p>
+
+      <h2>Gegevens die op je apparaat worden bewaard</h2>
+      <p>De app slaat de volgende gegevens lokaal op je apparaat op zodat je
+         spellen kunt hervatten en eerdere resultaten kunt teruglezen:</p>
+      <ul>
+        <li>Spelersnamen die je invult bij het opzetten van een spel.</li>
+        <li>Scores en rondedetails van gespeelde spellen.</li>
+        <li>Je app-voorkeuren (zoals licht/donker thema).</li>
+      </ul>
+      <p>Deze gegevens verlaten je apparaat nooit. Ze worden opgeslagen in
+         de lokale opslag van de app en kunnen op elk moment worden
+         verwijderd: door losse spellen in de app te verwijderen, door de
+         app-data te wissen via de instellingen van je apparaat, of door
+         de app te verwijderen.</p>
+
+      <h2>Gebruik van het netwerk</h2>
+      <p>De app heeft geen internetverbinding nodig om te functioneren. De
+         enige netwerkverzoeken die de app doet zijn:</p>
+      <ul>
+        <li><strong>Controleren op app-updates</strong> — op Android via de
+            Google Play Store, en in de webversie via het standaard
+            browser-mechanisme voor Progressive Web Apps. Deze controles
+            worden uitgevoerd door respectievelijk Google Play en je
+            browser, niet door Bonken zelf, en vallen onder hun eigen
+            privacybeleid.</li>
+      </ul>
+      <p>Verder vindt er geen netwerkcommunicatie plaats. De app neemt geen
+         contact op met enige server die door ons wordt beheerd.</p>
+
+      <h2>Toestemmingen</h2>
+      <p>Bonken vraagt geen toegang tot je contacten, locatie, camera,
+         microfoon, foto's, bestanden of andere gevoelige onderdelen van je
+         apparaat.</p>
+
+      <h2>Privacy van kinderen</h2>
+      <p>Omdat de app geen persoonsgegevens verzamelt, verzamelt deze ook
+         bewust geen gegevens van wie dan ook, inclusief kinderen jonger
+         dan 13 jaar.</p>
+
+      <h2>Wijzigingen in dit beleid</h2>
+      <p>Als dit beleid in de toekomst wijzigt, wordt de bijgewerkte versie
+         op deze URL geplaatst met een nieuwe datum onder "laatst
+         bijgewerkt".</p>
+
+      <h2>Contact</h2>
+      <p>Voor vragen over dit beleid kun je een issue openen op de
+         broncode-repository van het project.</p>
+    </section>
+  </main>
+</body>
+</html>

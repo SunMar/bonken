@@ -1,0 +1,75 @@
+name: bonken
+description: "Bonken – score calculator for the Dutch card game Bonken."
+publish_to: 'none'
+
+# Version is intentionally not committed here.  CI passes --build-name and
+# --build-number to `flutter build` based on the git tag / run number.
+# For local `flutter run` Flutter falls back to the defaults 1.0.0+1.
+
+environment:
+  sdk: ^3.11.5
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^3.3.1
+
+  # Google Fonts — Roboto bundled as local assets in assets/google_fonts/<version>/
+  # allowRuntimeFetching is disabled so the app works fully offline.
+  # When upgrading google_fonts, re-download the font files for the new version
+  # and update the assets/ paths below.
+  google_fonts: ^8.0.2
+
+  # Persistent local storage (used for future game tracking)
+  in_app_update: ^4.2.5
+  shared_preferences: ^2.5.3
+
+  # Default Flutter font set; silences the "missing cupertino_icons" warning
+  # emitted by `flutter build web` even though no CupertinoIcon is used.
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher icon generation.  Run after changing the source SVG/PNG:
+#   dart run flutter_launcher_icons
+# This regenerates android/app/src/main/res/mipmap-* assets and the web favicon.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon_bonken.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "assets/icon/icon_bonken_adaptive_bg.png"
+  adaptive_icon_foreground: "assets/icon/icon_bonken_adaptive_fg.png"
+  web:
+    generate: true
+    image_path: "assets/icon/icon_bonken.png"
+    background_color: "#283593"
+    theme_color: "#5C6BC0"
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # Roboto font files for google_fonts 8.0.2 (allowRuntimeFetching = false)
+  assets:
+    - assets/google_fonts/8.0.2/
+    - assets/icon/icon_bonken.png

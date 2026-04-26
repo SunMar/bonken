@@ -1,0 +1,218 @@
+name: Release
+
+# Triggers on any tag matching MAJOR.MINOR.PATCH  (e.g. 1.0.0, 1.2.3).
+# Run locally with:  git tag 1.0.0 && git push --tags
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  # =====================================================================
+  # Build everything that does NOT require the upload keystore:
+  #   - run tests
+  #   - build the web (PWA) bundle
+  # Outputs the derived version so later jobs can reuse it.
+  # =====================================================================
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.version.outputs.name }}
+      code: ${{ steps.version.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.7'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install rsvg-convert
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-roboto
+
+      - name: Generate launcher icons
+        run: ./tool/generate_icons.sh
+
+      - name: Run tests
+        run: flutter test
+
+      # -----------------------------------------------------------------
+      # Derive version info from the git tag.
+      #   Tag must look like  MAJOR.MINOR.PATCH  (e.g. 1.2.3)
+      #   versionName  ← the tag itself
+      #   versionCode  ← GITHUB_RUN_NUMBER  (monotonic, never repeats)
+      # -----------------------------------------------------------------
+      - name: Derive version
+        id: version
+        run: |
+          NAME="$GITHUB_REF_NAME"
+          if [[ ! "$NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$NAME' is not in the form MAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build web (PWA)
+        run: |
+          flutter build web --release \
+            --build-name=${{ steps.version.outputs.name }} \
+            --build-number=${{ steps.version.outputs.code }}
+
+      - name: Zip web build
+        run: |
+          cd build/web
+          zip -r "../../bonken-web-${{ github.ref_name }}.zip" .
+
+      - name: Upload web zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: bonken-web-${{ github.ref_name }}
+          path: bonken-web-${{ github.ref_name }}.zip
+          retention-days: 7
+
+  # =====================================================================
+  # Build the signed Android artifacts and (optionally) publish to Play.
+  # Runs in the `play-store` environment, so the upload-keystore secrets
+  # are only exposed to this job — and only after any environment
+  # protection rules (required reviewers, branch/tag filters) pass.
+  # =====================================================================
+  release-android:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: play-store
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.7'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install rsvg-convert
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-roboto
+
+      - name: Generate launcher icons
+        run: ./tool/generate_icons.sh
+
+      # -----------------------------------------------------------------
+      # Decode upload keystore from the environment secrets.
+      # -----------------------------------------------------------------
+      - name: Decode upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set in the play-store environment"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Build Android APK
+        run: |
+          flutter build apk --release \
+            --build-name=${{ needs.build.outputs.name }} \
+            --build-number=${{ needs.build.outputs.code }}
+
+      - name: Build Android App Bundle (AAB)
+        run: |
+          flutter build appbundle --release \
+            --build-name=${{ needs.build.outputs.name }} \
+            --build-number=${{ needs.build.outputs.code }}
+
+      - name: Rename Android artifacts
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             "bonken-${{ github.ref_name }}.apk"
+          mv build/app/outputs/bundle/release/app-release.aab \
+             "bonken-${{ github.ref_name }}.aab"
+
+      - name: Upload AAB as workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bonken-${{ github.ref_name }}-aab
+          path: bonken-${{ github.ref_name }}.aab
+          retention-days: 90
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bonken-${{ github.ref_name }}-apk
+          path: bonken-${{ github.ref_name }}.apk
+          retention-days: 7
+
+      # -----------------------------------------------------------------
+      # Publish to Google Play (beta track, draft).
+      # Skipped when the service-account secret is missing — useful for
+      # the very first release, which must be uploaded manually through
+      # the Play Console UI.
+      # -----------------------------------------------------------------
+      - name: Publish to Play Console (beta, draft)
+        if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.suninet.bonken
+          releaseFiles: bonken-${{ github.ref_name }}.aab
+          track: beta
+          status: draft
+
+  # =====================================================================
+  # Create the public GitHub Release with the web zip + APK.
+  # Runs after both build jobs so it can attach artifacts from each.
+  # =====================================================================
+  publish-release:
+    needs: [build, release-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download web zip
+        uses: actions/download-artifact@v8
+        with:
+          name: bonken-web-${{ github.ref_name }}
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          name: bonken-${{ github.ref_name }}-apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            bonken-web-${{ github.ref_name }}.zip
+            bonken-${{ github.ref_name }}.apk
