@@ -186,7 +186,12 @@ class _DoublesPickerState extends State<DoublesPicker> {
                 // Can only redouble if our turn comes AFTER the initiator's.
                 final canRedouble =
                     !isInit && _turnIndex(_selected!) > _turnIndex(t);
-                final isInteractive = isInit || canRedouble;
+                // The chooser is not allowed to initiate doubles — they may
+                // only redouble (Terug) someone who doubled them.
+                final isChooserInitiating =
+                    _selected == widget.chooserIndex && isInit;
+                final isInteractive =
+                    !isChooserInitiating && (isInit || canRedouble);
                 return _TargetTile(
                   name: widget.playerNames[t],
                   state: st,
