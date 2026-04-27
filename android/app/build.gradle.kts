@@ -37,6 +37,16 @@ android {
     defaultConfig {
         // Application ID registered in the Google Play Console.
         applicationId = "com.suninet.bonken"
+        // Optional suffix + label override for parallel-installable side
+        // builds (e.g. the `testing` branch APK).  Pass on the command
+        // line:  ./gradlew … -PappIdSuffix=.testing -PappLabel="Bonken (testing)"
+        // When unset, the regular Play Store identity is used.
+        val appIdSuffix = (project.findProperty("appIdSuffix") as String?).orEmpty()
+        if (appIdSuffix.isNotEmpty()) {
+            applicationIdSuffix = appIdSuffix
+        }
+        manifestPlaceholders["appLabel"] =
+            (project.findProperty("appLabel") as String?) ?: "Bonken"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

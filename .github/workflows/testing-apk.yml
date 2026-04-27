@@ -1,0 +1,78 @@
+name: Testing APK
+
+# Builds a side-installable APK from the `testing` branch on every push.
+# The APK uses a different applicationId (com.suninet.bonken.testing) and
+# a different launcher label, so it coexists on the device with the
+# Play Store install and can never be overwritten by it.
+#
+# Signed with the standard debug key (created automatically by the
+# Flutter/Android toolchain), so no upload-keystore secrets are needed.
+
+on:
+  push:
+    branches: [testing]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testing-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.7'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install rsvg-convert
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-roboto
+
+      - name: Generate launcher icons
+        run: ./tool/generate_icons.sh
+
+      # versionName  = 0.0.0-testing.<run>+<sha>   (informational only)
+      # versionCode  = GITHUB_RUN_NUMBER          (monotonic, unique per build)
+      # The applicationId differs from the Play build, so versionCode
+      # collisions with Play are irrelevant.
+      - name: Derive version
+        id: version
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          echo "name=0.0.0-testing.${GITHUB_RUN_NUMBER}+${SHA}" >> "$GITHUB_OUTPUT"
+          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build testing APK
+        run: |
+          flutter build apk --release \
+            --build-name=${{ steps.version.outputs.name }} \
+            --build-number=${{ steps.version.outputs.code }} \
+            -PappIdSuffix=.testing \
+            -PappLabel="Bonken (testing)"
+
+      - name: Rename APK
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             "bonken-testing-${{ steps.version.outputs.name }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bonken-testing-apk
+          path: bonken-testing-*.apk
+          retention-days: 14
