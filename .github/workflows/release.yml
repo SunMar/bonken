@@ -173,12 +173,15 @@ jobs:
           retention-days: 7
 
       # -----------------------------------------------------------------
-      # Publish to Google Play (beta track, draft).
+      # Publish to Google Play (closed testing = "alpha" in the API,
+      # shown as "Closed testing — Alpha" in the Play Console UI).
+      # Uploaded as a draft, so promotion to testers is a manual click
+      # in the Play Console.
       # Skipped when the service-account secret is missing — useful for
       # the very first release, which must be uploaded manually through
       # the Play Console UI.
       # -----------------------------------------------------------------
-      - name: Publish to Play Console (beta, draft)
+      - name: Publish to Play Console (alpha, draft)
         if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -187,7 +190,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.suninet.bonken
           releaseFiles: bonken-${{ github.ref_name }}.aab
-          track: beta
+          track: alpha
           status: draft
 
   # =====================================================================
