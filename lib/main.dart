@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -37,6 +38,14 @@ class BonkenApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Bonken',
       debugShowCheckedModeBanner: false,
+      // Force Dutch UI regardless of the user's system/browser language.
+      locale: const Locale('nl'),
+      supportedLocales: const [Locale('nl')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         colorSchemeSeed: Colors.indigo,
         useMaterial3: true,
