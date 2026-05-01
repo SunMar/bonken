@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/double_matrix.dart';
 import '../models/games/game_catalog.dart';
 import '../models/mini_game.dart';
 import '../models/round_record.dart';
@@ -10,6 +9,7 @@ import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/score_result_view.dart';
@@ -221,6 +221,7 @@ class CalculatorScreen extends ConsumerWidget {
                 result: state.result!,
                 game: state.selectedGame!,
                 playerNames: state.playerNames,
+                doubles: state.doubles,
                 showHeader: false,
               ),
             ),
@@ -813,6 +814,7 @@ class _GameInputPhase extends ConsumerWidget {
             result: state.result!,
             game: game,
             playerNames: state.playerNames,
+            doubles: state.doubles,
           )
         else
           ScoreResultView(
@@ -821,6 +823,7 @@ class _GameInputPhase extends ConsumerWidget {
                 ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
             game: game,
             playerNames: state.playerNames,
+            doubles: state.doubles,
             isPartial: true,
           ),
         const SizedBox(height: 24),
@@ -929,65 +932,6 @@ class _ScoreboardCard extends ConsumerWidget {
 // =============================================================================
 // History list — compact log of completed rounds
 // =============================================================================
-
-/// A compact row of doubles chips for a single round, e.g.
-/// [primaryChip "A × B"] [tertiaryChip "C ×× D"]
-/// Returns null when there are no active doubles.
-class _DoublesChips extends StatelessWidget {
-  const _DoublesChips({required this.doubles, required this.names});
-
-  final DoubleMatrix doubles;
-  final List<String> names;
-
-  @override
-  Widget build(BuildContext context) {
-    const pairs = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-    final cs = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
-    final redoubleBg = redoubleContainer(cs, brightness);
-    final onRedoubleBg = onRedoubleContainer(cs, brightness);
-    final chips = <Widget>[];
-
-    for (final (a, b) in pairs) {
-      final state = doubles.stateFor(a, b);
-      if (state == DoubleState.none) continue;
-      final initiator = doubles.initiatorFor(a, b) ?? a;
-      final other = initiator == a ? b : a;
-      final label = state == DoubleState.redoubled
-          ? '${names[initiator]} ×× ${names[other]}'
-          : '${names[initiator]} × ${names[other]}';
-      final bg = state == DoubleState.redoubled
-          ? redoubleBg
-          : cs.primaryContainer;
-      final fg = state == DoubleState.redoubled
-          ? onRedoubleBg
-          : cs.onPrimaryContainer;
-      if (chips.isNotEmpty) chips.add(const SizedBox(width: 4));
-      chips.add(
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (chips.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Wrap(spacing: 4, runSpacing: 4, children: chips),
-    );
-  }
-}
 
 class _HistoryList extends ConsumerWidget {
   const _HistoryList();
@@ -1116,7 +1060,7 @@ class _HistoryList extends ConsumerWidget {
                               ?.copyWith(color: cs.onSurfaceVariant),
                         ),
                         if (record.doubles.hasAnyDouble)
-                          _DoublesChips(
+                          DoublesChips(
                             doubles: record.doubles,
                             names: state.playerNames,
                           ),

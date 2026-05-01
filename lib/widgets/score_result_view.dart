@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
 import '../models/score_result.dart';
 import '../utils.dart';
+import 'doubles_chips.dart';
 
 /// Displays the per-player score outcome of a calculated mini-game round.
 class ScoreResultView extends StatelessWidget {
@@ -10,6 +12,7 @@ class ScoreResultView extends StatelessWidget {
     required this.result,
     required this.game,
     required this.playerNames,
+    this.doubles,
     this.isPartial = false,
     this.showHeader = true,
     super.key,
@@ -18,6 +21,7 @@ class ScoreResultView extends StatelessWidget {
   final ScoreResult result;
   final MiniGame game;
   final List<String> playerNames;
+  final DoubleMatrix? doubles;
 
   /// When true, shows a pending icon and dimmed opacity, indicating the score
   /// is not yet final.
@@ -62,6 +66,10 @@ class ScoreResultView extends StatelessWidget {
                   score: result.scores[i] ?? 0,
                   isWinner: winners.contains(i),
                 ),
+              if (doubles?.hasAnyDouble == true) ...[
+                const SizedBox(height: 8),
+                DoublesChips(doubles: doubles!, names: playerNames),
+              ],
             ],
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/score_result.dart';
 import 'package:bonken/widgets/score_result_view.dart';
@@ -76,6 +77,27 @@ void main() {
         ),
       );
       expect(find.text('Score'), findsNothing);
+    });
+
+    testWidgets('shows doubles and redoubles chips when present', (
+      tester,
+    ) async {
+      final doubles = DoubleMatrix.empty()
+          .withPair(0, 1, DoubleState.doubled, initiator: 0)
+          .withPair(2, 3, DoubleState.redoubled, initiator: 3);
+
+      await pumpHost(
+        tester,
+        ScoreResultView(
+          result: const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
+          game: const Clubs(),
+          playerNames: playerNames,
+          doubles: doubles,
+        ),
+      );
+
+      expect(find.text('Alice × Bob'), findsOneWidget);
+      expect(find.text('Dan ×× Carol'), findsOneWidget);
     });
   });
 }
