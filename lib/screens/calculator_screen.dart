@@ -1023,6 +1023,7 @@ class _HistoryList extends ConsumerWidget {
               ReorderableListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
                 itemCount: rounds.length,
                 onReorder: notifier.reorderRounds,
                 itemBuilder: (ctx, i) {
@@ -1039,6 +1040,19 @@ class _HistoryList extends ConsumerWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
+                              ReorderableDragStartListener(
+                                index: i,
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.grab,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Icon(
+                                      Icons.drag_indicator,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
