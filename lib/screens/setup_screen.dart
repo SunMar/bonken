@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/mini_game.dart';
@@ -16,22 +17,71 @@ class SetupScreen extends ConsumerStatefulWidget {
 
 class _SetupScreenState extends ConsumerState<SetupScreen> {
   bool _started = false;
+  late final List<FocusNode> _focusNodes;
+  late final List<TextEditingController> _controllers;
 
   @override
   void initState() {
     super.initState();
+    final names = ref.read(calculatorProvider).playerNames;
+    _controllers = [
+      for (int i = 0; i < playerCount; i++)
+        TextEditingController(text: names[i]),
+    ];
+    _focusNodes = List.generate(playerCount, (i) {
+      final node = FocusNode();
+      node.addListener(() {
+        if (!node.hasFocus) _commitSlot(i);
+      });
+      return node;
+    });
     // State is already reset by the caller (StartScreen) before pushing this
     // route, so no reset is needed here.
   }
 
   @override
   void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final n in _focusNodes) {
+      n.dispose();
+    }
     // If the user navigated back without starting, clear the provider so the
     // next visit always opens with a blank form.
     if (!_started) {
       ref.read(calculatorProvider.notifier).reset();
     }
     super.dispose();
+  }
+
+  /// Pushes the current controller text for [i] into the provider when it
+  /// differs from the stored value.
+  void _commitSlot(int i) {
+    final text = _controllers[i].text;
+    if (text != ref.read(calculatorProvider).playerNames[i]) {
+      ref.read(calculatorProvider.notifier).setPlayerName(i, text);
+    }
+  }
+
+  void _commitAllSlots() {
+    for (int i = 0; i < playerCount; i++) {
+      _commitSlot(i);
+    }
+  }
+
+  /// Called when the user presses Enter on the slot at [index].
+  /// If the next slot exists and is still empty, focus it so the user can
+  /// keep typing.  Otherwise unfocus the current field so the cursor
+  /// disappears.
+  void _handleFieldSubmitted(int index) {
+    _commitSlot(index);
+    final next = index + 1;
+    if (next < playerCount && _controllers[next].text.trim().isEmpty) {
+      _focusNodes[next].requestFocus();
+      return;
+    }
+    _focusNodes[index].unfocus();
   }
 
   @override
@@ -64,20 +114,79 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           children: [
           // ---- Player names ----
           Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 16),
-          for (int i = 0; i < playerCount; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
-            _NameField(
-              index: i,
-              initialName: state.playerNames[i],
-              suggestions: suggestions,
-              takenNames: {
-                for (int j = 0; j < playerCount; j++)
-                  if (j != i && trimmedNames[j].isNotEmpty) trimmedNames[j],
-              },
-              notifier: notifier,
+          const SizedBox(height: 4),
+          Text(
+            'Sleep om de volgorde te wijzigen.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-          ],
+          ),
+          const SizedBox(height: 12),
+          ReorderableListView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            onReorder: (oldIndex, newIndex) {
+              // Commit any pending edits first so the provider has the latest
+              // text before we reorder it.
+              _commitAllSlots();
+              notifier.reorderPlayerNames(oldIndex, newIndex);
+              // Sync controller texts to the new order.  This does not move
+              // focus, so the field the user was editing keeps its caret.
+              final newNames = ref.read(calculatorProvider).playerNames;
+              for (int i = 0; i < playerCount; i++) {
+                if (_controllers[i].text != newNames[i]) {
+                  _controllers[i].value = TextEditingValue(
+                    text: newNames[i],
+                    selection: TextSelection.collapsed(
+                      offset: newNames[i].length,
+                    ),
+                  );
+                }
+              }
+            },
+            children: [
+              for (int i = 0; i < playerCount; i++)
+                Padding(
+                  key: ValueKey('player-slot-$i'),
+                  padding: EdgeInsets.only(bottom: i < playerCount - 1 ? 12 : 0),
+                  child: Row(
+                    children: [
+                      ReorderableDragStartListener(
+                        index: i,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.grab,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Icon(
+                              Icons.drag_indicator,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _NameField(
+                          index: i,
+                          controller: _controllers[i],
+                          focusNode: _focusNodes[i],
+                          suggestions: suggestions,
+                          takenNames: {
+                            for (int j = 0; j < playerCount; j++)
+                              if (j != i && trimmedNames[j].isNotEmpty)
+                                trimmedNames[j],
+                          },
+                          onSubmitted: () => _handleFieldSubmitted(i),
+                          isLast: i == playerCount - 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
 
           if (hasDuplicateNames) ...[
             const SizedBox(height: 8),
@@ -148,6 +257,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ),
             onPressed: canStart
                 ? () {
+                    _commitAllSlots();
                     _started = true;
                     final notifier = ref.read(calculatorProvider.notifier);
                     notifier.initSession();
@@ -177,26 +287,27 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 class _NameField extends StatelessWidget {
   const _NameField({
     required this.index,
-    required this.initialName,
+    required this.controller,
+    required this.focusNode,
     required this.suggestions,
     required this.takenNames,
-    required this.notifier,
+    required this.onSubmitted,
+    required this.isLast,
   });
 
   final int index;
-  final String initialName;
+  final TextEditingController controller;
+  final FocusNode focusNode;
   final List<String> suggestions;
   final Set<String> takenNames;
-  final CalculatorNotifier notifier;
+  final VoidCallback onSubmitted;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Autocomplete<String>(
-      // Rebuild when other players' names change so the cached options list
-      // is recomputed (Autocomplete only re-runs optionsBuilder on text edits).
-      // takenNames excludes our own name, so typing here doesn't reset us.
-      key: ValueKey('field-$index-${takenNames.join("|")}'),
-      initialValue: TextEditingValue(text: initialName),
+    return RawAutocomplete<String>(
+      textEditingController: controller,
+      focusNode: focusNode,
       optionsBuilder: (textEditingValue) {
         if (suggestions.isEmpty) return const Iterable<String>.empty();
         final query = textEditingValue.text.toLowerCase();
@@ -207,7 +318,12 @@ class _NameField extends StatelessWidget {
         if (query.isEmpty) return available;
         return available.where((s) => s.toLowerCase().contains(query));
       },
-      onSelected: (value) => notifier.setPlayerName(index, value),
+      onSelected: (value) {
+        controller.value = TextEditingValue(
+          text: value,
+          selection: TextSelection.collapsed(offset: value.length),
+        );
+      },
       optionsViewBuilder: (context, onSelected, options) {
         return Align(
           alignment: Alignment.topLeft,
@@ -238,18 +354,38 @@ class _NameField extends StatelessWidget {
           ),
         );
       },
-      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-        return TextField(
-          controller: controller,
-          focusNode: focusNode,
-          decoration: InputDecoration(
-            labelText: 'Speler ${index + 1}',
-            isDense: true,
-            border: const OutlineInputBorder(),
+      fieldViewBuilder: (context, ctrl, fn, onFieldSubmitted) {
+        return Focus(
+          // Intercept Tab so it behaves the same as the on-screen "Next"
+          // action: commit + advance to the next empty slot (or unfocus).
+          // Shift+Tab falls through to the default reverse focus traversal.
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.tab &&
+                !HardwareKeyboard.instance.isShiftPressed) {
+              onFieldSubmitted();
+              onSubmitted();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: TextField(
+            controller: ctrl,
+            focusNode: fn,
+            decoration: InputDecoration(
+              labelText: 'Speler ${index + 1}',
+              isDense: true,
+              border: const OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.words,
+            textInputAction: isLast
+                ? TextInputAction.done
+                : TextInputAction.next,
+            onSubmitted: (_) {
+              onFieldSubmitted();
+              onSubmitted();
+            },
           ),
-          textCapitalization: TextCapitalization.words,
-          onChanged: (v) => notifier.setPlayerName(index, v),
-          onSubmitted: (_) => onFieldSubmitted(),
         );
       },
     );

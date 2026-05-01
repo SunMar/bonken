@@ -331,6 +331,43 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     state = state.copyWith(playerNames: updated, updatedAt: DateTime.now());
   }
 
+  /// Reorders the player names list, moving the entry at [oldIndex] to
+  /// [newIndex] (using the same convention as [ReorderableListView]).
+  ///
+  /// If the dealer was already chosen, the dealer index is updated so it
+  /// keeps pointing at the same person after the move.
+  void reorderPlayerNames(int oldIndex, int newIndex) {
+    if (oldIndex == newIndex) return;
+    final names = List<String>.from(state.playerNames);
+    if (oldIndex < 0 || oldIndex >= names.length) return;
+    // ReorderableListView uses an "insert before" convention where newIndex
+    // can equal names.length and is one greater than the source position
+    // when moving down.
+    var target = newIndex;
+    if (target > oldIndex) target -= 1;
+    if (target < 0) target = 0;
+    if (target >= names.length) target = names.length - 1;
+    final moved = names.removeAt(oldIndex);
+    names.insert(target, moved);
+
+    // Recompute dealer index so it still points at the same person.
+    var dealer = state.dealerIndex;
+    if (state.dealerChosen) {
+      if (dealer == oldIndex) {
+        dealer = target;
+      } else {
+        if (oldIndex < dealer) dealer -= 1;
+        if (target <= dealer) dealer += 1;
+      }
+    }
+
+    state = state.copyWith(
+      playerNames: names,
+      dealerIndex: dealer,
+      updatedAt: DateTime.now(),
+    );
+  }
+
   void setDealer(int index) {
     // Changing the first-game dealer resets the round counter and history.
     state = state.copyWith(
