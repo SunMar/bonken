@@ -12,6 +12,7 @@ class ScoreResultView extends StatelessWidget {
     required this.result,
     required this.game,
     required this.playerNames,
+    required this.chooserIndex,
     this.doubles,
     this.isPartial = false,
     this.showHeader = true,
@@ -22,6 +23,7 @@ class ScoreResultView extends StatelessWidget {
   final MiniGame game;
   final List<String> playerNames;
   final DoubleMatrix? doubles;
+  final int chooserIndex;
 
   /// When true, shows a pending icon and dimmed opacity, indicating the score
   /// is not yet final.
@@ -68,7 +70,11 @@ class ScoreResultView extends StatelessWidget {
                 ),
               if (doubles?.hasAnyDouble == true) ...[
                 const SizedBox(height: 8),
-                DoublesChips(doubles: doubles!, names: playerNames),
+                DoublesChips(
+                  doubles: doubles!,
+                  names: playerNames,
+                  chooserIndex: chooserIndex,
+                ),
               ],
             ],
           ),

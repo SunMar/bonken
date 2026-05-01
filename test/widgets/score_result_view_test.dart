@@ -20,6 +20,7 @@ void main() {
           result: const ScoreResult(scores: {0: 80, 1: 80, 2: 40, 3: 60}),
           game: const Clubs(),
           playerNames: playerNames,
+          chooserIndex: 0,
         ),
       );
       expect(find.text('+80'), findsNWidgets(2));
@@ -36,6 +37,7 @@ void main() {
           result: const ScoreResult(scores: {0: 100, 1: 50, 2: 80, 3: 30}),
           game: const Clubs(),
           playerNames: playerNames,
+          chooserIndex: 0,
         ),
       );
       expect(find.byIcon(Icons.emoji_events), findsOneWidget);
@@ -48,6 +50,7 @@ void main() {
           result: const ScoreResult(scores: {0: 100, 1: 100, 2: 50, 3: 10}),
           game: const Clubs(),
           playerNames: playerNames,
+          chooserIndex: 0,
         ),
       );
       expect(find.byIcon(Icons.emoji_events), findsNWidgets(2));
@@ -60,6 +63,7 @@ void main() {
           result: const ScoreResult(scores: {0: 100, 1: 50, 2: 80, 3: 30}),
           game: const Clubs(),
           playerNames: playerNames,
+          chooserIndex: 0,
           isPartial: true,
         ),
       );
@@ -73,6 +77,7 @@ void main() {
           result: const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
           game: const Clubs(),
           playerNames: playerNames,
+          chooserIndex: 0,
           showHeader: false,
         ),
       );
@@ -92,6 +97,7 @@ void main() {
           result: const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
           game: const Clubs(),
           playerNames: playerNames,
+          chooserIndex: 0,
           doubles: doubles,
         ),
       );

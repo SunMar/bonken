@@ -223,6 +223,7 @@ class CalculatorScreen extends ConsumerWidget {
                 game: state.selectedGame!,
                 playerNames: state.playerNames,
                 doubles: state.doubles,
+                chooserIndex: state.chooserIndex,
                 showHeader: false,
               ),
             ),
@@ -823,6 +824,7 @@ class _GameInputPhase extends ConsumerWidget {
             game: game,
             playerNames: state.playerNames,
             doubles: state.doubles,
+            chooserIndex: state.chooserIndex,
           )
         else
           ScoreResultView(
@@ -832,6 +834,7 @@ class _GameInputPhase extends ConsumerWidget {
             game: game,
             playerNames: state.playerNames,
             doubles: state.doubles,
+            chooserIndex: state.chooserIndex,
             isPartial: true,
           ),
         const SizedBox(height: 24),
@@ -1095,6 +1098,7 @@ class _HistoryList extends ConsumerWidget {
                           DoublesChips(
                             doubles: record.doubles,
                             names: state.playerNames,
+                            chooserIndex: record.chooserIndex,
                           ),
                       ],
                     ),
