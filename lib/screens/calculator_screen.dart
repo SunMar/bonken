@@ -89,17 +89,26 @@ final _hasPlayersChangesProvider =
     );
 
 // Game symbols displayed next to each game name in the selection list.
+// The trailing U+FE0E ("variation selector-15", a.k.a. VS15) forces text-style
+// rendering for characters that have both a text and an emoji presentation
+// (e.g. the playing-card suits ♣ ♦ ♥ ♠).  Without it, platforms whose default
+// font stack prefers an emoji font for these dual-presentation codepoints
+// (Android via Noto Color Emoji, iOS/macOS via Apple Color Emoji) would
+// render them as colored emoji glyphs that don't match the rest of the UI.
+// Most desktop browsers default to text presentation already, so VS15 makes
+// the rendering consistent across all platforms.
+const _vs15 = '\uFE0E';
 const _gameSymbols = {
-  'clubs': '♣',
-  'diamonds': '♦',
-  'hearts': '♥',
-  'spades': '♠',
+  'clubs': '♣$_vs15',
+  'diamonds': '♦$_vs15',
+  'hearts': '♥$_vs15',
+  'spades': '♠$_vs15',
   'noTrump': 'SA',
-  'kingOfHearts': '♥H',
+  'kingOfHearts': '♥${_vs15}H',
   'kingsAndJacks': 'H/B',
   'queens': 'V',
   'duck': '▼',
-  'heartPoints': '♥♥',
+  'heartPoints': '♥$_vs15♥$_vs15',
   'seventhAndThirteenth': '7/13',
   'finalTrick': '★',
   'dominoes': 'D',
@@ -1551,7 +1560,8 @@ class _GameSymbol extends StatelessWidget {
           ),
           children: [
             TextSpan(
-              text: '♥',
+              // Heart + VS15 forces monochrome text rendering.
+              text: '♥$_vs15',
               style: TextStyle(fontSize: fontSize * 0.93),
             ),
             const TextSpan(text: 'H'),
