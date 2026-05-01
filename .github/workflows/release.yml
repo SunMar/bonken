@@ -124,11 +124,15 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [[ -z "$KEYSTORE_BASE64" ]]; then
             echo "::error::ANDROID_KEYSTORE_BASE64 is not set in the play-store environment"
+            exit 1
+          fi
+          if [[ -z "$KEY_ALIAS" ]]; then
+            echo "::error::ANDROID_KEY_ALIAS is not set in the play-store environment (it should be a repository or environment variable, not a secret)"
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks

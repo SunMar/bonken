@@ -24,9 +24,10 @@ dependencies:
 
   # Google Fonts — Roboto bundled as local assets in assets/google_fonts/<version>/
   # allowRuntimeFetching is disabled so the app works fully offline.
-  # When upgrading google_fonts, re-download the font files for the new version
-  # and update the assets/ paths below.
-  google_fonts: ^8.0.2
+  # When upgrading google_fonts: run `tool/update_google_fonts.sh` to download
+  # the new font files, then update the asset path below and in lib/main.dart
+  # and delete the previous version directory.
+  google_fonts: ^8.1.0
 
   # Persistent local storage (used for future game tracking)
   in_app_update: ^4.2.5
@@ -69,7 +70,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Roboto font files for google_fonts 8.0.2 (allowRuntimeFetching = false)
+  # Roboto font files for google_fonts 8.1.0 (allowRuntimeFetching = false)
   assets:
-    - assets/google_fonts/8.0.2/
+    - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png
