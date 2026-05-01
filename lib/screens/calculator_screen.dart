@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/games/game_catalog.dart';
@@ -13,6 +12,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/game_input/game_input_form.dart';
+import '../widgets/player_name_field.dart';
 import '../widgets/score_result_view.dart';
 import 'setup_screen.dart';
 import 'start_screen.dart';
@@ -123,6 +123,26 @@ const _gameColors = {
   'hearts': Color(0xFFB52424), // muted red
 };
 
+// Shared body text for "discard your edits" confirmation dialogs.
+const _discardChangesMessage = 'Je wijzigingen gaan verloren.';
+
+/// Standard confirmation dialog used whenever the user is about to abandon
+/// unsaved edits. Returns true if the user confirms the discard.
+Future<bool> _confirmDiscardChanges(
+  BuildContext context, {
+  String title = 'Wijzigingen verwerpen',
+  String contentText = _discardChangesMessage,
+}) async {
+  final confirm = await showConfirmDialog(
+    context,
+    title: title,
+    contentText: contentText,
+    confirmLabel: 'Verwerpen',
+    destructive: true,
+  );
+  return confirm == true;
+}
+
 // =============================================================================
 // CalculatorScreen — top-level screen
 // =============================================================================
@@ -161,16 +181,14 @@ class CalculatorScreen extends ConsumerWidget {
       );
       if (hasChanges) {
         if (!context.mounted) return;
-        final confirm = await showConfirmDialog(
+        final confirmed = await _confirmDiscardChanges(
           context,
           title: isEditing ? 'Wijzigingen verwerpen' : 'Invoer verwerpen',
           contentText: isEditing
-              ? 'Je aanpassingen gaan verloren.'
+              ? _discardChangesMessage
               : 'Je ingevoerde gegevens gaan verloren.',
-          confirmLabel: 'Verwerpen',
-          destructive: true,
         );
-        if (confirm != true) return;
+        if (!confirmed) return;
       }
       cancelInputPhase();
     }
@@ -181,14 +199,11 @@ class CalculatorScreen extends ConsumerWidget {
         // Back while editing = discard path, same as Verwerpen.
         if (state.hasActiveChanges) {
           if (!context.mounted) return;
-          final confirm = await showConfirmDialog(
+          final confirmed = await _confirmDiscardChanges(
             context,
             title: 'Wijzigingen niet opgeslagen',
-            contentText: 'Je aanpassingen gaan verloren.',
-            confirmLabel: 'Verwerpen',
-            destructive: true,
           );
-          if (confirm != true) return;
+          if (!confirmed) return;
         }
         ref.read(calculatorProvider.notifier).cancelEditRound();
         return;
@@ -283,14 +298,8 @@ class CalculatorScreen extends ConsumerWidget {
     Future<void> confirmAndCancelPlayers() async {
       if (hasPlayersChanges) {
         if (!context.mounted) return;
-        final confirm = await showConfirmDialog(
-          context,
-          title: 'Wijzigingen verwerpen',
-          contentText: 'Je aanpassingen gaan verloren.',
-          confirmLabel: 'Verwerpen',
-          destructive: true,
-        );
-        if (confirm != true) return;
+        final confirmed = await _confirmDiscardChanges(context);
+        if (!confirmed) return;
       }
       ref.read(isEditPlayersModeProvider.notifier).set(false);
     }
@@ -305,15 +314,12 @@ class CalculatorScreen extends ConsumerWidget {
           ).any((i) => snapshot[i].game.id != current[i].game.id);
       if (hasChanges) {
         if (!context.mounted) return;
-        final confirm = await showConfirmDialog(
+        final confirmed = await _confirmDiscardChanges(
           context,
-          title: 'Wijzigingen verwerpen',
           contentText:
-              'Je aanpassingen aan de volgorde worden niet opgeslagen.',
-          confirmLabel: 'Verwerpen',
-          destructive: true,
+              'Je wijzigingen aan de volgorde worden niet opgeslagen.',
         );
-        if (confirm != true) return;
+        if (!confirmed) return;
       }
       ref
           .read(calculatorProvider.notifier)
@@ -1158,7 +1164,7 @@ class _HistoryList extends ConsumerWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 18),
-                        tooltip: 'Aanpassen',
+                        tooltip: 'Wijzigen',
                         visualDensity: VisualDensity.compact,
                         onPressed: () => notifier.restoreRound(record),
                       ),
@@ -1352,9 +1358,24 @@ class _EditPlayersPhase extends ConsumerStatefulWidget {
 }
 
 class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
+  // Short labels shown both in-line under their respective fields and
+  // listed in the confirmation dialog when saving while a game is in progress.
+  static const _playerOrderShortWarning =
+      'De volgorde van de spelers wordt aangepast.';
+  static const _dealerShortWarning =
+      'De deler van de eerste ronde wordt aangepast.';
+  static const _inProgressEffectExplanation =
+      'Dit heeft alleen effect bij invoer van een nieuwe ronde. Van reeds '
+      'ingevoerde rondes (ook die van de eerste ronde) en rondes die al '
+      'gestart zijn worden de kiezer, dubbels en scores niet van aangepast.';
+
   late final List<TextEditingController> _controllers;
+  late final List<FocusNode> _focusNodes;
+  // Snapshot of the original controller order, used to detect player reorders
+  // by identity (text edits do not affect this).
+  late final List<TextEditingController> _originalControllerOrder;
   late int _dealerIndex;
-  late final bool _dealerEnabled;
+  late final bool _gameInProgress;
   late final List<String> _originalNames;
   late final int _originalDealerIndex;
   bool _hasDuplicateNames = false;
@@ -1365,11 +1386,13 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
     final state = ref.read(calculatorProvider);
     _dealerIndex = state.dealerIndex;
     _originalDealerIndex = state.dealerIndex;
-    _dealerEnabled = state.history.isEmpty && !state.hasPendingGame;
+    _gameInProgress = state.history.isNotEmpty || state.hasPendingGame;
     _originalNames = List.unmodifiable(state.playerNames);
     _controllers = [
       for (final name in state.playerNames) TextEditingController(text: name),
     ];
+    _originalControllerOrder = List.unmodifiable(_controllers);
+    _focusNodes = List.generate(playerCount, (_) => FocusNode());
     for (final c in _controllers) {
       c.addListener(_onFormChanged);
     }
@@ -1378,6 +1401,13 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
   }
 
   void _onFormChanged() => _updateProviders();
+
+  bool get _orderChanged {
+    for (int i = 0; i < playerCount; i++) {
+      if (!identical(_controllers[i], _originalControllerOrder[i])) return true;
+    }
+    return false;
+  }
 
   void _updateProviders() {
     if (!mounted) return;
@@ -1390,7 +1420,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
         _controllers.indexed.any(
           (e) => e.$2.text.trim() != _originalNames[e.$1],
         ) ||
-        (_dealerEnabled && _dealerIndex != _originalDealerIndex);
+        _dealerIndex != _originalDealerIndex;
     setState(() => _hasDuplicateNames = hasDuplicates);
     ref.read(_canSavePlayersProvider.notifier).set(canSave);
     ref.read(_hasPlayersChangesProvider.notifier).set(hasChanges);
@@ -1402,19 +1432,87 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
       c.removeListener(_onFormChanged);
       c.dispose();
     }
+    for (final n in _focusNodes) {
+      n.dispose();
+    }
     // Reset providers when leaving.
     ref.read(_canSavePlayersProvider.notifier).set(true);
     ref.read(_hasPlayersChangesProvider.notifier).set(false);
     super.dispose();
   }
 
-  void _save() {
+  void _handleFieldSubmitted(int index) {
+    final next = index + 1;
+    if (next < playerCount && _controllers[next].text.trim().isEmpty) {
+      _focusNodes[next].requestFocus();
+      return;
+    }
+    _focusNodes[index].unfocus();
+  }
+
+  void _onReorder(int oldIndex, int newIndex) {
+    var target = newIndex;
+    if (target > oldIndex) target -= 1;
+    if (target < 0) target = 0;
+    if (target >= playerCount) target = playerCount - 1;
+    if (target == oldIndex) return;
+
+    setState(() {
+      final c = _controllers.removeAt(oldIndex);
+      _controllers.insert(target, c);
+      final f = _focusNodes.removeAt(oldIndex);
+      _focusNodes.insert(target, f);
+      // Keep _dealerIndex pointing at the same person.
+      if (_dealerIndex == oldIndex) {
+        _dealerIndex = target;
+      } else {
+        if (oldIndex < _dealerIndex) _dealerIndex -= 1;
+        if (target <= _dealerIndex) _dealerIndex += 1;
+      }
+    });
+    _updateProviders();
+  }
+
+  Future<void> _save() async {
     if (_controllers.any((c) => c.text.trim().isEmpty)) return;
+    final dealerChanged = _dealerIndex != _originalDealerIndex;
+    final orderChanged = _orderChanged;
+    if (_gameInProgress && (dealerChanged || orderChanged)) {
+      final bodyStyle = Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: Colors.amber);
+      final confirm = await showConfirmDialog(
+        context,
+        title: 'Lopend spel wijzigen',
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (orderChanged)
+              _AmberWarningRow(
+                text: _playerOrderShortWarning,
+                style: bodyStyle,
+              ),
+            if (orderChanged && dealerChanged) const SizedBox(height: 6),
+            if (dealerChanged)
+              _AmberWarningRow(
+                text: _dealerShortWarning,
+                style: bodyStyle,
+              ),
+            const SizedBox(height: 10),
+            Text(_inProgressEffectExplanation, style: bodyStyle),
+          ],
+        ),
+        confirmLabel: 'Wijzigen',
+      );
+      if (confirm != true) return;
+      if (!mounted) return;
+    }
     final notifier = ref.read(calculatorProvider.notifier);
     for (int i = 0; i < playerCount; i++) {
       notifier.setPlayerName(i, _controllers[i].text.trim());
     }
-    if (_dealerEnabled) {
+    if (dealerChanged) {
       notifier.setDealer(_dealerIndex);
     }
     ref.read(isEditPlayersModeProvider.notifier).set(false);
@@ -1423,6 +1521,12 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
   @override
   Widget build(BuildContext context) {
     ref.listen(_editPlayersSaveTriggerProvider, (_, _) => _save());
+
+    final suggestions = ref
+        .watch(gameHistoryProvider.notifier)
+        .playerNameSuggestions;
+    final trimmedNames = _controllers.map((c) => c.text.trim()).toList();
+    final orderChanged = _orderChanged;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1434,22 +1538,63 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Spelers', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 16),
-                for (int i = 0; i < playerCount; i++) ...[
-                  if (i > 0) const SizedBox(height: 12),
-                  TextField(
-                    controller: _controllers[i],
-                    decoration: InputDecoration(
-                      labelText: 'Speler ${i + 1}',
-                      isDense: true,
-                      border: const OutlineInputBorder(),
-                    ),
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: [
-                      LengthLimitingTextInputFormatter(kPlayerNameMaxLength),
-                    ],
+                const SizedBox(height: 4),
+                Text(
+                  'Sleep om de volgorde te wijzigen.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                ],
+                ),
+                const SizedBox(height: 16),
+                ReorderableListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  onReorder: _onReorder,
+                  children: [
+                    for (int i = 0; i < playerCount; i++)
+                      Padding(
+                        key: ValueKey(_focusNodes[i]),
+                        padding: EdgeInsets.only(
+                          bottom: i < playerCount - 1 ? 12 : 0,
+                        ),
+                        child: Row(
+                          children: [
+                            ReorderableDragStartListener(
+                              index: i,
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.grab,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Icon(
+                                    Icons.drag_indicator,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: PlayerNameField(
+                                index: i,
+                                controller: _controllers[i],
+                                focusNode: _focusNodes[i],
+                                suggestions: suggestions,
+                                takenNames: {
+                                  for (int j = 0; j < playerCount; j++)
+                                    if (j != i && trimmedNames[j].isNotEmpty)
+                                      trimmedNames[j],
+                                },
+                                onSubmitted: () => _handleFieldSubmitted(i),
+                                isLast: i == playerCount - 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
                 if (_hasDuplicateNames) ...[
                   const SizedBox(height: 12),
                   Row(
@@ -1467,6 +1612,15 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                         ),
                       ),
                     ],
+                  ),
+                ],
+                if (_gameInProgress && orderChanged) ...[
+                  const SizedBox(height: 12),
+                  _AmberWarningRow(
+                    text: _playerOrderShortWarning,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.amber),
                   ),
                 ],
               ],
@@ -1505,29 +1659,48 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                             ),
                           ),
                       ],
-                      onChanged: _dealerEnabled
-                          ? (v) {
-                              if (v == null) return;
-                              setInnerState(() => _dealerIndex = v);
-                              _updateProviders();
-                            }
-                          : null,
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setInnerState(() => _dealerIndex = v);
+                        _updateProviders();
+                      },
                     );
                   },
                 ),
-                if (!_dealerEnabled) ...[
+                if (_gameInProgress &&
+                    _dealerIndex != _originalDealerIndex) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    'De deler kan niet meer worden gewijzigd nadat de eerste ronde is gestart.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  _AmberWarningRow(
+                    text: _dealerShortWarning,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.amber),
                   ),
                 ],
               ],
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Compact row with an amber warning icon and amber text.
+class _AmberWarningRow extends StatelessWidget {
+  const _AmberWarningRow({required this.text, this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: style)),
       ],
     );
   }

@@ -369,12 +369,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   void setDealer(int index) {
-    // Changing the first-game dealer resets the round counter and history.
+    // Updates who is dealing the current round.  Past rounds in [history] keep
+    // their recorded dealer and are not retroactively re-rotated.  Subsequent
+    // rounds will continue to rotate from this new dealer.
     state = state.copyWith(
       dealerIndex: index,
       dealerChosen: true,
-      roundNumber: 1,
-      history: [],
     );
   }
 

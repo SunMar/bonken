@@ -52,7 +52,7 @@ void main() {
       ]);
     });
 
-    test('setDealer marks dealerChosen and resets round/history', () {
+    test('setDealer marks dealerChosen and updates dealer', () {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
       n.setDealer(2);
