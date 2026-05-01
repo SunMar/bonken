@@ -217,7 +217,7 @@ class _GameSessionCard extends ConsumerWidget {
                     formatDate(session.updatedAt),
                     style: Theme.of(
                       context,
-                    ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                   ),
                   const Spacer(),
                   SizedBox(

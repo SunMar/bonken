@@ -127,7 +127,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
         // Turn order hint
         Text(
           'Volgorde: ${order.map((i) => widget.playerNames[i]).join(' → ')}',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: cs.onSurfaceVariant,
             fontStyle: FontStyle.italic,
           ),
@@ -287,7 +287,7 @@ class _InitiatorTile extends StatelessWidget {
                   ),
                   child: Text(
                     '$involvedCount',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: hasRedouble ? onRedoubleBg : cs.onPrimaryContainer,
                       fontWeight: FontWeight.bold,
                     ),
@@ -350,7 +350,7 @@ class _TargetTile extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: foreground,
           fontWeight: FontWeight.bold,
         ),

@@ -740,7 +740,7 @@ class _GameInputPhase extends ConsumerWidget {
                         : 'Negatief  ·  ${game.totalPoints} punten totaal',
                     style: Theme.of(
                       context,
-                    ).textTheme.bodySmall?.copyWith(color: accentColor),
+                    ).textTheme.bodyMedium?.copyWith(color: accentColor),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -748,7 +748,7 @@ class _GameInputPhase extends ConsumerWidget {
                     'Deler (eerste kaart): ${state.playerNames[state.dealerIndex]}',
                     style: Theme.of(
                       context,
-                    ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -889,7 +889,7 @@ class _ScoreboardCard extends ConsumerWidget {
                     formatDate(state.updatedAt!),
                     style: Theme.of(
                       context,
-                    ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                   ),
               ],
             ),
@@ -907,7 +907,7 @@ class _ScoreboardCard extends ConsumerWidget {
                         Text(
                           state.playerNames[i],
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall,
+                          style: Theme.of(context).textTheme.labelMedium,
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 2),
@@ -999,7 +999,7 @@ class _HistoryList extends ConsumerWidget {
                                       'Ronde ${record.roundNumber} — ${record.game.name}',
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelMedium
+                                          .labelLarge
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -1008,7 +1008,7 @@ class _HistoryList extends ConsumerWidget {
                                       state.playerNames[record.chooserIndex],
                                       style: Theme.of(context)
                                           .textTheme
-                                          .bodySmall
+                                          .bodyMedium
                                           ?.copyWith(
                                             color: cs.onSurfaceVariant,
                                           ),
@@ -1054,12 +1054,12 @@ class _HistoryList extends ConsumerWidget {
                       children: [
                         Text(
                           'Ronde ${record.roundNumber} — ${record.game.name}',
-                          style: Theme.of(context).textTheme.labelMedium
+                          style: Theme.of(context).textTheme.labelLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
                           state.playerNames[record.chooserIndex],
-                          style: Theme.of(context).textTheme.bodySmall
+                          style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: cs.onSurfaceVariant),
                         ),
                         if (record.doubles.hasAnyDouble)
@@ -1081,7 +1081,7 @@ class _HistoryList extends ConsumerWidget {
                             for (int i = 0; i < playerCount; i++)
                               Text(
                                 '${state.playerNames[i]}:',
-                                style: Theme.of(context).textTheme.bodySmall
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(color: cs.onSurfaceVariant),
                               ),
                           ],
@@ -1093,7 +1093,7 @@ class _HistoryList extends ConsumerWidget {
                             for (int i = 0; i < playerCount; i++)
                               Text(
                                 formatScore(record.result.scores[i] ?? 0),
-                                style: Theme.of(context).textTheme.bodySmall
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(
                                       color: scoreColor(
                                         record.result.scores[i] ?? 0,
@@ -1192,7 +1192,7 @@ class _ChooserSelector extends ConsumerWidget {
           children: [
             Text(
               'Wie koos dit spel?',
-              style: Theme.of(context).textTheme.labelMedium,
+              style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<int>(
@@ -1278,7 +1278,7 @@ class _RoundInfoBanner extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Text(
                     'Deler: $dealerName  ·  Kiezer: $chooserName',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: cs.onSecondaryContainer,
                     ),
                   ),
@@ -1411,7 +1411,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                       const SizedBox(width: 6),
                       Text(
                         'Twee spelers hebben dezelfde naam.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.error,
                         ),
                       ),
@@ -1431,7 +1431,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
               children: [
                 Text(
                   'Deler eerste ronde',
-                  style: Theme.of(context).textTheme.labelMedium,
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
                 StatefulBuilder(
@@ -1468,7 +1468,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                   const SizedBox(height: 8),
                   Text(
                     'De deler kan niet meer worden gewijzigd nadat de eerste ronde is gestart.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),

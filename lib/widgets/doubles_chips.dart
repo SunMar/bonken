@@ -45,7 +45,7 @@ class DoublesChips extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: fg,
               fontWeight: FontWeight.bold,
             ),

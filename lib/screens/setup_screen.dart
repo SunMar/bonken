@@ -91,7 +91,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 const SizedBox(width: 6),
                 Text(
                   'Twee spelers hebben dezelfde naam.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.error,
                   ),
                 ),
@@ -109,7 +109,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           const SizedBox(height: 4),
           Text(
             'De speler links van de deler kiest het eerste spel.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),

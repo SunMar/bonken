@@ -61,7 +61,7 @@ class CountsInput extends StatelessWidget {
           children: [
             Text(
               'Totaal: $sum / $total $unitLabel',
-              style: theme.textTheme.bodySmall?.copyWith(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: isComplete
                     ? theme.colorScheme.primary
                     : theme.colorScheme.error,
