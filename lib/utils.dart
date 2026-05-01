@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Maximum number of characters allowed in a player name.
+const int kPlayerNameMaxLength = 20;
+
 String formatDate(DateTime dt) {
   const days = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
   const months = [

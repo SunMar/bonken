@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/games/game_catalog.dart';
@@ -1435,6 +1436,9 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                       border: const OutlineInputBorder(),
                     ),
                     textCapitalization: TextCapitalization.words,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(kPlayerNameMaxLength),
+                    ],
                   ),
                 ],
                 if (_hasDuplicateNames) ...[

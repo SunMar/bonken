@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/mini_game.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
+import '../utils.dart';
 import 'calculator_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
@@ -378,6 +379,9 @@ class _NameField extends StatelessWidget {
               border: const OutlineInputBorder(),
             ),
             textCapitalization: TextCapitalization.words,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(kPlayerNameMaxLength),
+            ],
             textInputAction: isLast
                 ? TextInputAction.done
                 : TextInputAction.next,
