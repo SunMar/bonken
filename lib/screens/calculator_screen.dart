@@ -13,6 +13,7 @@ import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/score_result_view.dart';
+import 'setup_screen.dart';
 import 'start_screen.dart';
 
 /// Scoped to the CalculatorScreen lifetime — true while reorder mode is active.
@@ -531,6 +532,10 @@ class _GameSelectionPhase extends ConsumerWidget {
           const _RoundInfoBanner(),
           const SizedBox(height: 8),
           const _ScoreboardCard(),
+          if (isFinished) ...[
+            const SizedBox(height: 12),
+            const Center(child: _NewGameSamePlayersButton()),
+          ],
         ],
         if (!isReordering && !isFinished && negativeGames.isNotEmpty) ...[
           const SizedBox(height: 20),
@@ -928,6 +933,30 @@ class _ScoreboardCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _NewGameSamePlayersButton extends ConsumerWidget {
+  const _NewGameSamePlayersButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FilledButton.icon(
+      icon: const Icon(Icons.replay),
+      label: const Text('Nieuw spel met dezelfde spelers'),
+      onPressed: () {
+        final state = ref.read(calculatorProvider);
+        final names = List<String>.from(state.playerNames);
+        final notifier = ref.read(calculatorProvider.notifier);
+        notifier.reset();
+        for (int i = 0; i < names.length; i++) {
+          notifier.setPlayerName(i, names[i]);
+        }
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const SetupScreen()),
+        );
+      },
     );
   }
 }
