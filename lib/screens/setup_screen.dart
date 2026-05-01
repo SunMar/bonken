@@ -55,11 +55,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nieuw spel')),
-      body: ListView(
-        // Key on sessionId so Autocomplete widgets are recreated after reset().
-        key: ValueKey(state.sessionId),
-        padding: const EdgeInsets.all(24),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          // Key on sessionId so Autocomplete widgets are recreated after reset().
+          key: ValueKey(state.sessionId),
+          padding: const EdgeInsets.all(24),
+          children: [
           // ---- Player names ----
           Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
@@ -161,7 +163,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   }
                 : null,
           ),
-        ],
+          ],
+        ),
       ),
     );
   }

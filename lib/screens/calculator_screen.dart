@@ -479,13 +479,16 @@ class CalculatorScreen extends ConsumerWidget {
               ),
           ],
         ),
-        body: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          child: isEditingPlayers
-              ? const _EditPlayersPhase(key: ValueKey('editPlayers'))
-              : game == null
-              ? const _GameSelectionPhase(key: ValueKey('selection'))
-              : _GameInputPhase(key: const ValueKey('input'), game: game),
+        body: SafeArea(
+          top: false,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: isEditingPlayers
+                ? const _EditPlayersPhase(key: ValueKey('editPlayers'))
+                : game == null
+                ? const _GameSelectionPhase(key: ValueKey('selection'))
+                : _GameInputPhase(key: const ValueKey('input'), game: game),
+          ),
         ),
       ),
     );

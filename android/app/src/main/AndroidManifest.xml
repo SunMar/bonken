@@ -2,6 +2,8 @@
     <application
         android:label="${appLabel}"
         android:name="${applicationName}"
+        android:appCategory="productivity"
+        android:isGame="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
