@@ -2,9 +2,11 @@ name: bonken
 description: "Bonken – score calculator for the Dutch card game Bonken."
 publish_to: 'none'
 
-# Version is intentionally not committed here.  CI passes --build-name and
-# --build-number to `flutter build` based on the git tag / run number.
-# For local `flutter run` Flutter falls back to the defaults 1.0.0+1.
+# Version is intentionally a sentinel here.  CI passes --build-name and
+# --build-number to `flutter build` based on the git tag / run number,
+# overriding this default.  The 0.0.0+0 placeholder makes local/dev builds
+# obviously distinct from any real release version.
+version: 0.0.0+0
 
 environment:
   sdk: ^3.11.5
@@ -25,13 +27,19 @@ dependencies:
   # Google Fonts — Roboto bundled as local assets in assets/google_fonts/<version>/
   # allowRuntimeFetching is disabled so the app works fully offline.
   # When upgrading google_fonts: run `tool/update_google_fonts.sh` to download
-  # the new font files, then update the asset path below and in lib/main.dart
-  # and delete the previous version directory.
+  # the new font files, then update the asset path below and delete the
+  # previous version directory.
   google_fonts: ^8.1.0
 
   # Persistent local storage (used for future game tracking)
   in_app_update: ^4.2.5
   shared_preferences: ^2.5.3
+
+  # Read app version/build info at runtime (shown in the About dialog).
+  package_info_plus: ^9.0.0
+
+  # Open external URLs (the GitHub link in the About dialog).
+  url_launcher: ^6.3.2
 
   # Default Flutter font set; silences the "missing cupertino_icons" warning
   # emitted by `flutter build web` even though no CupertinoIcon is used.
@@ -70,7 +78,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Roboto font files for google_fonts 8.1.0 (allowRuntimeFetching = false)
+  # Roboto font files for google_fonts <version> (allowRuntimeFetching = false)
   assets:
     - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png

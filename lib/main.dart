@@ -12,7 +12,7 @@ import 'state/theme_mode_provider.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Fonts are bundled as local assets (assets/google_fonts/8.1.0/).
+  // Fonts are bundled as local assets (assets/google_fonts/<version>/).
   // Runtime fetching is disabled so the app works fully offline.
   GoogleFonts.config.allowRuntimeFetching = false;
 

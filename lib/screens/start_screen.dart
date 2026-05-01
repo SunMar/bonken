@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/mini_game.dart';
 
@@ -63,6 +66,7 @@ class StartScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   _ThemeModeButton(),
+                  _AboutButton(),
                 ],
               ),
             ),
@@ -351,6 +355,96 @@ class _ThemeModeButton extends ConsumerWidget {
             const Spacer(),
             const Icon(Icons.check, size: 16),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// AppBar action: opens an About dialog showing the app version and a
+/// link to the GitHub repository.
+class _AboutButton extends StatelessWidget {
+  const _AboutButton();
+
+  static const _repoUrl = 'https://github.com/SunMar/bonken';
+  static const _gitCommit = String.fromEnvironment('GIT_COMMIT');
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.info_outline),
+      tooltip: 'Over Bonken',
+      onPressed: () => _showAboutDialog(context),
+    );
+  }
+
+  Future<void> _showAboutDialog(BuildContext context) async {
+    // The deploy-to-Pages workflow injects GIT_COMMIT and never builds from a
+    // tag, so the PackageInfo version would always be the meaningless 1.0.0
+    // default — show the commit alone in that case.
+    String? versionLine;
+    if (_gitCommit.isEmpty) {
+      if (kDebugMode || kProfileMode) {
+        versionLine = 'Ontwikkelversie';
+      } else {
+        try {
+          final info = await PackageInfo.fromPlatform();
+          versionLine = 'Versie ${info.version} (build ${info.buildNumber})';
+        } catch (_) {
+          versionLine = 'Versie onbekend';
+        }
+      }
+    }
+    if (!context.mounted) return;
+    final cs = Theme.of(context).colorScheme;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Over Bonken'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (versionLine != null)
+              Text(
+                versionLine,
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+            if (_gitCommit.isNotEmpty)
+              Text(
+                'Commit $_gitCommit',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () async {
+                final uri = Uri.parse(_repoUrl);
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.open_in_new, size: 16, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _repoUrl,
+                      style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                        color: cs.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Sluiten'),
+          ),
         ],
       ),
     );
