@@ -1136,52 +1136,57 @@ class _HistoryList extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Edit button
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    tooltip: 'Aanpassen',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => notifier.restoreRound(record),
-                  ),
-                  // Delete button — only visible for the last round.
-                  // maintainSize keeps all rows identical in width so that
-                  // the edit buttons stay perfectly aligned.
-                  Visibility(
-                    visible:
-                        record.roundNumber == state.history.last.roundNumber &&
-                        !state.hasPendingGame,
-                    maintainSize: true,
-                    maintainAnimation: true,
-                    maintainState: true,
-                    child: IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      tooltip: 'Ronde verwijderen',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () async {
-                        if (state.hasPendingGame) {
-                          await showInfoDialog(
-                            context,
-                            title: 'Kan ronde niet verwijderen',
-                            contentText:
-                                '${state.pendingGame!.name} is nog niet afgerond. '
-                                'Maak dat spel eerst af voordat je de laatste ronde verwijdert.',
-                          );
-                          return;
-                        }
-                        if (!context.mounted) return;
-                        final confirm = await showConfirmDialog(
-                          context,
-                          title: 'Ronde verwijderen?',
-                          contentText:
-                              'Ronde ${record.roundNumber} (${record.game.name}) '
-                              'wordt permanent verwijderd.',
-                          confirmLabel: 'Verwijderen',
-                          destructive: true,
-                        );
-                        if (confirm != true) return;
-                        notifier.deleteLastRound();
-                      },
-                    ),
+                  // Edit + delete buttons stacked vertically.  Delete is only
+                  // shown for the last round; maintainSize keeps every row's
+                  // trailing column the same width so the edit icons stay
+                  // perfectly aligned across rows.
+                  Column(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        tooltip: 'Aanpassen',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => notifier.restoreRound(record),
+                      ),
+                      Visibility(
+                        visible:
+                            record.roundNumber ==
+                                state.history.last.roundNumber &&
+                            !state.hasPendingGame,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          tooltip: 'Ronde verwijderen',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () async {
+                            if (state.hasPendingGame) {
+                              await showInfoDialog(
+                                context,
+                                title: 'Kan ronde niet verwijderen',
+                                contentText:
+                                    '${state.pendingGame!.name} is nog niet afgerond. '
+                                    'Maak dat spel eerst af voordat je de laatste ronde verwijdert.',
+                              );
+                              return;
+                            }
+                            if (!context.mounted) return;
+                            final confirm = await showConfirmDialog(
+                              context,
+                              title: 'Ronde verwijderen?',
+                              contentText:
+                                  'Ronde ${record.roundNumber} (${record.game.name}) '
+                                  'wordt permanent verwijderd.',
+                              confirmLabel: 'Verwijderen',
+                              destructive: true,
+                            );
+                            if (confirm != true) return;
+                            notifier.deleteLastRound();
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
