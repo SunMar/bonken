@@ -348,10 +348,9 @@ class CalculatorScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Bonken'),
           leading: game != null || isReordering || isEditingPlayers
-              ? IconButton(
-                  icon: const Icon(Symbols.arrow_back),
-                  tooltip: 'Verwerpen',
-                  onPressed: handleBack,
+              ? Tooltip(
+                  message: 'Verwerpen',
+                  child: BackButton(onPressed: handleBack),
                 )
               : null,
           actions: [
@@ -1104,7 +1103,6 @@ class _HistoryList extends ConsumerWidget {
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 DragHandle(index: i),
                                 Expanded(
@@ -1848,7 +1846,6 @@ class _GameSymbol extends StatelessWidget {
       final iconSize = MediaQuery.textScalerOf(context).scale(fontSize) * 1.1;
       return Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _suitIcon(CupertinoIcons.suit_heart_fill, iconSize),
           _suitIcon(CupertinoIcons.suit_heart_fill, iconSize),

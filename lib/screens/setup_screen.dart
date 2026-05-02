@@ -118,7 +118,6 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 final iconSize = (style?.fontSize ?? 28) * 1.1;
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Icon(Symbols.playing_cards, size: iconSize),
                     const SizedBox(width: 8),

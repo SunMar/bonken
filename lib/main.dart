@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import 'screens/start_screen.dart';
 import 'services/app_updater.dart';
@@ -50,6 +51,7 @@ class BonkenApp extends ConsumerWidget {
         colorSchemeSeed: Colors.indigo,
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),
+        actionIconTheme: _symbolsActionIconTheme,
       ),
       darkTheme: ThemeData(
         colorSchemeSeed: Colors.indigo,
@@ -58,9 +60,22 @@ class BonkenApp extends ConsumerWidget {
         textTheme: GoogleFonts.robotoTextTheme(
           ThemeData(brightness: Brightness.dark).textTheme,
         ),
+        actionIconTheme: _symbolsActionIconTheme,
       ),
       themeMode: themeMode,
       home: const StartScreen(),
     );
   }
 }
+
+/// Make every auto-generated `BackButton` / `CloseButton` / drawer button
+/// (e.g. the implicit leading on an `AppBar` for a pushed route) use the
+/// Material Symbols font instead of the legacy MaterialIcons font, so the
+/// app's iconography stays consistent with the explicit `Icon(Symbols.*)`
+/// usages elsewhere.
+final ActionIconThemeData _symbolsActionIconTheme = ActionIconThemeData(
+  backButtonIconBuilder: (_) => const Icon(Symbols.arrow_back),
+  closeButtonIconBuilder: (_) => const Icon(Symbols.close),
+  drawerButtonIconBuilder: (_) => const Icon(Symbols.menu),
+  endDrawerButtonIconBuilder: (_) => const Icon(Symbols.menu),
+);
