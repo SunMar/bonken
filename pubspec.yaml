@@ -27,7 +27,7 @@ dependencies:
   flutter_riverpod: ^3.3.1
 
   # Deep-equality helpers (DeepCollectionEquality, listEquals via foundation).
-  collection: ^1.19.0
+  collection: ^1.19.1
 
   # Google Fonts — Roboto bundled as local assets in assets/google_fonts/<version>/
   # allowRuntimeFetching is disabled so the app works fully offline.
@@ -38,17 +38,17 @@ dependencies:
 
   # Persistent local storage (used for future game tracking)
   in_app_update: ^4.2.5
-  shared_preferences: ^2.5.3
+  shared_preferences: ^2.5.5
 
   # Read app version/build info at runtime (shown in the About dialog).
-  package_info_plus: ^9.0.0
+  package_info_plus: ^10.1.0
 
   # Open external URLs (the GitHub link in the About dialog).
   url_launcher: ^6.3.2
 
   # Default Flutter font set; silences the "missing cupertino_icons" warning
   # emitted by `flutter build web` even though no CupertinoIcon is used.
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.9
   material_symbols_icons: ^4.2928.1
 
 dev_dependencies:
