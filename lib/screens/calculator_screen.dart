@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -89,26 +90,23 @@ final _hasPlayersChangesProvider =
     );
 
 // Game symbols displayed next to each game name in the selection list.
-// The trailing U+FE0E ("variation selector-15", a.k.a. VS15) forces text-style
-// rendering for characters that have both a text and an emoji presentation
-// (e.g. the playing-card suits ♣ ♦ ♥ ♠).  Without it, platforms whose default
-// font stack prefers an emoji font for these dual-presentation codepoints
-// (Android via Noto Color Emoji, iOS/macOS via Apple Color Emoji) would
-// render them as colored emoji glyphs that don't match the rest of the UI.
-// Most desktop browsers default to text presentation already, so VS15 makes
-// the rendering consistent across all platforms.
-const _vs15 = '\uFE0E';
+// The four playing-card suits are NOT rendered from Unicode characters: on
+// Android the text shaper falls back to Noto Color Emoji for ♣ ♦ ♥ ♠ even
+// with the U+FE0E (VS15) text-presentation selector appended, which means the
+// suits would render as colored emoji. Instead, the suit-based games render
+// as vector icons (see [_GameSymbol]); the entries below are only used as a
+// safety fallback for the non-suit games.
 const _gameSymbols = {
-  'clubs': '♣$_vs15',
-  'diamonds': '♦$_vs15',
-  'hearts': '♥$_vs15',
-  'spades': '♠$_vs15',
+  'clubs': '',
+  'diamonds': '',
+  'hearts': '',
+  'spades': '',
   'noTrump': 'SA',
-  'kingOfHearts': '♥${_vs15}H',
+  'kingOfHearts': '',
   'kingsAndJacks': 'H/B',
   'queens': 'V',
   'duck': '▼',
-  'heartPoints': '♥$_vs15♥$_vs15',
+  'heartPoints': '',
   'seventhAndThirteenth': '7/13',
   'finalTrick': '★',
   'dominoes': 'D',
@@ -1720,8 +1718,12 @@ class _AmberWarningRow extends StatelessWidget {
   }
 }
 
-/// Renders a game symbol. For 'kingOfHearts' the ♥ is rendered slightly
-/// smaller than the H so both characters appear the same visual size.
+/// Renders a game symbol. The four suit-based games (and the games derived
+/// from them — `kingOfHearts`, `heartPoints`) are rendered with vector
+/// [CupertinoIcons] suit glyphs so they look monochrome and consistent on all
+/// platforms (Android otherwise renders the Unicode suit characters as
+/// colored emoji, even with the VS15 text selector). All other games fall
+/// back to the textual [symbol].
 class _GameSymbol extends StatelessWidget {
   const _GameSymbol({
     required this.symbol,
@@ -1735,25 +1737,47 @@ class _GameSymbol extends StatelessWidget {
   final Color color;
   final double fontSize;
 
+  static const _suitIcons = {
+    'clubs': CupertinoIcons.suit_club_fill,
+    'diamonds': CupertinoIcons.suit_diamond_fill,
+    'hearts': CupertinoIcons.suit_heart_fill,
+    'spades': CupertinoIcons.suit_spade_fill,
+  };
+
+  Widget _suitIcon(IconData icon, double size) =>
+      Icon(icon, size: size, color: color);
+
   @override
   Widget build(BuildContext context) {
+    final suit = _suitIcons[gameId];
+    if (suit != null) {
+      return _suitIcon(suit, fontSize);
+    }
     if (gameId == 'kingOfHearts') {
-      return RichText(
-        text: TextSpan(
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: fontSize,
-          ),
-          children: [
-            TextSpan(
-              // Heart + VS15 forces monochrome text rendering.
-              text: '♥$_vs15',
-              style: TextStyle(fontSize: fontSize * 0.93),
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _suitIcon(CupertinoIcons.suit_heart_fill, fontSize * 0.95),
+          Text(
+            'H',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: fontSize,
             ),
-            const TextSpan(text: 'H'),
-          ],
-        ),
+          ),
+        ],
+      );
+    }
+    if (gameId == 'heartPoints') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _suitIcon(CupertinoIcons.suit_heart_fill, fontSize),
+          _suitIcon(CupertinoIcons.suit_heart_fill, fontSize),
+        ],
       );
     }
     return Text(
