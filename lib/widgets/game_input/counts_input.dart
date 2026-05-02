@@ -113,6 +113,7 @@ class _PlayerCountRow extends StatelessWidget {
             child: Text(name, style: Theme.of(context).textTheme.bodyLarge),
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: const Icon(Symbols.remove_circle),
             onPressed: canDecrement ? onDecrement : null,
             tooltip: 'Minder',
@@ -128,11 +129,13 @@ class _PlayerCountRow extends StatelessWidget {
             ),
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: const Icon(Symbols.add_circle),
             onPressed: canIncrement ? onIncrement : null,
             tooltip: 'Meer',
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             icon: const Icon(Symbols.expand_circle_right),
             onPressed: canIncrement ? onAddRemaining : null,
             tooltip: 'Alle resterende',
