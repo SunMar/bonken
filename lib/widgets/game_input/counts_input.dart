@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../models/mini_game.dart';
 
@@ -102,7 +103,7 @@ class _PlayerCountRow extends StatelessWidget {
             child: Text(name, style: Theme.of(context).textTheme.bodyLarge),
           ),
           IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
+            icon: const Icon(Symbols.remove_circle),
             onPressed: canDecrement ? onDecrement : null,
             tooltip: 'Minder',
           ),
@@ -117,7 +118,7 @@ class _PlayerCountRow extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
+            icon: const Icon(Symbols.add_circle),
             onPressed: canIncrement ? onIncrement : null,
             tooltip: 'Meer',
           ),

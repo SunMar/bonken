@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/games/game_catalog.dart';
@@ -346,7 +347,7 @@ class CalculatorScreen extends ConsumerWidget {
           title: const Text('Bonken'),
           leading: game != null || isReordering || isEditingPlayers
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: const Icon(Symbols.arrow_back),
                   tooltip: 'Verwerpen',
                   onPressed: () {
                     if (isEditingPlayers) {
@@ -453,7 +454,7 @@ class CalculatorScreen extends ConsumerWidget {
                       value: 'players',
                       child: Row(
                         children: [
-                          Icon(Icons.people_outline),
+                          Icon(Symbols.group),
                           SizedBox(width: 12),
                           Text('Spelers bewerken'),
                         ],
@@ -464,7 +465,7 @@ class CalculatorScreen extends ConsumerWidget {
                       enabled: canReorder,
                       child: const Row(
                         children: [
-                          Icon(Icons.swap_vert),
+                          Icon(Symbols.swap_vert),
                           SizedBox(width: 12),
                           Text('Ronde volgorde'),
                         ],
@@ -474,7 +475,7 @@ class CalculatorScreen extends ConsumerWidget {
                       value: 'close',
                       child: Row(
                         children: [
-                          Icon(Icons.stop_circle_outlined),
+                          Icon(Symbols.stop_circle),
                           SizedBox(width: 12),
                           Text('Spel sluiten'),
                         ],
@@ -484,7 +485,7 @@ class CalculatorScreen extends ConsumerWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline),
+                          Icon(Symbols.delete),
                           SizedBox(width: 12),
                           Text('Spel verwijderen'),
                         ],
@@ -665,9 +666,9 @@ class _GameTile extends ConsumerWidget {
           ),
         ),
         trailing: isPending
-            ? Icon(Icons.hourglass_top_rounded, color: cs.tertiary)
+            ? Icon(Symbols.hourglass_top, color: cs.tertiary)
             : Icon(
-                Icons.chevron_right,
+                Symbols.chevron_right,
                 color: isDisabled ? cs.onSurface.withAlpha(60) : null,
               ),
         onTap: () async {
@@ -898,7 +899,7 @@ class _ScoreboardCard extends ConsumerWidget {
             Row(
               children: [
                 if (isFinished) ...[
-                  Icon(Icons.emoji_events, size: 18, color: cs.primary),
+                  Icon(Symbols.emoji_events, size: 18, color: cs.primary),
                   const SizedBox(width: 6),
                 ],
                 Text(
@@ -923,7 +924,7 @@ class _ScoreboardCard extends ConsumerWidget {
                     child: Column(
                       children: [
                         if (isFinished && winners.contains(i))
-                          Icon(Icons.emoji_events, size: 14, color: cs.primary)
+                          Icon(Symbols.emoji_events, size: 14, color: cs.primary)
                         else
                           const SizedBox(height: 14),
                         Text(
@@ -960,7 +961,7 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return FilledButton.icon(
-      icon: const Icon(Icons.replay),
+      icon: const Icon(Symbols.replay),
       label: const Text('Nieuw spel met dezelfde spelers'),
       onPressed: () {
         final state = ref.read(calculatorProvider);
@@ -1006,7 +1007,7 @@ class _HistoryList extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.swap_vert, size: 16, color: cs.primary),
+                  Icon(Symbols.swap_vert, size: 16, color: cs.primary),
                   const SizedBox(width: 6),
                   Text(
                     'Ronde volgorde',
@@ -1045,7 +1046,7 @@ class _HistoryList extends ConsumerWidget {
                                   child: Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: Icon(
-                                      Icons.drag_indicator,
+                                      Symbols.drag_indicator,
                                       color: cs.onSurfaceVariant,
                                     ),
                                   ),
@@ -1175,7 +1176,7 @@ class _HistoryList extends ConsumerWidget {
                   Column(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        icon: const Icon(Symbols.edit, size: 18),
                         tooltip: 'Wijzigen',
                         visualDensity: VisualDensity.compact,
                         onPressed: () => notifier.restoreRound(record),
@@ -1189,7 +1190,7 @@ class _HistoryList extends ConsumerWidget {
                         maintainAnimation: true,
                         maintainState: true,
                         child: IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18),
+                          icon: const Icon(Symbols.delete, size: 18),
                           tooltip: 'Ronde verwijderen',
                           visualDensity: VisualDensity.compact,
                           onPressed: () async {
@@ -1328,7 +1329,7 @@ class _RoundInfoBanner extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.info_outline, size: 18, color: cs.onSecondaryContainer),
+            Icon(Symbols.info, size: 18, color: cs.onSecondaryContainer),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1581,7 +1582,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                                 child: Padding(
                                   padding: const EdgeInsets.only(right: 8),
                                   child: Icon(
-                                    Icons.drag_indicator,
+                                    Symbols.drag_indicator,
                                     color: Theme.of(
                                       context,
                                     ).colorScheme.onSurfaceVariant,
@@ -1614,7 +1615,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                   Row(
                     children: [
                       Icon(
-                        Icons.warning_amber_rounded,
+                        Symbols.warning_amber,
                         size: 16,
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -1712,7 +1713,7 @@ class _AmberWarningRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+        const Icon(Symbols.warning_amber, size: 16, color: Colors.amber),
         const SizedBox(width: 6),
         Expanded(child: Text(text, style: style)),
       ],

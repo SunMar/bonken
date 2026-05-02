@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bonken/widgets/game_input/counts_input.dart';
@@ -43,7 +44,7 @@ void main() {
           onCountsChanged: (c) => captured = c,
         ),
       );
-      await tester.tap(find.byIcon(Icons.add_circle_outline).first);
+      await tester.tap(find.byIcon(Symbols.add_circle).first);
       await tester.pump();
       expect(captured, [1, 0, 0, 0]);
     });
@@ -60,7 +61,7 @@ void main() {
         ),
       );
       final firstMinus = tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.remove_circle_outline).first,
+        find.widgetWithIcon(IconButton, Symbols.remove_circle).first,
       );
       expect(firstMinus.onPressed, isNull);
     });
@@ -80,7 +81,7 @@ void main() {
       );
       final plusButtons = find.widgetWithIcon(
         IconButton,
-        Icons.add_circle_outline,
+        Symbols.add_circle,
       );
       for (int i = 0; i < plusButtons.evaluate().length; i++) {
         final btn = tester.widget<IconButton>(plusButtons.at(i));

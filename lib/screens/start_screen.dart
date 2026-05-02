@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -151,7 +152,7 @@ class StartScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               child: FilledButton.icon(
-                icon: const Icon(Icons.add),
+                icon: const Icon(Symbols.add),
                 label: const Text('Nieuw spel'),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 20),
@@ -209,8 +210,8 @@ class _GameSessionCard extends ConsumerWidget {
                 children: [
                   Icon(
                     session.isFinished
-                        ? Icons.check_circle_outline
-                        : Icons.pending_outlined,
+                        ? Symbols.check_circle
+                        : Symbols.pending,
                     size: 16,
                     color: session.isFinished
                         ? successGreen
@@ -231,7 +232,7 @@ class _GameSessionCard extends ConsumerWidget {
                       padding: EdgeInsets.zero,
                       iconSize: 20,
                       color: cs.onSurfaceVariant,
-                      icon: const Icon(Icons.delete_outline),
+                      icon: const Icon(Symbols.delete),
                       tooltip: 'Verwijderen',
                       onPressed: onDelete,
                     ),
@@ -287,7 +288,7 @@ class _PlayerScoreChip extends StatelessWidget {
       child: Column(
         children: [
           if (isWinner) ...[
-            Icon(Icons.emoji_events, size: 14, color: cs.primary),
+            Icon(Symbols.emoji_events, size: 14, color: cs.primary),
             const SizedBox(height: 2),
           ],
           Text(
@@ -320,9 +321,9 @@ class _ThemeModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
     final icon = switch (mode) {
-      ThemeMode.light => Icons.light_mode,
-      ThemeMode.dark => Icons.dark_mode,
-      ThemeMode.system => Icons.contrast,
+      ThemeMode.light => Symbols.light_mode,
+      ThemeMode.dark => Symbols.dark_mode,
+      ThemeMode.system => Symbols.contrast,
     };
 
     return PopupMenuButton<ThemeMode>(
@@ -331,9 +332,9 @@ class _ThemeModeButton extends ConsumerWidget {
       onSelected: (value) =>
           ref.read(themeModeProvider.notifier).setMode(value),
       itemBuilder: (_) => [
-        _themeModeItem(ThemeMode.system, Icons.contrast, 'Systeem', mode),
-        _themeModeItem(ThemeMode.light, Icons.light_mode, 'Licht', mode),
-        _themeModeItem(ThemeMode.dark, Icons.dark_mode, 'Donker', mode),
+        _themeModeItem(ThemeMode.system, Symbols.contrast, 'Systeem', mode),
+        _themeModeItem(ThemeMode.light, Symbols.light_mode, 'Licht', mode),
+        _themeModeItem(ThemeMode.dark, Symbols.dark_mode, 'Donker', mode),
       ],
     );
   }
@@ -353,7 +354,7 @@ class _ThemeModeButton extends ConsumerWidget {
           Text(label),
           if (value == current) ...[
             const Spacer(),
-            const Icon(Icons.check, size: 16),
+            const Icon(Symbols.check, size: 16),
           ],
         ],
       ),
@@ -372,7 +373,7 @@ class _AboutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.info_outline),
+      icon: const Icon(Symbols.info),
       tooltip: 'Over Bonken',
       onPressed: () => _showAboutDialog(context),
     );
@@ -424,7 +425,7 @@ class _AboutButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.open_in_new, size: 16, color: cs.primary),
+                  Icon(Symbols.open_in_new, size: 16, color: cs.primary),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(

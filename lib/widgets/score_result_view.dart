@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
@@ -108,7 +109,7 @@ class _ScoreRow extends StatelessWidget {
       child: Row(
         children: [
           if (isWinner) ...[
-            Icon(Icons.emoji_events, size: 16, color: cs.primary),
+            Icon(Symbols.emoji_events, size: 16, color: cs.primary),
             const SizedBox(width: 4),
           ] else
             const SizedBox(width: 20),

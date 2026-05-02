@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bonken/models/double_matrix.dart';
@@ -40,7 +41,7 @@ void main() {
           chooserIndex: 0,
         ),
       );
-      expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+      expect(find.byIcon(Symbols.emoji_events), findsOneWidget);
     });
 
     testWidgets('marks all tied winners with trophy icons', (tester) async {
@@ -53,7 +54,7 @@ void main() {
           chooserIndex: 0,
         ),
       );
-      expect(find.byIcon(Icons.emoji_events), findsNWidgets(2));
+      expect(find.byIcon(Symbols.emoji_events), findsNWidgets(2));
     });
 
     testWidgets('does NOT mark a winner when isPartial', (tester) async {
@@ -67,7 +68,7 @@ void main() {
           isPartial: true,
         ),
       );
-      expect(find.byIcon(Icons.emoji_events), findsNothing);
+      expect(find.byIcon(Symbols.emoji_events), findsNothing);
     });
 
     testWidgets('hides Score header when showHeader is false', (tester) async {

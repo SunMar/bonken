@@ -163,7 +163,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                           child: Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: Icon(
-                              Icons.drag_indicator,
+                              Symbols.drag_indicator,
                               color: Theme.of(
                                 context,
                               ).colorScheme.onSurfaceVariant,
@@ -197,7 +197,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             Row(
               children: [
                 Icon(
-                  Icons.warning_amber_rounded,
+                  Symbols.warning_amber,
                   size: 16,
                   color: Theme.of(context).colorScheme.error,
                 ),
@@ -235,7 +235,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               hintText: 'Willekeurige deler',
               suffixIcon: state.dealerChosen
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: const Icon(Symbols.clear),
                       tooltip: 'Wissen (willekeurige deler)',
                       onPressed: () => notifier.clearDealer(),
                     )
@@ -262,7 +262,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
           // ---- Start button ----
           FilledButton.icon(
-            icon: const Icon(Icons.play_arrow),
+            icon: const Icon(Symbols.play_arrow),
             label: const Text('Start spel'),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
