@@ -63,6 +63,71 @@ class _DoublesPickerState extends State<DoublesPicker> {
     return false;
   }
 
+  // ---------- Per-pair helpers shared by the bulk actions ----------
+
+  /// True if [selected] has acted on the pair against [target]: either
+  /// they are the recorded initiator of a doubled/redoubled pair, or the
+  /// pair is `redoubled` (which always implies escalation by [selected]).
+  bool _initiatorActed(int selected, int target) {
+    final s = widget.doubles.stateFor(selected, target);
+    if (s == DoubleState.none) return false;
+    return widget.doubles.initiatorFor(selected, target) == selected ||
+        s == DoubleState.redoubled;
+  }
+
+  /// Apply [selected]'s double against [target] in [matrix]:
+  ///   * `none`                            → `doubled` initiator=selected
+  ///   * `doubled` (target initiated)       → `redoubled` initiator=target
+  ///   * already initiator-acted / redoubled → unchanged
+  DoubleMatrix _applyOnePair(DoubleMatrix matrix, int selected, int target) {
+    final state = matrix.stateFor(selected, target);
+    final initiator = matrix.initiatorFor(selected, target);
+    if (state == DoubleState.none) {
+      return matrix.withPair(
+        selected,
+        target,
+        DoubleState.doubled,
+        initiator: selected,
+      );
+    }
+    if (state == DoubleState.doubled && initiator == target) {
+      return matrix.withPair(
+        selected,
+        target,
+        DoubleState.redoubled,
+        initiator: target,
+      );
+    }
+    return matrix;
+  }
+
+  /// Inverse of [_applyOnePair] used to demote a single chooser pair while
+  /// transitioning to Slappe hap. Goal: erase every contribution [selected]
+  /// made to the pair, leaving only foreign-initiator action behind.
+  ///   * `redoubled`, initiator==selected   → `none` (selected initiated the
+  ///     pair; the foreign redouble depends on it, so clear both)
+  ///   * `redoubled`, initiator==target     → `doubled` (target's double
+  ///     remains; only selected's redouble is removed)
+  ///   * `doubled`, initiator==selected     → `none`
+  ///   * foreign-initiator `doubled`        → untouched
+  DoubleMatrix _demoteOnePair(DoubleMatrix matrix, int selected, int target) {
+    final s = matrix.stateFor(selected, target);
+    final init = matrix.initiatorFor(selected, target);
+    if (s == DoubleState.redoubled && init == target) {
+      return matrix.withPair(
+        selected,
+        target,
+        DoubleState.doubled,
+        initiator: init,
+      );
+    }
+    if ((s == DoubleState.doubled || s == DoubleState.redoubled) &&
+        init == selected) {
+      return matrix.withPair(selected, target, DoubleState.none);
+    }
+    return matrix;
+  }
+
   void _cycle(
     int selected,
     int target,
@@ -117,31 +182,101 @@ class _DoublesPickerState extends State<DoublesPicker> {
   }
 
   /// Apply a bulk action: the selected initiator declares double against each
-  /// player in [targets].  For each target:
-  ///   * `none`     → become `doubled` with selected as the initiator.
-  ///   * `doubled` (target initiated) → escalate to `redoubled` ("gaat terug")
-  ///     keeping the original target as initiator.
-  ///   * already doubled by selected, or already redoubled → unchanged.
+  /// player in [targets].  Per-pair behaviour: see [_applyOnePair].
   void _applyBulk(Iterable<int> targets) {
     final selected = _selected;
     if (selected == null) return;
     var matrix = widget.doubles;
     for (final t in targets) {
       if (t == selected) continue;
-      final state = matrix.stateFor(selected, t);
-      final initiator = matrix.initiatorFor(selected, t);
-      if (state == DoubleState.none) {
+      matrix = _applyOnePair(matrix, selected, t);
+    }
+    if (matrix != widget.doubles) widget.onChanged(matrix);
+  }
+
+  /// True when, for every target, the selected initiator has acted on the
+  /// pair (see [_initiatorActed]). Empty target sets return false.
+  bool _isBulkApplied(Iterable<int> targets) {
+    final selected = _selected;
+    if (selected == null) return false;
+    var any = false;
+    for (final t in targets) {
+      if (t == selected) continue;
+      if (!_initiatorActed(selected, t)) return false;
+      any = true;
+    }
+    return any;
+  }
+
+  /// True when every target pair is currently `redoubled` and was originally
+  /// initiated by the target (the post-state of "Zaal terug"). Used to flag
+  /// that bulk button as applied so it can demote everything back to
+  /// `doubled` without clearing other-initiator doubles.
+  bool _isZaalTerugApplied(Iterable<int> targets) {
+    final selected = _selected;
+    if (selected == null) return false;
+    var any = false;
+    for (final t in targets) {
+      if (t == selected) continue;
+      final s = widget.doubles.stateFor(selected, t);
+      if (s != DoubleState.redoubled) return false;
+      if (widget.doubles.initiatorFor(selected, t) != t) return false;
+      any = true;
+    }
+    return any;
+  }
+
+  /// Clear every pair in [targets] to `none` regardless of state. Used by
+  /// the Zaal re-press as an input-correction shortcut: in the Zaal state
+  /// every target pair was initiator-acted, so wiping them is safe.
+  void _clearBulk(Iterable<int> targets) {
+    final selected = _selected;
+    if (selected == null) return;
+    var matrix = widget.doubles;
+    for (final t in targets) {
+      if (t == selected) continue;
+      if (matrix.stateFor(selected, t) != DoubleState.none) {
+        matrix = matrix.withPair(selected, t, DoubleState.none);
+      }
+    }
+    if (matrix != widget.doubles) widget.onChanged(matrix);
+  }
+
+  /// Transition to the "Slappe hap" state for the selected initiator: every
+  /// non-chooser target gets [_applyOnePair], and the chooser pair is
+  /// demoted via [_demoteOnePair]. Single [onChanged] notification.
+  void _toSlappeHap(Iterable<int> applyTargets) {
+    final selected = _selected;
+    if (selected == null) return;
+    var matrix = widget.doubles;
+    for (final t in applyTargets) {
+      if (t == selected) continue;
+      matrix = _applyOnePair(matrix, selected, t);
+    }
+    final chooser = widget.chooserIndex;
+    if (chooser != selected) {
+      matrix = _demoteOnePair(matrix, selected, chooser);
+    }
+    if (matrix != widget.doubles) widget.onChanged(matrix);
+  }
+
+  /// Inverse of the "Zaal terug" bulk: each `redoubled` pair (which the bulk
+  /// escalated from a target-initiated `doubled`) is demoted back to
+  /// `doubled`, preserving the target as initiator. The original doubles are
+  /// not cleared because they were created by another player, not by bulk.
+  void _undoZaalTerug(Iterable<int> targets) {
+    final selected = _selected;
+    if (selected == null) return;
+    var matrix = widget.doubles;
+    for (final t in targets) {
+      if (t == selected) continue;
+      final s = matrix.stateFor(selected, t);
+      final init = matrix.initiatorFor(selected, t);
+      if (s == DoubleState.redoubled && init == t) {
         matrix = matrix.withPair(
           selected,
           t,
           DoubleState.doubled,
-          initiator: selected,
-        );
-      } else if (state == DoubleState.doubled && initiator == t) {
-        matrix = matrix.withPair(
-          selected,
-          t,
-          DoubleState.redoubled,
           initiator: t,
         );
       }
@@ -156,26 +291,54 @@ class _DoublesPickerState extends State<DoublesPicker> {
 
     // The bulk action buttons are enabled when an initiator is selected.
     // For non-chooser initiators both buttons work normally.  The chooser
-    // may not initiate doubles, but if all 3 other players have doubled
-    // (or already redoubled) the chooser, the "Zaal" button switches to
-    // "Zaal terug" and redoubles every still-pending pair in one go.
+    // may not initiate doubles, but if multiple other players have doubled
+    // (or already redoubled) the chooser, the "Zaal" button switches to a
+    // bulk-redouble action against those doublers:
+    //   * 2 doublers → "Terug op beide"
+    //   * 3 doublers → "Zaal terug"
     // Disabled buttons remain visible so the surrounding layout doesn't
     // shift.
     final selectedIsChooser =
         _selected != null && _selected == widget.chooserIndex;
-    final chooserDoubledByAll =
-        selectedIsChooser &&
-        order.where((i) => i != _selected).every((i) {
-          final s = widget.doubles.stateFor(_selected!, i);
-          if (s == DoubleState.none) return false;
-          // The pair must have been initiated by the other player; if the
-          // chooser somehow initiated, the bulk "terug" doesn't apply.
-          return widget.doubles.initiatorFor(_selected!, i) == i;
-        });
+    final chooserDoublers = !selectedIsChooser
+        ? const <int>[]
+        : order.where((i) {
+            if (i == _selected) return false;
+            final s = widget.doubles.stateFor(_selected!, i);
+            if (s == DoubleState.none) return false;
+            // The pair must have been initiated by the other player; if the
+            // chooser somehow initiated, the bulk "terug" doesn't apply.
+            return widget.doubles.initiatorFor(_selected!, i) == i;
+          }).toList(growable: false);
+    final chooserTerugMode =
+        selectedIsChooser && chooserDoublers.length >= 2;
     final zaalEnabled = _selected != null &&
-        (!selectedIsChooser || chooserDoubledByAll);
-    final zaalLabel = chooserDoubledByAll ? 'Zaal terug' : 'Zaal';
+        (!selectedIsChooser || chooserTerugMode);
+    final zaalLabel = !chooserTerugMode
+        ? 'Zaal'
+        : (chooserDoublers.length == 3 ? 'Zaal terug' : 'Terug op beide');
     final slappeHapEnabled = _selected != null && !selectedIsChooser;
+
+    final zaalTargets = _selected == null
+        ? const <int>[]
+        : chooserTerugMode
+            ? chooserDoublers
+            : order.where((i) => i != _selected).toList(growable: false);
+    final slappeHapTargets = _selected == null
+        ? const <int>[]
+        : order
+            .where((i) => i != _selected && i != widget.chooserIndex)
+            .toList(growable: false);
+    final zaalApplied = zaalEnabled &&
+        (chooserTerugMode
+            ? _isZaalTerugApplied(zaalTargets)
+            : _isBulkApplied(zaalTargets));
+    // "Slappe hap" only counts as applied when the non-chooser targets show
+    // initiator-action AND the initiator has NOT acted on the chooser pair —
+    // otherwise we're in the Zaal state, which owns the filled affordance.
+    final slappeHapApplied = slappeHapEnabled &&
+        !_initiatorActed(_selected!, widget.chooserIndex) &&
+        _isBulkApplied(slappeHapTargets);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -209,25 +372,28 @@ class _DoublesPickerState extends State<DoublesPicker> {
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: zaalEnabled
-                      ? () => _applyBulk(order.where((i) => i != _selected))
-                      : null,
-                  child: Text(zaalLabel),
+                child: _BulkButton(
+                  label: zaalLabel,
+                  filled: zaalApplied,
+                  onPressed: !zaalEnabled
+                      ? null
+                      : zaalApplied
+                          ? (chooserTerugMode
+                              ? () => _undoZaalTerug(zaalTargets)
+                              : () => _clearBulk(zaalTargets))
+                          : () => _applyBulk(zaalTargets),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton(
-                  onPressed: slappeHapEnabled
-                      ? () => _applyBulk(
-                          order.where(
-                            (i) =>
-                                i != _selected && i != widget.chooserIndex,
-                          ),
-                        )
-                      : null,
-                  child: const Text('Slappe hap'),
+                child: _BulkButton(
+                  label: 'Slappe hap',
+                  filled: slappeHapApplied,
+                  onPressed: !slappeHapEnabled
+                      ? null
+                      : slappeHapApplied
+                          ? () => _clearBulk(slappeHapTargets)
+                          : () => _toSlappeHap(slappeHapTargets),
                 ),
               ),
             ],
@@ -300,6 +466,27 @@ class _DoublesPickerState extends State<DoublesPicker> {
             ),
       ],
     );
+  }
+}
+
+// -----------------------------------------------------------------------------
+
+class _BulkButton extends StatelessWidget {
+  const _BulkButton({
+    required this.label,
+    required this.filled,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool filled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return filled
+        ? FilledButton(onPressed: onPressed, child: Text(label))
+        : OutlinedButton(onPressed: onPressed, child: Text(label));
   }
 }
 
