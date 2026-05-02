@@ -38,8 +38,8 @@ android {
         // Application ID registered in the Google Play Console.
         applicationId = "com.suninet.bonken"
         // Optional suffix + label override for parallel-installable side
-        // builds (e.g. the `testing` branch APK).  Pass on the command
-        // line:  ./gradlew … -PappIdSuffix=.testing -PappLabel="Bonken (testing)"
+        // builds (e.g. the `develop` branch APK).  Pass on the command
+        // line:  ./gradlew … -PappIdSuffix=.develop -PappLabel="Bonken (develop)"
         // When unset, the regular Play Store identity is used.
         val appIdSuffix = (project.findProperty("appIdSuffix") as String?).orEmpty()
         if (appIdSuffix.isNotEmpty()) {
