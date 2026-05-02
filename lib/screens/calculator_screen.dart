@@ -1798,24 +1798,25 @@ class _GameSymbol extends StatelessWidget {
   Widget _suitIcon(IconData icon, double size) =>
       Icon(icon, size: size, color: color);
 
+  /// Suit glyph size that matches the cap height of adjacent letters and
+  /// follows the user's text scale setting. Shared by all suit-based games
+  /// (clubs/diamonds/hearts/spades, kingOfHearts, heartPoints) so the icons
+  /// look visually consistent across the app.
+  double _suitIconSize(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(fontSize) * 1.1;
+
   @override
   Widget build(BuildContext context) {
     final suit = _suitIcons[gameId];
     if (suit != null) {
-      return _suitIcon(suit, fontSize);
+      return _suitIcon(suit, _suitIconSize(context));
     }
     if (gameId == 'kingOfHearts') {
       // Render heart + 'H' as a single text run so the icon participates in
       // the same baseline/line-box layout as the letter.  This keeps them
       // aligned much more reliably than two side-by-side widgets, which
       // suffer from sub-pixel rounding differences (especially at low zoom
-      // levels in the browser).  The Cupertino suit glyph is slightly
-      // smaller than its bounding box, so scale it up a touch to match the
-      // cap height of the 'H'.  We also apply the user's text scale factor
-      // to the icon so the heart grows proportionally with the 'H' when the
-      // OS font size setting is non-default.
-      final textScale = MediaQuery.textScalerOf(context).scale(fontSize);
-      final iconSize = textScale * 1.1;
+      // levels in the browser).
       return Text.rich(
         TextSpan(
           children: [
@@ -1823,7 +1824,7 @@ class _GameSymbol extends StatelessWidget {
               alignment: PlaceholderAlignment.middle,
               child: Icon(
                 CupertinoIcons.suit_heart_fill,
-                size: iconSize,
+                size: _suitIconSize(context),
                 color: color,
               ),
             ),
@@ -1841,9 +1842,7 @@ class _GameSymbol extends StatelessWidget {
       );
     }
     if (gameId == 'heartPoints') {
-      // Match the heart sizing used for kingOfHearts so the two heart-based
-      // game icons look visually consistent under any text scale setting.
-      final iconSize = MediaQuery.textScalerOf(context).scale(fontSize) * 1.1;
+      final iconSize = _suitIconSize(context);
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
