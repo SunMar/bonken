@@ -69,6 +69,7 @@ jobs:
       - name: Build web (PWA)
         run: |
           flutter build web --release \
+            --no-tree-shake-icons \
             --build-name=${{ steps.version.outputs.name }} \
             --build-number=${{ steps.version.outputs.code }}
 
@@ -146,12 +147,14 @@ jobs:
       - name: Build Android APK
         run: |
           flutter build apk --release \
+            --no-tree-shake-icons \
             --build-name=${{ needs.build.outputs.name }} \
             --build-number=${{ needs.build.outputs.code }}
 
       - name: Build Android App Bundle (AAB)
         run: |
           flutter build appbundle --release \
+            --no-tree-shake-icons \
             --build-name=${{ needs.build.outputs.name }} \
             --build-number=${{ needs.build.outputs.code }}
 

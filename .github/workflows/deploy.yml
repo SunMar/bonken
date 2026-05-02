@@ -39,6 +39,7 @@ jobs:
         run: |
           GIT_COMMIT="$(git rev-parse --short HEAD)"
           flutter build web --release \
+            --no-tree-shake-icons \
             --base-href /bonken/ \
             --dart-define=GIT_COMMIT="$GIT_COMMIT"
 

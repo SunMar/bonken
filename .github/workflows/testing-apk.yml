@@ -60,6 +60,7 @@ jobs:
       - name: Build testing APK
         run: |
           flutter build apk --release \
+            --no-tree-shake-icons \
             --build-name=${{ steps.version.outputs.name }} \
             --build-number=${{ steps.version.outputs.code }} \
             -PappIdSuffix=.testing \
