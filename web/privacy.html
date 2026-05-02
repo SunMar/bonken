@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -66,17 +66,17 @@
       margin: 0 0 1.5rem;
     }
     /* Language switching: hide both, show the one whose id matches the URL
-       fragment.  Default to English when no fragment is set. */
+       fragment.  Default to Dutch when no fragment is set. */
     section { display: none; }
     section:target { display: block; }
-    main:not(:has(section:target)) section#en { display: block; }
+    main:not(:has(section:target)) section#nl { display: block; }
   </style>
 </head>
 <body>
   <main>
     <nav class="lang">
-      <a href="#en">English</a>
       <a href="#nl">Nederlands</a>
+      <a href="#en">English</a>
     </nav>
 
     <!-- ============================ ENGLISH ============================ -->
