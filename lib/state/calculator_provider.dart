@@ -378,6 +378,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     );
   }
 
+  /// Clears the explicit dealer choice so that a random dealer will be picked
+  /// when the game starts. Only meaningful before the first round is recorded.
+  void clearDealer() {
+    state = state.copyWith(dealerChosen: false);
+  }
+
   void setChooser(int index) {
     state = state.copyWith(chooserIndex: index);
     _recalculate();

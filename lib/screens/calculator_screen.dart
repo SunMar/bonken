@@ -1424,10 +1424,12 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
   void _updateProviders() {
     if (!mounted) return;
     final trimmed = _controllers.map((c) => c.text.trim()).toList();
-    final nonEmpty = trimmed.where((n) => n.isNotEmpty).toList();
-    final hasDuplicates = nonEmpty.length != nonEmpty.toSet().length;
+    final lower = trimmed.map((n) => n.toLowerCase()).toList();
+    final nonEmptyLower = lower.where((n) => n.isNotEmpty).toList();
+    final hasDuplicates =
+        nonEmptyLower.length != nonEmptyLower.toSet().length;
     final canSave =
-        trimmed.every((n) => n.isNotEmpty) && trimmed.toSet().length == 4;
+        trimmed.every((n) => n.isNotEmpty) && lower.toSet().length == 4;
     final hasChanges =
         _controllers.indexed.any(
           (e) => e.$2.text.trim() != _originalNames[e.$1],

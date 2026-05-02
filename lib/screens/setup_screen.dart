@@ -1,9 +1,13 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/mini_game.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
+import '../widgets/dialogs.dart';
 import '../widgets/player_name_field.dart';
 import 'calculator_screen.dart';
 
@@ -95,13 +99,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         .playerNameSuggestions;
 
     final trimmedNames = state.playerNames.map((n) => n.trim()).toList();
+    final lowerNames = trimmedNames.map((n) => n.toLowerCase()).toList();
+    final nonEmptyLower = lowerNames.where((n) => n.isNotEmpty).toList();
     final hasDuplicateNames =
-        trimmedNames.where((n) => n.isNotEmpty).length !=
-        trimmedNames.where((n) => n.isNotEmpty).toSet().length;
+        nonEmptyLower.length != nonEmptyLower.toSet().length;
     final canStart =
         trimmedNames.every((n) => n.isNotEmpty) &&
-        trimmedNames.toSet().length == 4 &&
-        state.dealerChosen;
+        lowerNames.toSet().length == 4;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nieuw spel')),
@@ -225,9 +229,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
             initialValue: state.dealerChosen ? state.dealerIndex : null,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              hintText: 'Willekeurige deler',
+              suffixIcon: state.dealerChosen
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Wissen (willekeurige deler)',
+                      onPressed: () => notifier.clearDealer(),
+                    )
+                  : null,
             ),
             items: [
               for (int i = 0; i < playerCount; i++)
@@ -256,10 +268,64 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
             onPressed: canStart
-                ? () {
+                ? () async {
                     _commitAllSlots();
-                    _started = true;
                     final notifier = ref.read(calculatorProvider.notifier);
+                    final currentState = ref.read(calculatorProvider);
+                    // Randomly pick a dealer if the user didn't choose one.
+                    final dealerWasRandom = !currentState.dealerChosen;
+                    if (dealerWasRandom) {
+                      final randomIndex = Random().nextInt(playerCount);
+                      notifier.setDealer(randomIndex);
+                    }
+                    if (dealerWasRandom) {
+                      final dealerName = ref
+                          .read(calculatorProvider)
+                          .playerNames[ref.read(calculatorProvider).dealerIndex];
+                      await showInfoDialog(
+                        context,
+                        title: 'Willekeurige deler',
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Builder(
+                              builder: (context) {
+                                final style = Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold);
+                                final iconSize =
+                                    (style?.fontSize ?? 28) * 1.1;
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Icon(Symbols.playing_cards, size: iconSize),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        dealerName,
+                                        textAlign: TextAlign.center,
+                                        style: style,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'is geloot om als eerste te delen.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      );
+                      if (!context.mounted) return;
+                    }
+                    _started = true;
                     notifier.initSession();
                     final session = notifier.buildSession();
                     if (session != null) {

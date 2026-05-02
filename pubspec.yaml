@@ -46,6 +46,7 @@ dependencies:
   # Default Flutter font set; silences the "missing cupertino_icons" warning
   # emitted by `flutter build web` even though no CupertinoIcon is used.
   cupertino_icons: ^1.0.8
+  material_symbols_icons: ^4.2928.1
 
 dev_dependencies:
   flutter_test:

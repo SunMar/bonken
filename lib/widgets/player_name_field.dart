@@ -35,8 +35,11 @@ class PlayerNameField extends StatelessWidget {
       optionsBuilder: (textEditingValue) {
         if (suggestions.isEmpty) return const Iterable<String>.empty();
         final query = textEditingValue.text.toLowerCase();
-        // Hide suggestions already chosen for other players.
-        final available = suggestions.where((s) => !takenNames.contains(s));
+        // Hide suggestions already chosen for other players (case-insensitive).
+        final lowerTaken = takenNames.map((n) => n.toLowerCase()).toSet();
+        final available = suggestions.where(
+          (s) => !lowerTaken.contains(s.toLowerCase()),
+        );
         // Show all suggestions (sorted by frequency) when field is empty;
         // otherwise filter to those containing the typed text.
         if (query.isEmpty) return available;
@@ -49,6 +52,15 @@ class PlayerNameField extends StatelessWidget {
         );
       },
       optionsViewBuilder: (context, onSelected, options) {
+        // Re-filter at draw time so the dropdown reflects the latest
+        // takenNames even when [optionsBuilder] hasn't been re-run yet
+        // (it only runs on text changes, not on parent rebuilds caused by
+        // another field being committed).
+        final lowerTaken = takenNames.map((n) => n.toLowerCase()).toSet();
+        final visible = options
+            .where((s) => !lowerTaken.contains(s.toLowerCase()))
+            .toList();
+        if (visible.isEmpty) return const SizedBox.shrink();
         return Align(
           alignment: Alignment.topLeft,
           child: Material(
@@ -59,9 +71,9 @@ class PlayerNameField extends StatelessWidget {
               child: ListView.builder(
                 padding: EdgeInsets.zero,
                 shrinkWrap: true,
-                itemCount: options.length,
+                itemCount: visible.length,
                 itemBuilder: (context, idx) {
-                  final option = options.elementAt(idx);
+                  final option = visible[idx];
                   return InkWell(
                     onTap: () => onSelected(option),
                     child: Padding(
@@ -83,11 +95,15 @@ class PlayerNameField extends StatelessWidget {
           // Intercept Tab so it behaves the same as the on-screen "Next"
           // action: commit + advance to the next empty slot (or unfocus).
           // Shift+Tab falls through to the default reverse focus traversal.
+          //
+          // We deliberately do NOT call RawAutocomplete's [onFieldSubmitted]
+          // here: that callback auto-picks the highlighted (first) suggestion
+          // as if the user clicked it.  The user must click a suggestion
+          // explicitly to accept it.
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent &&
                 event.logicalKey == LogicalKeyboardKey.tab &&
                 !HardwareKeyboard.instance.isShiftPressed) {
-              onFieldSubmitted();
               onSubmitted();
               return KeyEventResult.handled;
             }
@@ -108,10 +124,7 @@ class PlayerNameField extends StatelessWidget {
             textInputAction: isLast
                 ? TextInputAction.done
                 : TextInputAction.next,
-            onSubmitted: (_) {
-              onFieldSubmitted();
-              onSubmitted();
-            },
+            onSubmitted: (_) => onSubmitted(),
           ),
         );
       },
