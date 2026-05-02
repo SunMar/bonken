@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,8 +14,9 @@ import '../utils.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
+import '../widgets/drag_handle.dart';
 import '../widgets/game_input/game_input_form.dart';
-import '../widgets/player_name_field.dart';
+import '../widgets/player_list_field.dart';
 import '../widgets/score_result_view.dart';
 import 'setup_screen.dart';
 import 'start_screen.dart';
@@ -26,9 +28,10 @@ class _IsReorderModeNotifier extends Notifier<bool> {
   void set(bool value) => state = value;
 }
 
-final isReorderModeProvider = NotifierProvider<_IsReorderModeNotifier, bool>(
-  _IsReorderModeNotifier.new,
-);
+final isReorderModeProvider =
+    NotifierProvider.autoDispose<_IsReorderModeNotifier, bool>(
+      _IsReorderModeNotifier.new,
+    );
 
 /// Snapshot of history order taken when entering reorder mode, used for Cancel.
 class _ReorderSnapshotNotifier extends Notifier<List<RoundRecord>> {
@@ -38,7 +41,7 @@ class _ReorderSnapshotNotifier extends Notifier<List<RoundRecord>> {
 }
 
 final reorderSnapshotProvider =
-    NotifierProvider<_ReorderSnapshotNotifier, List<RoundRecord>>(
+    NotifierProvider.autoDispose<_ReorderSnapshotNotifier, List<RoundRecord>>(
       _ReorderSnapshotNotifier.new,
     );
 
@@ -50,7 +53,7 @@ class _IsEditPlayersModeNotifier extends Notifier<bool> {
 }
 
 final isEditPlayersModeProvider =
-    NotifierProvider<_IsEditPlayersModeNotifier, bool>(
+    NotifierProvider.autoDispose<_IsEditPlayersModeNotifier, bool>(
       _IsEditPlayersModeNotifier.new,
     );
 
@@ -63,7 +66,7 @@ class _EditPlayersSaveTriggerNotifier extends Notifier<int> {
 }
 
 final _editPlayersSaveTriggerProvider =
-    NotifierProvider<_EditPlayersSaveTriggerNotifier, int>(
+    NotifierProvider.autoDispose<_EditPlayersSaveTriggerNotifier, int>(
       _EditPlayersSaveTriggerNotifier.new,
     );
 
@@ -74,9 +77,10 @@ class _CanSavePlayersNotifier extends Notifier<bool> {
   void set(bool value) => state = value;
 }
 
-final _canSavePlayersProvider = NotifierProvider<_CanSavePlayersNotifier, bool>(
-  _CanSavePlayersNotifier.new,
-);
+final _canSavePlayersProvider =
+    NotifierProvider.autoDispose<_CanSavePlayersNotifier, bool>(
+      _CanSavePlayersNotifier.new,
+    );
 
 /// True when the edit-players form has unsaved changes.
 class _HasPlayersChangesNotifier extends Notifier<bool> {
@@ -86,7 +90,7 @@ class _HasPlayersChangesNotifier extends Notifier<bool> {
 }
 
 final _hasPlayersChangesProvider =
-    NotifierProvider<_HasPlayersChangesNotifier, bool>(
+    NotifierProvider.autoDispose<_HasPlayersChangesNotifier, bool>(
       _HasPlayersChangesNotifier.new,
     );
 
@@ -98,10 +102,6 @@ final _hasPlayersChangesProvider =
 // as vector icons (see [_GameSymbol]); the entries below are only used as a
 // safety fallback for the non-suit games.
 const _gameSymbols = {
-  'clubs': '',
-  'diamonds': '',
-  'hearts': '',
-  'spades': '',
   'noTrump': 'SA',
   'kingOfHearts': '',
   'kingsAndJacks': 'H/B',
@@ -326,21 +326,23 @@ class CalculatorScreen extends ConsumerWidget {
       ref.read(isReorderModeProvider.notifier).set(false);
     }
 
+    Future<void> handleBack() async {
+      if (isEditingPlayers) {
+        await confirmAndCancelPlayers();
+      } else if (isReordering) {
+        await confirmAndCancelReorder();
+      } else if (game != null) {
+        await saveOrConfirmBack();
+      }
+    }
+
     return PopScope(
       // Allow native back when no game is selected (pops to HomeScreen).
       // When a game is selected, intercept back to deselect instead.
       // While reordering or editing players, intercept back to cancel.
       canPop: game == null && !isReordering && !isEditingPlayers,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          if (isEditingPlayers) {
-            confirmAndCancelPlayers();
-          } else if (isReordering) {
-            confirmAndCancelReorder();
-          } else if (game != null) {
-            saveOrConfirmBack();
-          }
-        }
+        if (!didPop) handleBack();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -349,15 +351,7 @@ class CalculatorScreen extends ConsumerWidget {
               ? IconButton(
                   icon: const Icon(Symbols.arrow_back),
                   tooltip: 'Verwerpen',
-                  onPressed: () {
-                    if (isEditingPlayers) {
-                      confirmAndCancelPlayers();
-                    } else if (isReordering) {
-                      confirmAndCancelReorder();
-                    } else {
-                      saveOrConfirmBack();
-                    }
-                  },
+                  onPressed: handleBack,
                 )
               : null,
           actions: [
@@ -521,25 +515,45 @@ class _GameSelectionPhase extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(calculatorProvider);
+    // Watch only the slices we need: the visible game tiles depend on which
+    // games have been played + the current chooser, NOT on whatever the user
+    // is typing in `state.input` (we left this phase before that anyway, but
+    // a stale subscription would still keep this widget rebuilding when
+    // returning here after a round).
+    final history = ref.watch(
+      calculatorProvider.select((s) => s.history),
+    );
+    final chooserIndex = ref.watch(
+      calculatorProvider.select((s) => s.chooserIndex),
+    );
     final isReordering = ref.watch(isReorderModeProvider);
-    final history = state.history;
     final playedIds = history.map((r) => r.game.id).toSet();
 
     final isFinished = history.length >= 12;
 
-    final positiveGames = allGames
-        .where(
-          (g) =>
-              g.category == GameCategory.positive && !playedIds.contains(g.id),
-        )
-        .toList();
-    final negativeGames = allGames
-        .where(
-          (g) =>
-              g.category == GameCategory.negative && !playedIds.contains(g.id),
-        )
-        .toList();
+    final positiveGames = <MiniGame>[];
+    final negativeGames = <MiniGame>[];
+    for (final g in allGames) {
+      if (playedIds.contains(g.id)) continue;
+      if (g.category == GameCategory.positive) {
+        positiveGames.add(g);
+      } else {
+        negativeGames.add(g);
+      }
+    }
+
+    // Quota counts for the current chooser — computed once instead of
+    // re-derived per tile via select().
+    var negCount = 0;
+    var posCount = 0;
+    for (final r in history) {
+      if (r.chooserIndex != chooserIndex) continue;
+      if (r.game.category == GameCategory.negative) {
+        negCount++;
+      } else {
+        posCount++;
+      }
+    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -560,7 +574,8 @@ class _GameSelectionPhase extends ConsumerWidget {
             color: Theme.of(context).colorScheme.error,
           ),
           const SizedBox(height: 8),
-          for (final game in negativeGames) _GameTile(game: game),
+          for (final game in negativeGames)
+            _GameTile(game: game, negCount: negCount, posCount: posCount),
         ],
         if (!isReordering && !isFinished && positiveGames.isNotEmpty) ...[
           const SizedBox(height: 20),
@@ -569,7 +584,8 @@ class _GameSelectionPhase extends ConsumerWidget {
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(height: 8),
-          for (final game in positiveGames) _GameTile(game: game),
+          for (final game in positiveGames)
+            _GameTile(game: game, negCount: negCount, posCount: posCount),
         ],
         const SizedBox(height: 20),
         const _HistoryList(),
@@ -597,17 +613,21 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _GameTile extends ConsumerWidget {
-  const _GameTile({required this.game});
+  const _GameTile({
+    required this.game,
+    required this.negCount,
+    required this.posCount,
+  });
 
   final MiniGame game;
+  final int negCount;
+  final int posCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final isPositive = game.category == GameCategory.positive;
     final accentColor = isPositive ? cs.primary : cs.error;
-    final symbolColor = _gameColors[game.id] ?? accentColor;
-    final symbol = _gameSymbols[game.id] ?? '?';
 
     final pendingGameId = ref.watch(
       calculatorProvider.select((s) => s.pendingGame?.id),
@@ -615,21 +635,6 @@ class _GameTile extends ConsumerWidget {
     final isPending = pendingGameId == game.id;
     final isPendingBlocked = pendingGameId != null && !isPending;
 
-    // Quota check — compute at build time so the tile can be visually disabled.
-    final chooserIndex = ref.watch(
-      calculatorProvider.select((s) => s.chooserIndex),
-    );
-    final chooserRounds = ref.watch(
-      calculatorProvider.select(
-        (s) => s.history.where((r) => r.chooserIndex == chooserIndex).toList(),
-      ),
-    );
-    final negCount = chooserRounds
-        .where((r) => r.game.category == GameCategory.negative)
-        .length;
-    final posCount = chooserRounds
-        .where((r) => r.game.category == GameCategory.positive)
-        .length;
     final isQuotaDisabled =
         (game.category == GameCategory.negative && negCount >= 2) ||
         (game.category == GameCategory.positive && posCount >= 1);
@@ -639,16 +644,7 @@ class _GameTile extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundColor: symbolColor.withAlpha(isDisabled ? 15 : 30),
-          child: _GameSymbol(
-            symbol: symbol,
-            gameId: game.id,
-            color: isDisabled ? cs.onSurface.withAlpha(60) : symbolColor,
-            fontSize: 16,
-          ),
-        ),
+        leading: GameAvatar(game: game, radius: 22, disabled: isDisabled),
         title: Text(
           game.name,
           style: TextStyle(
@@ -691,7 +687,7 @@ class _GameTile extends ConsumerWidget {
           }
           // Quota-disabled games show a warning with an override option.
           if (isQuotaDisabled) {
-            final chooserName = state.playerNames[chooserIndex];
+            final chooserName = state.playerNames[state.chooserIndex];
             final proceed = await showConfirmDialog(
               context,
               title: 'Limiet overschreden',
@@ -721,68 +717,41 @@ class _GameInputPhase extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(calculatorProvider);
+    // NOTE: this widget intentionally does NOT call `ref.watch(calculatorProvider)`.
+    // Each section below watches only the slice of state it actually needs, so
+    // typing in the input form (which mutates `state.input` 60+ times per
+    // numeric stepper hold) does not rebuild the doubles card, the header,
+    // or the chooser selector.
     final notifier = ref.read(calculatorProvider.notifier);
     final cs = Theme.of(context).colorScheme;
-
     final isPositive = game.category == GameCategory.positive;
     final accentColor = isPositive ? cs.primary : cs.error;
-    final symbolColor = _gameColors[game.id] ?? accentColor;
-    final symbol = _gameSymbols[game.id] ?? '?';
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // --- Game header ---
-        Row(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: symbolColor.withAlpha(30),
-              child: _GameSymbol(
-                symbol: symbol,
-                gameId: game.id,
-                color: symbolColor,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    game.name,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text(
-                    isPositive
-                        ? 'Positief  ·  +${game.totalPoints} punten totaal'
-                        : 'Negatief  ·  ${game.totalPoints} punten totaal',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: accentColor),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Kiezer: ${state.playerNames[state.chooserIndex]}  ·  '
-                    'Deler (eerste kaart): ${state.playerNames[state.dealerIndex]}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        _GameInputHeader(
+          game: game,
+          isPositive: isPositive,
+          accentColor: accentColor,
         ),
         const SizedBox(height: 20),
 
         // --- Chooser selector ---
-        _ChooserSelector(
-          playerNames: state.playerNames,
-          chooserIndex: state.chooserIndex,
-          defaultChooserIndex: (state.dealerIndex + 1) % 4,
+        Consumer(
+          builder: (context, ref, _) {
+            final (playerNames, chooserIndex, dealerIndex) = ref.watch(
+              calculatorProvider.select(
+                (s) => (s.playerNames, s.chooserIndex, s.dealerIndex),
+              ),
+            );
+            return _ChooserSelector(
+              playerNames: playerNames,
+              chooserIndex: chooserIndex,
+              defaultChooserIndex: (dealerIndex + 1) % 4,
+            );
+          },
         ),
         const SizedBox(height: 12),
 
@@ -795,11 +764,20 @@ class _GameInputPhase extends ConsumerWidget {
               children: [
                 Text('Dubbels', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 10),
-                DoublesPicker(
-                  playerNames: state.playerNames,
-                  chooserIndex: state.chooserIndex,
-                  doubles: state.doubles,
-                  onChanged: notifier.updateDoubles,
+                Consumer(
+                  builder: (context, ref, _) {
+                    final (playerNames, chooserIndex, doubles) = ref.watch(
+                      calculatorProvider.select(
+                        (s) => (s.playerNames, s.chooserIndex, s.doubles),
+                      ),
+                    );
+                    return DoublesPicker(
+                      playerNames: playerNames,
+                      chooserIndex: chooserIndex,
+                      doubles: doubles,
+                      onChanged: notifier.updateDoubles,
+                    );
+                  },
                 ),
               ],
             ),
@@ -819,11 +797,20 @@ class _GameInputPhase extends ConsumerWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 10),
-                GameInputForm(
-                  game: game,
-                  playerNames: state.playerNames,
-                  input: state.input,
-                  onInputChanged: notifier.updateInput,
+                Consumer(
+                  builder: (context, ref, _) {
+                    final (playerNames, input) = ref.watch(
+                      calculatorProvider.select(
+                        (s) => (s.playerNames, s.input),
+                      ),
+                    );
+                    return GameInputForm(
+                      game: game,
+                      playerNames: playerNames,
+                      input: input,
+                      onInputChanged: notifier.updateInput,
+                    );
+                  },
                 ),
               ],
             ),
@@ -833,26 +820,95 @@ class _GameInputPhase extends ConsumerWidget {
 
         // --- Result (auto-calculated) ---
         const SizedBox(height: 16),
-        if (state.result != null)
-          ScoreResultView(
-            result: state.result!,
-            game: game,
-            playerNames: state.playerNames,
-            doubles: state.doubles,
-            chooserIndex: state.chooserIndex,
-          )
-        else
-          ScoreResultView(
-            result:
-                state.partialResult ??
-                ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
-            game: game,
-            playerNames: state.playerNames,
-            doubles: state.doubles,
-            chooserIndex: state.chooserIndex,
-            isPartial: true,
-          ),
+        Consumer(
+          builder: (context, ref, _) {
+            final (result, partialResult, doubles, chooserIndex, playerNames) =
+                ref.watch(
+              calculatorProvider.select(
+                (s) => (
+                  s.result,
+                  s.partialResult,
+                  s.doubles,
+                  s.chooserIndex,
+                  s.playerNames,
+                ),
+              ),
+            );
+            return result != null
+                ? ScoreResultView(
+                    result: result,
+                    game: game,
+                    playerNames: playerNames,
+                    doubles: doubles,
+                    chooserIndex: chooserIndex,
+                  )
+                : ScoreResultView(
+                    result:
+                        partialResult ??
+                        const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
+                    game: game,
+                    playerNames: playerNames,
+                    doubles: doubles,
+                    chooserIndex: chooserIndex,
+                    isPartial: true,
+                  );
+          },
+        ),
         const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+/// Game-name + chooser/dealer header for [_GameInputPhase].
+///
+/// Watches only the player names + chooser/dealer indices so it doesn't
+/// rebuild when the user types into the input form.
+class _GameInputHeader extends ConsumerWidget {
+  const _GameInputHeader({
+    required this.game,
+    required this.isPositive,
+    required this.accentColor,
+  });
+
+  final MiniGame game;
+  final bool isPositive;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final (playerNames, chooserIndex, dealerIndex) = ref.watch(
+      calculatorProvider.select(
+        (s) => (s.playerNames, s.chooserIndex, s.dealerIndex),
+      ),
+    );
+
+    return Row(
+      children: [
+        GameAvatar(game: game, radius: 24),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(game.name, style: tt.titleLarge),
+              Text(
+                isPositive
+                    ? 'Positief  ·  +${game.totalPoints} punten totaal'
+                    : 'Negatief  ·  ${game.totalPoints} punten totaal',
+                style: tt.bodyMedium?.copyWith(color: accentColor),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Kiezer: ${playerNames[chooserIndex]}  ·  '
+                'Deler (eerste kaart): ${playerNames[dealerIndex]}',
+                style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -968,9 +1024,7 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
         final names = List<String>.from(state.playerNames);
         final notifier = ref.read(calculatorProvider.notifier);
         notifier.reset();
-        for (int i = 0; i < names.length; i++) {
-          notifier.setPlayerName(i, names[i]);
-        }
+        notifier.setAllPlayerNames(names);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SetupScreen()),
         );
@@ -988,8 +1042,20 @@ class _HistoryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(calculatorProvider);
-    if (state.history.isEmpty) return const SizedBox.shrink();
+    // Narrow subscription: rebuild only when one of these slices changes,
+    // not on every input keystroke / chooser tap / etc. The list of player
+    // names is referenced by every row but stays constant during gameplay.
+    final (history, playerNames, hasPendingGame, pendingGameName) = ref.watch(
+      calculatorProvider.select(
+        (s) => (
+          s.history,
+          s.playerNames,
+          s.hasPendingGame,
+          s.pendingGame?.name,
+        ),
+      ),
+    );
+    if (history.isEmpty) return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
     final notifier = ref.read(calculatorProvider.notifier);
@@ -998,236 +1064,246 @@ class _HistoryList extends ConsumerWidget {
     // In reorder mode: use a ReorderableListView without edit buttons.
     if (isReordering) {
       // history is chronological (round 1 first); show in that order for drag.
-      final rounds = state.history;
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Symbols.swap_vert, size: 16, color: cs.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Ronde volgorde',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleSmall?.copyWith(color: cs.primary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              // ReorderableListView needs a fixed height or shrinkWrap.
-              ReorderableListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                buildDefaultDragHandles: false,
-                itemCount: rounds.length,
-                onReorder: notifier.reorderRounds,
-                itemBuilder: (ctx, i) {
-                  final record = rounds[i];
-                  return Material(
-                    key: ValueKey(record.roundNumber),
-                    color: Colors.transparent,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Divider(height: 1),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              ReorderableDragStartListener(
-                                index: i,
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.grab,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: Icon(
-                                      Symbols.drag_indicator,
-                                      color: cs.onSurfaceVariant,
-                                    ),
+      final rounds = history;
+      return RepaintBoundary(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Symbols.swap_vert, size: 16, color: cs.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Ronde volgorde',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleSmall?.copyWith(color: cs.primary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // ReorderableListView needs a fixed height or shrinkWrap.
+                ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  itemCount: rounds.length,
+                  onReorder: notifier.reorderRounds,
+                  itemBuilder: (ctx, i) {
+                    final record = rounds[i];
+                    return Material(
+                      key: ValueKey(record.roundNumber),
+                      color: Colors.transparent,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                DragHandle(index: i),
+                                Expanded(
+                                  child: _RoundRowHeader(
+                                    record: record,
+                                    playerNames: playerNames,
+                                    cs: cs,
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Ronde ${record.roundNumber} — ${record.game.name}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                    Text(
-                                      state.playerNames[record.chooserIndex],
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: cs.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       );
     }
 
     // Normal mode: reversed (most recent first), with edit buttons.
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Gespeelde rondes',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            for (final record in state.history.reversed) ...[
-              const Divider(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final lastRoundNumber = history.last.roundNumber;
+    return RepaintBoundary(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Gespeelde rondes',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              for (final record in history.reversed) ...[
+                const Divider(height: 16),
+                _HistoryRow(
+                  record: record,
+                  playerNames: playerNames,
+                  cs: cs,
+                  notifier: notifier,
+                  showDelete: record.roundNumber == lastRoundNumber &&
+                      !hasPendingGame,
+                  hasPendingGame: hasPendingGame,
+                  pendingGameName: pendingGameName,
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Single row in [_HistoryList].
+///
+/// Extracted as a const-friendly widget so iterating over reversed history
+/// produces independent subtrees that won't all rebuild together.
+///
+/// The trailing column always reserves the same vertical space as a row
+/// with both edit + delete IconButtons. For non-last rows we render a
+/// [SizedBox] placeholder of [kMinInteractiveDimension] so the edit icons
+/// stay aligned across rows without paying for an offscreen [IconButton]
+/// (which is what the previous `Visibility(maintainState: true)` setup did).
+class _HistoryRow extends StatelessWidget {
+  const _HistoryRow({
+    required this.record,
+    required this.playerNames,
+    required this.cs,
+    required this.notifier,
+    required this.showDelete,
+    required this.hasPendingGame,
+    required this.pendingGameName,
+  });
+
+  final RoundRecord record;
+  final List<String> playerNames;
+  final ColorScheme cs;
+  final CalculatorNotifier notifier;
+  final bool showDelete;
+  final bool hasPendingGame;
+  final String? pendingGameName;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Round + game
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _RoundRowHeader(
+                record: record,
+                playerNames: playerNames,
+                cs: cs,
+              ),
+              if (record.doubles.hasAnyDouble)
+                DoublesChips(
+                  doubles: record.doubles,
+                  names: playerNames,
+                  chooserIndex: record.chooserIndex,
+                ),
+            ],
+          ),
+        ),
+        // Per-player deltas — names right-aligned, scores right-aligned.
+        // We keep IntrinsicWidth here on purpose: a fixed score-column
+        // width would either crowd extreme scores or waste horizontal
+        // space for normal scores. With at most 12 rounds in a Bonken
+        // game the extra layout pass per row is negligible.
+        IntrinsicWidth(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Round + game
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Ronde ${record.roundNumber} — ${record.game.name}',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          state.playerNames[record.chooserIndex],
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: cs.onSurfaceVariant),
-                        ),
-                        if (record.doubles.hasAnyDouble)
-                          DoublesChips(
-                            doubles: record.doubles,
-                            names: state.playerNames,
-                            chooserIndex: record.chooserIndex,
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Per-player deltas — names right-aligned, scores right-aligned
-                  IntrinsicWidth(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            for (int i = 0; i < playerCount; i++)
-                              Text(
-                                '${state.playerNames[i]}:',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: cs.onSurfaceVariant),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            for (int i = 0; i < playerCount; i++)
-                              Text(
-                                formatScore(record.result.scores[i] ?? 0),
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: scoreColor(
-                                        record.result.scores[i] ?? 0,
-                                        cs,
-                                      ),
-                                    ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Edit + delete buttons stacked vertically.  Delete is only
-                  // shown for the last round; maintainSize keeps every row's
-                  // trailing column the same width so the edit icons stay
-                  // perfectly aligned across rows.
-                  Column(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Symbols.edit, size: 18),
-                        tooltip: 'Wijzigen',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => notifier.restoreRound(record),
+                  for (int i = 0; i < playerCount; i++)
+                    Text(
+                      '${playerNames[i]}:',
+                      style: tt.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
                       ),
-                      Visibility(
-                        visible:
-                            record.roundNumber ==
-                                state.history.last.roundNumber &&
-                            !state.hasPendingGame,
-                        maintainSize: true,
-                        maintainAnimation: true,
-                        maintainState: true,
-                        child: IconButton(
-                          icon: const Icon(Symbols.delete, size: 18),
-                          tooltip: 'Ronde verwijderen',
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () async {
-                            if (state.hasPendingGame) {
-                              await showInfoDialog(
-                                context,
-                                title: 'Kan ronde niet verwijderen',
-                                contentText:
-                                    '${state.pendingGame!.name} is nog niet afgerond. '
-                                    'Maak dat spel eerst af voordat je de laatste ronde verwijdert.',
-                              );
-                              return;
-                            }
-                            if (!context.mounted) return;
-                            final confirm = await showConfirmDialog(
-                              context,
-                              title: 'Ronde verwijderen?',
-                              contentText:
-                                  'Ronde ${record.roundNumber} (${record.game.name}) '
-                                  'wordt permanent verwijderd.',
-                              confirmLabel: 'Verwijderen',
-                              destructive: true,
-                            );
-                            if (confirm != true) return;
-                            notifier.deleteLastRound();
-                          },
-                        ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (int i = 0; i < playerCount; i++)
+                    Text(
+                      formatScore(record.result.scores[i] ?? 0),
+                      style: tt.bodyMedium?.copyWith(
+                        color: scoreColor(record.result.scores[i] ?? 0, cs),
                       ),
-                    ],
-                  ),
+                    ),
                 ],
               ),
             ],
-            const SizedBox(height: 8),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Edit + (optional) delete buttons. Non-last rows still reserve
+        // the delete-button vertical space so all edit icons line up.
+        Column(
+          children: [
+            IconButton(
+              icon: const Icon(Symbols.edit, size: 18),
+              tooltip: 'Wijzigen',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => notifier.restoreRound(record),
+            ),
+            if (showDelete)
+              IconButton(
+                icon: const Icon(Symbols.delete, size: 18),
+                tooltip: 'Ronde verwijderen',
+                visualDensity: VisualDensity.compact,
+                onPressed: () async {
+                  if (hasPendingGame) {
+                    await showInfoDialog(
+                      context,
+                      title: 'Kan ronde niet verwijderen',
+                      contentText:
+                          '${pendingGameName ?? ''} is nog niet afgerond. '
+                          'Maak dat spel eerst af voordat je de laatste ronde verwijdert.',
+                    );
+                    return;
+                  }
+                  if (!context.mounted) return;
+                  final confirm = await showConfirmDialog(
+                    context,
+                    title: 'Ronde verwijderen?',
+                    contentText:
+                        'Ronde ${record.roundNumber} (${record.game.name}) '
+                        'wordt permanent verwijderd.',
+                    confirmLabel: 'Verwijderen',
+                    destructive: true,
+                  );
+                  if (confirm != true) return;
+                  notifier.deleteLastRound();
+                },
+              )
+            else
+              // Placeholder so the edit icon stays aligned with rows that
+              // do show a delete button. Same height as a compact IconButton.
+              const SizedBox(height: kMinInteractiveDimension),
           ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -1391,7 +1467,6 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
   late final bool _gameInProgress;
   late final List<String> _originalNames;
   late final int _originalDealerIndex;
-  bool _hasDuplicateNames = false;
 
   @override
   void initState() {
@@ -1415,20 +1490,13 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
 
   void _onFormChanged() => _updateProviders();
 
-  bool get _orderChanged {
-    for (int i = 0; i < playerCount; i++) {
-      if (!identical(_controllers[i], _originalControllerOrder[i])) return true;
-    }
-    return false;
-  }
+  bool get _orderChanged =>
+      !listEquals(_controllers, _originalControllerOrder);
 
   void _updateProviders() {
     if (!mounted) return;
     final trimmed = _controllers.map((c) => c.text.trim()).toList();
     final lower = trimmed.map((n) => n.toLowerCase()).toList();
-    final nonEmptyLower = lower.where((n) => n.isNotEmpty).toList();
-    final hasDuplicates =
-        nonEmptyLower.length != nonEmptyLower.toSet().length;
     final canSave =
         trimmed.every((n) => n.isNotEmpty) && lower.toSet().length == 4;
     final hasChanges =
@@ -1436,7 +1504,11 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
           (e) => e.$2.text.trim() != _originalNames[e.$1],
         ) ||
         _dealerIndex != _originalDealerIndex;
-    setState(() => _hasDuplicateNames = hasDuplicates);
+    // PlayerListField (duplicate warning) and DealerDropdownField
+    // (player-name labels) are wrapped in [ListenableBuilder]s in [build]
+    // and rebuild themselves from the controller listeners — no setState
+    // needed here, which avoids rebuilding the entire phase on every
+    // keystroke (cards, suggestions watch, ReorderableListView, …).
     ref.read(_canSavePlayersProvider.notifier).set(canSave);
     ref.read(_hasPlayersChangesProvider.notifier).set(hasChanges);
   }
@@ -1450,20 +1522,14 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
     for (final n in _focusNodes) {
       n.dispose();
     }
-    // Reset providers when leaving.
-    ref.read(_canSavePlayersProvider.notifier).set(true);
-    ref.read(_hasPlayersChangesProvider.notifier).set(false);
     super.dispose();
   }
 
-  void _handleFieldSubmitted(int index) {
-    final next = index + 1;
-    if (next < playerCount && _controllers[next].text.trim().isEmpty) {
-      _focusNodes[next].requestFocus();
-      return;
-    }
-    _focusNodes[index].unfocus();
-  }
+  void _handleFieldSubmitted(int index) => handlePlayerFieldSubmitted(
+    index: index,
+    controllers: _controllers,
+    focusNodes: _focusNodes,
+  );
 
   void _onReorder(int oldIndex, int newIndex) {
     var target = newIndex;
@@ -1478,12 +1544,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
       final f = _focusNodes.removeAt(oldIndex);
       _focusNodes.insert(target, f);
       // Keep _dealerIndex pointing at the same person.
-      if (_dealerIndex == oldIndex) {
-        _dealerIndex = target;
-      } else {
-        if (oldIndex < _dealerIndex) _dealerIndex -= 1;
-        if (target <= _dealerIndex) _dealerIndex += 1;
-      }
+      _dealerIndex = adjustIndexAfterReorder(oldIndex, target, _dealerIndex);
     });
     _updateProviders();
   }
@@ -1540,7 +1601,6 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
     final suggestions = ref
         .watch(gameHistoryProvider.notifier)
         .playerNameSuggestions;
-    final trimmedNames = _controllers.map((c) => c.text.trim()).toList();
     final orderChanged = _orderChanged;
 
     return ListView(
@@ -1561,74 +1621,16 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                ReorderableListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  buildDefaultDragHandles: false,
-                  onReorder: _onReorder,
-                  children: [
-                    for (int i = 0; i < playerCount; i++)
-                      Padding(
-                        key: ValueKey(_focusNodes[i]),
-                        padding: EdgeInsets.only(
-                          bottom: i < playerCount - 1 ? 12 : 0,
-                        ),
-                        child: Row(
-                          children: [
-                            ReorderableDragStartListener(
-                              index: i,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.grab,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Icon(
-                                    Symbols.drag_indicator,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: PlayerNameField(
-                                index: i,
-                                controller: _controllers[i],
-                                focusNode: _focusNodes[i],
-                                suggestions: suggestions,
-                                takenNames: {
-                                  for (int j = 0; j < playerCount; j++)
-                                    if (j != i && trimmedNames[j].isNotEmpty)
-                                      trimmedNames[j],
-                                },
-                                onSubmitted: () => _handleFieldSubmitted(i),
-                                isLast: i == playerCount - 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                if (_hasDuplicateNames) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(
-                        Symbols.warning_amber,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Twee spelers hebben dezelfde naam.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ],
+                ListenableBuilder(
+                  listenable: Listenable.merge(_controllers),
+                  builder: (context, _) => PlayerListField(
+                    controllers: _controllers,
+                    focusNodes: _focusNodes,
+                    suggestions: suggestions,
+                    onReorder: _onReorder,
+                    onSubmitted: _handleFieldSubmitted,
                   ),
-                ],
+                ),
                 if (_gameInProgress && orderChanged) ...[
                   const SizedBox(height: 12),
                   _AmberWarningRow(
@@ -1654,33 +1656,16 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 8),
-                StatefulBuilder(
-                  builder: (context, setInnerState) {
-                    return DropdownButtonFormField<int>(
-                      initialValue: _dealerIndex,
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (int i = 0; i < playerCount; i++)
-                          DropdownMenuItem(
-                            value: i,
-                            child: Text(
-                              _controllers[i].text.isNotEmpty
-                                  ? _controllers[i].text
-                                  : 'Speler ${i + 1}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setInnerState(() => _dealerIndex = v);
-                        _updateProviders();
-                      },
-                    );
-                  },
+                ListenableBuilder(
+                  listenable: Listenable.merge(_controllers),
+                  builder: (context, _) => DealerDropdownField(
+                    controllers: _controllers,
+                    value: _dealerIndex,
+                    onChanged: (v) {
+                      setState(() => _dealerIndex = v);
+                      _updateProviders();
+                    },
+                  ),
                 ),
                 if (_gameInProgress &&
                     _dealerIndex != _originalDealerIndex) ...[
@@ -1695,6 +1680,38 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Compact "Ronde N — game name / chooser name" row used in both the regular
+/// and reorder modes of [_HistoryList].
+class _RoundRowHeader extends StatelessWidget {
+  const _RoundRowHeader({
+    required this.record,
+    required this.playerNames,
+    required this.cs,
+  });
+
+  final RoundRecord record;
+  final List<String> playerNames;
+  final ColorScheme cs;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ronde ${record.roundNumber} — ${record.game.name}',
+          style: tt.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        Text(
+          playerNames[record.chooserIndex],
+          style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
     );
@@ -1717,6 +1734,39 @@ class _AmberWarningRow extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(child: Text(text, style: style)),
       ],
+    );
+  }
+}
+
+/// Circular avatar showing a mini-game's symbol with its accent color.
+class GameAvatar extends StatelessWidget {
+  const GameAvatar({
+    required this.game,
+    required this.radius,
+    this.disabled = false,
+    super.key,
+  });
+
+  final MiniGame game;
+  final double radius;
+  final bool disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isPositive = game.category == GameCategory.positive;
+    final accentColor = isPositive ? cs.primary : cs.error;
+    final symbolColor = _gameColors[game.id] ?? accentColor;
+    final symbol = _gameSymbols[game.id] ?? '?';
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: symbolColor.withAlpha(disabled ? 15 : 30),
+      child: _GameSymbol(
+        symbol: symbol,
+        gameId: game.id,
+        color: disabled ? cs.onSurface.withAlpha(60) : symbolColor,
+        fontSize: 16,
+      ),
     );
   }
 }

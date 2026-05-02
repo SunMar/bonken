@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
 
+import '_double_matrix_helpers.dart';
+
 void main() {
   group('DoubleMatrix.empty', () {
     test('returns a matrix with no doubles', () {
@@ -170,6 +172,17 @@ void main() {
     test('fromJson handles missing pairs/initiators keys', () {
       final m = DoubleMatrix.fromJson(<String, dynamic>{});
       expect(m.hasAnyDouble, isFalse);
+    });
+
+    test('fromJson throws on a malformed pair key', () {
+      // Locks in current behavior: parseKey calls int.parse on the segments
+      // and propagates a FormatException for a non-numeric key.
+      expect(
+        () => DoubleMatrix.fromJson(<String, dynamic>{
+          'pairs': {'x,y': 'doubled'},
+        }),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 }

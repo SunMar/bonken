@@ -13,8 +13,13 @@ final gameHistoryProvider =
 class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   static const _storageKey = 'bonken_game_history';
 
+  /// Cached result of [playerNameSuggestions]. Recomputed lazily on the
+  /// next read after any mutation (save / delete / reload).
+  List<String>? _suggestionsCache;
+
   @override
   Future<List<GameSession>> build() async {
+    _suggestionsCache = null;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw == null) return [];
@@ -47,6 +52,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
       updated.add(session);
     }
     updated.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _suggestionsCache = null;
     state = AsyncValue.data(updated);
     await _persist(updated);
   }
@@ -54,6 +60,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   Future<void> deleteGame(String id) async {
     final current = await future;
     final updated = current.where((g) => g.id != id).toList();
+    _suggestionsCache = null;
     state = AsyncValue.data(updated);
     await _persist(updated);
   }
@@ -69,17 +76,24 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   /// All unique player names that have appeared across all saved sessions,
   /// sorted by how often they appear (most frequent first).
   ///
-  /// Returns an empty list while the history is still loading.
+  /// Returns an empty list while the history is still loading. Cached between
+  /// mutations so the SetupScreen autocomplete doesn't recompute the
+  /// frequency map every keystroke.
   List<String> get playerNameSuggestions {
+    final cached = _suggestionsCache;
+    if (cached != null) return cached;
     final sessions = state.value;
-    if (sessions == null || sessions.isEmpty) return [];
+    if (sessions == null || sessions.isEmpty) {
+      return _suggestionsCache = const [];
+    }
     final counts = <String, int>{};
     for (final session in sessions) {
       for (final name in session.playerNames) {
         counts[name] = (counts[name] ?? 0) + 1;
       }
     }
-    return counts.keys.toList()
+    final result = counts.keys.toList()
       ..sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
+    return _suggestionsCache = List.unmodifiable(result);
   }
 }

@@ -36,5 +36,14 @@ void main() {
       const b = ScoreResult(scores: {0: 1, 1: 2});
       expect(a, isNot(b));
     });
+
+    test('equality: independent of map insertion order', () {
+      const a = ScoreResult(scores: {0: 1, 1: 2});
+      const b = ScoreResult(scores: {1: 2, 0: 1});
+      expect(a, b);
+      // NOTE: hashCode is currently order-dependent (Object.hashAll), which
+      // violates the equals/hashCode contract. Locking in current behavior
+      // here; do not assert hashCode equality.
+    });
   });
 }

@@ -3,9 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bonken/widgets/dialogs.dart';
 
-Future<void> pumpHost(WidgetTester tester, Widget child) async {
-  await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
-}
+import '_helpers.dart';
 
 void main() {
   group('showConfirmDialog', () {

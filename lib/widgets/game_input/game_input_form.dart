@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/input_descriptor.dart';
 import '../../models/mini_game.dart';
 import 'counts_input.dart';
-import 'dual_player_picker.dart';
 import 'player_picker.dart';
 
 /// Factory widget: renders the correct input form for [game] based on its
@@ -40,14 +39,23 @@ class GameInputForm extends StatelessWidget {
         prompt: d.prompt,
         onSelected: (i) => onInputChanged(d.inputKey, i),
       ),
-      DualPlayerInputDescriptor d => DualPlayerPicker(
-        playerNames: playerNames,
-        selectedIndex1: input[d.inputKey1] as int?,
-        prompt1: d.prompt1,
-        onSelected1: (i) => onInputChanged(d.inputKey1, i),
-        selectedIndex2: input[d.inputKey2] as int?,
-        prompt2: d.prompt2,
-        onSelected2: (i) => onInputChanged(d.inputKey2, i),
+      DualPlayerInputDescriptor d => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PlayerPicker(
+            playerNames: playerNames,
+            selectedIndex: input[d.inputKey1] as int?,
+            prompt: d.prompt1,
+            onSelected: (i) => onInputChanged(d.inputKey1, i),
+          ),
+          const SizedBox(height: 16),
+          PlayerPicker(
+            playerNames: playerNames,
+            selectedIndex: input[d.inputKey2] as int?,
+            prompt: d.prompt2,
+            onSelected: (i) => onInputChanged(d.inputKey2, i),
+          ),
+        ],
       ),
     };
   }

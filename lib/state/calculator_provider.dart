@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/double_matrix.dart';
@@ -7,6 +10,7 @@ import '../models/input_descriptor.dart';
 import '../models/mini_game.dart';
 import '../models/round_record.dart';
 import '../models/score_result.dart';
+import '../utils.dart';
 
 import 'game_history_provider.dart';
 
@@ -88,20 +92,7 @@ class CalculatorState {
   bool get hasMeaningfulPendingInput {
     final game = pendingGame;
     if (game == null) return false;
-    final desc = game.inputDescriptor;
-    if (desc is CountsInputDescriptor) {
-      final counts = (pendingInput[desc.inputKey] as List?)?.cast<int>();
-      if (counts == null) return false;
-      return counts.fold<int>(0, (a, b) => a + b) > 0;
-    }
-    if (desc is SinglePlayerInputDescriptor) {
-      return pendingInput[desc.inputKey] != null;
-    }
-    if (desc is DualPlayerInputDescriptor) {
-      return pendingInput[desc.inputKey1] != null ||
-          pendingInput[desc.inputKey2] != null;
-    }
-    return false;
+    return !game.inputDescriptor.isEmpty(pendingInput);
   }
 
   /// Intermediate score shown while the player is still entering counts.
@@ -135,23 +126,8 @@ class CalculatorState {
   final int? editOriginalChooserIndex;
 
   /// Compares two input maps deeply.  Values are either int? or `List<int>`.
-  static bool _inputEquals(Map<String, dynamic> a, Map<String, dynamic> b) {
-    if (a.length != b.length) return false;
-    for (final key in a.keys) {
-      if (!b.containsKey(key)) return false;
-      final va = a[key];
-      final vb = b[key];
-      if (va is List && vb is List) {
-        if (va.length != vb.length) return false;
-        for (int i = 0; i < va.length; i++) {
-          if (va[i] != vb[i]) return false;
-        }
-      } else if (va != vb) {
-        return false;
-      }
-    }
-    return true;
-  }
+  static bool _inputEquals(Map<String, dynamic> a, Map<String, dynamic> b) =>
+      const DeepCollectionEquality().equals(a, b);
 
   /// True when there is meaningful active input that would be lost on cancel.
   /// For editing an existing round, compares current input against the originals
@@ -171,21 +147,7 @@ class CalculatorState {
       return false;
     }
     final game = selectedGame!;
-    final desc = game.inputDescriptor;
-    if (desc is CountsInputDescriptor) {
-      final counts = (input[desc.inputKey] as List?)?.cast<int>();
-      if (counts != null && counts.fold<int>(0, (a, b) => a + b) > 0) {
-        return true;
-      }
-    }
-    if (desc is SinglePlayerInputDescriptor) {
-      if (input[desc.inputKey] != null) return true;
-    }
-    if (desc is DualPlayerInputDescriptor) {
-      if (input[desc.inputKey1] != null || input[desc.inputKey2] != null) {
-        return true;
-      }
-    }
+    if (!game.inputDescriptor.isEmpty(input)) return true;
     if (doubles.hasAnyDouble) return true;
     if (chooserIndex != (dealerIndex + 1) % 4) return true;
     return false;
@@ -194,41 +156,14 @@ class CalculatorState {
   bool get hasSomeInput {
     final game = selectedGame;
     if (game == null) return false;
-    final desc = game.inputDescriptor;
-    if (desc is CountsInputDescriptor) {
-      final counts = (input[desc.inputKey] as List?)?.cast<int>();
-      if (counts == null) return false;
-      return counts.fold<int>(0, (a, b) => a + b) > 0;
-    }
-    if (desc is SinglePlayerInputDescriptor) {
-      return input[desc.inputKey] != null;
-    }
-    if (desc is DualPlayerInputDescriptor) {
-      return input[desc.inputKey1] != null || input[desc.inputKey2] != null;
-    }
-    return isInputValid;
+    return !game.inputDescriptor.isEmpty(input);
   }
 
   /// True when the input is complete and ready to calculate.
   bool get isInputValid {
     final game = selectedGame;
     if (game == null) return false;
-    final desc = game.inputDescriptor;
-    if (desc is CountsInputDescriptor) {
-      final counts = (input[desc.inputKey] as List?)?.cast<int>();
-      if (counts == null) return false;
-      return counts.fold(0, (a, b) => a + b) == desc.total;
-    }
-    if (desc is SinglePlayerInputDescriptor) {
-      final v = input[desc.inputKey];
-      return v != null && (v as int) >= 0;
-    }
-    if (desc is DualPlayerInputDescriptor) {
-      final v1 = input[desc.inputKey1];
-      final v2 = input[desc.inputKey2];
-      return v1 != null && (v1 as int) >= 0 && v2 != null && (v2 as int) >= 0;
-    }
-    return false;
+    return game.inputDescriptor.isComplete(input);
   }
 
   CalculatorState copyWith({
@@ -305,18 +240,38 @@ class CalculatorState {
 
 class CalculatorNotifier extends Notifier<CalculatorState> {
   @override
-  CalculatorState build() => const CalculatorState();
+  CalculatorState build() {
+    ref.onDispose(() {
+      _autosaveTimer?.cancel();
+      _autosaveTimer = null;
+    });
+    return const CalculatorState();
+  }
 
   /// Snapshot taken just before restoreRound(), used by cancelEditRound().
   CalculatorState? _editSnapshot;
 
+  /// Pending debounced autosave timer. We coalesce bursts of state mutations
+  /// (typing in the counts stepper, double-tap on a chip, etc.) into a single
+  /// SharedPreferences write so we don't re-encode the entire saved-games
+  /// JSON on every keystroke.
+  Timer? _autosaveTimer;
+  static const _autosaveDebounce = Duration(milliseconds: 400);
+
   @override
   set state(CalculatorState newState) {
     super.state = newState;
-    _autosave();
+    _scheduleAutosave();
+  }
+
+  void _scheduleAutosave() {
+    if (state.sessionId.isEmpty) return;
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(_autosaveDebounce, _autosave);
   }
 
   Future<void> _autosave() async {
+    _autosaveTimer = null;
     if (state.sessionId.isEmpty) return;
     final session = buildSession();
     if (session == null) return;
@@ -329,6 +284,14 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     final updated = List<String>.from(state.playerNames);
     updated[index] = name;
     state = state.copyWith(playerNames: updated, updatedAt: DateTime.now());
+  }
+
+  /// Replaces all player names at once.
+  void setAllPlayerNames(List<String> names) {
+    state = state.copyWith(
+      playerNames: List<String>.from(names),
+      updatedAt: DateTime.now(),
+    );
   }
 
   /// Reorders the player names list, moving the entry at [oldIndex] to
@@ -353,12 +316,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     // Recompute dealer index so it still points at the same person.
     var dealer = state.dealerIndex;
     if (state.dealerChosen) {
-      if (dealer == oldIndex) {
-        dealer = target;
-      } else {
-        if (oldIndex < dealer) dealer -= 1;
-        if (target <= dealer) dealer += 1;
-      }
+      dealer = adjustIndexAfterReorder(oldIndex, target, dealer);
     }
 
     state = state.copyWith(
@@ -403,11 +361,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     }
 
     // Counts: pre-fill with zeros.  Player-picker games start unselected.
-    final Map<String, dynamic> defaults = switch (game.inputDescriptor) {
-      CountsInputDescriptor d => {d.inputKey: List.filled(playerCount, 0)},
-      SinglePlayerInputDescriptor d => {d.inputKey: null},
-      DualPlayerInputDescriptor d => {d.inputKey1: null, d.inputKey2: null},
-    };
+    final defaults = game.inputDescriptor.defaults();
 
     state = state.copyWith(
       selectedGame: game,
@@ -556,11 +510,13 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   void updateInput(String key, dynamic value) {
+    if (const DeepCollectionEquality().equals(state.input[key], value)) return;
     state = state.copyWith(input: {...state.input, key: value});
     _recalculate();
   }
 
   void updateDoubles(DoubleMatrix doubles) {
+    if (state.doubles == doubles) return;
     state = state.copyWith(doubles: doubles);
     _recalculate();
   }
@@ -578,16 +534,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
     final renumbered = [
-      for (int i = 0; i < list.length; i++)
-        RoundRecord(
-          roundNumber: i + 1,
-          game: list[i].game,
-          dealerIndex: list[i].dealerIndex,
-          chooserIndex: list[i].chooserIndex,
-          input: list[i].input,
-          doubles: list[i].doubles,
-          result: list[i].result,
-        ),
+      for (int i = 0; i < list.length; i++) list[i].copyWith(roundNumber: i + 1),
     ];
     state = state.copyWith(history: renumbered, updatedAt: DateTime.now());
   }
@@ -631,6 +578,11 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Recalculates the result whenever the state changes, or clears it if input
   /// is no longer valid.  Called automatically after every input mutation.
+  ///
+  /// Skips emitting a new state when the result is unchanged — this prevents
+  /// no-op rebuilds (e.g. user taps + then − returning to the same counts)
+  /// and avoids triggering the debounced autosave for a state that's
+  /// effectively identical.
   void _recalculate() {
     final game = state.selectedGame;
     if (game == null) return;
@@ -640,12 +592,14 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
         input: state.input,
         doubles: state.doubles,
       );
+      if (state.result == result && state.partialResult == null) return;
       state = state.copyWith(result: result, clearPartialResult: true);
     } else if (state.hasSomeInput) {
       final partial = game.calculateScores(
         input: state.input,
         doubles: state.doubles,
       );
+      if (state.partialResult == partial && state.result == null) return;
       state = state.copyWith(clearResult: true, partialResult: partial);
     } else {
       if (state.result != null || state.partialResult != null) {
@@ -669,6 +623,26 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     state = const CalculatorState(
       playerNames: ['', '', '', ''],
       dealerChosen: false,
+    );
+  }
+
+  /// Starts a brand-new game session in a single state update: resets all
+  /// transient state, applies the given player [names] and [dealerIndex],
+  /// and assigns a fresh session ID. Equivalent to
+  /// `reset()` + `setAllPlayerNames` + `setDealer` + `initSession`, but as
+  /// one atomic emission so the autosave only fires once.
+  void startNewGame({
+    required List<String> names,
+    required int dealerIndex,
+  }) {
+    final now = DateTime.now();
+    state = CalculatorState(
+      sessionId: '${now.microsecondsSinceEpoch}',
+      createdAt: now,
+      updatedAt: now,
+      playerNames: List<String>.from(names),
+      dealerIndex: dealerIndex,
+      dealerChosen: true,
     );
   }
 

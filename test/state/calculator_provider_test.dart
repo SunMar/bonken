@@ -4,9 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/models/double_matrix.dart';
+import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/state/calculator_provider.dart';
+
+import '../models/_double_matrix_helpers.dart';
 
 ProviderContainer makeContainer() {
   final c = ProviderContainer();
@@ -466,5 +469,280 @@ void main() {
       expect(s.playerNames, ['', '', '', '']);
       expect(s.history, isEmpty);
     });
+  });
+
+  group('isInputValid edge cases', () {
+    test(
+      'negative count is currently considered valid as long as the sum matches',
+      () {
+        // Locks in current behavior of CountsInputDescriptor validation:
+        // it only checks the sum equals total, not that each entry is >= 0.
+        // [-1, 14, 0, 0] sums to 13 → isInputValid is true today.
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.selectGame(const Clubs());
+        n.updateInput('tricks', [-1, 14, 0, 0]);
+        expect(c.read(calculatorProvider).isInputValid, isTrue);
+      },
+    );
+  });
+
+  group('reorderRounds — additional coverage', () {
+    test('preserves each historical record\'s dealerIndex', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setDealer(0);
+      n.selectGame(const Clubs());
+      n.updateInput('tricks', [4, 4, 2, 3]);
+      n.deselectGame();
+      n.selectGame(const Diamonds());
+      n.updateInput('tricks', [3, 4, 4, 2]);
+      n.deselectGame();
+      n.selectGame(const Hearts());
+      n.updateInput('tricks', [2, 3, 4, 4]);
+      n.deselectGame();
+
+      final dealersBefore = c
+          .read(calculatorProvider)
+          .history
+          .map((r) => r.dealerIndex)
+          .toList();
+      expect(dealersBefore, [0, 1, 2]);
+      final dealerStateBefore = c.read(calculatorProvider).dealerIndex;
+
+      n.reorderRounds(2, 0);
+
+      final s = c.read(calculatorProvider);
+      // Each round's recorded dealerIndex follows it (no rewriting).
+      expect(s.history.map((r) => r.dealerIndex).toList(), [2, 0, 1]);
+      // The "next round" dealerIndex stored on state is not changed by a
+      // reorder — locks in current behavior.
+      expect(s.dealerIndex, dealerStateBefore);
+    });
+
+    test('no-op when oldIndex == newIndex (history unchanged, no crash)', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setDealer(0);
+      n.selectGame(const Clubs());
+      n.updateInput('tricks', [4, 4, 2, 3]);
+      n.deselectGame();
+      n.selectGame(const Duck());
+      n.updateInput('tricks', [4, 3, 5, 1]);
+      n.deselectGame();
+
+      final before = c
+          .read(calculatorProvider)
+          .history
+          .map((r) => r.game.id)
+          .toList();
+      n.reorderRounds(1, 1);
+      final after = c
+          .read(calculatorProvider)
+          .history
+          .map((r) => r.game.id)
+          .toList();
+      expect(after, before);
+    });
+  });
+
+  group('Edit-existing-round flow — additional coverage', () {
+    test(
+      'edit last round + save with no changes leaves dealer/round/history unchanged',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.setDealer(0);
+        n.selectGame(const Clubs());
+        n.updateInput('tricks', [4, 4, 2, 3]);
+        n.deselectGame();
+        n.selectGame(const Duck());
+        n.updateInput('tricks', [4, 3, 5, 1]);
+        n.deselectGame();
+
+        final before = c.read(calculatorProvider);
+        final dealerBefore = before.dealerIndex;
+        final roundBefore = before.roundNumber;
+        final lenBefore = before.history.length;
+
+        // Restore the LAST round (round 2 = duck) and save without changes.
+        n.restoreRound(before.history.last);
+        n.deselectGame();
+
+        final s = c.read(calculatorProvider);
+        expect(s.dealerIndex, dealerBefore);
+        expect(s.roundNumber, roundBefore);
+        expect(s.history.length, lenBefore);
+        expect(s.isEditingExistingRound, isFalse);
+      },
+    );
+  });
+
+  group('loadSession — no pending', () {
+    test(
+      'history with last dealer=1 → dealerIndex=2, chooserIndex=3, roundNumber=3',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.setPlayerName(0, 'A');
+        n.setPlayerName(1, 'B');
+        n.setPlayerName(2, 'C');
+        n.setPlayerName(3, 'D');
+        n.setDealer(0);
+        n.initSession();
+        // 2 rounds: round 1 dealer 0, round 2 dealer 1.
+        n.selectGame(const Clubs());
+        n.updateInput('tricks', [4, 4, 2, 3]);
+        n.deselectGame();
+        n.selectGame(const Duck());
+        n.updateInput('tricks', [4, 3, 5, 1]);
+        n.deselectGame();
+
+        final session = n.buildSession()!;
+        expect(session.pendingRound, isNull);
+        expect(session.rounds.last.dealerIndex, 1);
+
+        n.reset();
+        n.loadSession(session);
+        final s = c.read(calculatorProvider);
+        expect(s.dealerIndex, 2);
+        expect(s.chooserIndex, 3);
+        expect(s.roundNumber, 3);
+        expect(s.pendingGame, isNull);
+        expect(s.hasPendingGame, isFalse);
+      },
+    );
+  });
+
+  group('hasActiveChanges — chooser changes', () {
+    test('chooser-only deviation from default returns true', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setDealer(0); // default chooser becomes 1 after selectGame
+      n.selectGame(const Clubs());
+      // Default chooser is (0+1)%4 = 1; change it.
+      n.setChooser(2);
+      expect(c.read(calculatorProvider).hasActiveChanges, isTrue);
+    });
+
+    test('bare selectGame with no other changes returns false', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setDealer(0);
+      n.selectGame(const Clubs());
+      expect(c.read(calculatorProvider).hasActiveChanges, isFalse);
+    });
+  });
+
+  group('reorderPlayerNames — dealer recalculation', () {
+    test('moving the dealer up keeps dealer pointing at same person', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setPlayerName(0, 'A');
+      n.setPlayerName(1, 'B');
+      n.setPlayerName(2, 'C');
+      n.setPlayerName(3, 'D');
+      n.setDealer(2); // dealer = C
+      n.reorderPlayerNames(2, 0);
+      final s = c.read(calculatorProvider);
+      expect(s.playerNames, ['C', 'A', 'B', 'D']);
+      expect(s.dealerIndex, 0); // C is still the dealer, now at index 0
+    });
+
+    test('with dealerChosen==false, dealerIndex is not moved', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setPlayerName(0, 'A');
+      n.setPlayerName(1, 'B');
+      n.setPlayerName(2, 'C');
+      n.setPlayerName(3, 'D');
+      n.setDealer(2);
+      n.clearDealer();
+      n.reorderPlayerNames(2, 0);
+      final s = c.read(calculatorProvider);
+      expect(s.playerNames, ['C', 'A', 'B', 'D']);
+      expect(s.dealerChosen, isFalse);
+      // dealerIndex stays at the previously-set value.
+      expect(s.dealerIndex, 2);
+    });
+  });
+
+  group('hasMeaningfulPendingInput — single/dual player', () {
+    test(
+      'SinglePlayerInputDescriptor with a winner set is meaningful (loaded)',
+      () {
+        // Reaching this state via the live flow is impossible because setting
+        // 'winner' makes isInputValid true and the round is then completed.
+        // The pending state only exists when restored from a saved session.
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        final session = GameSession(
+          id: 's1',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+          playerNames: const ['A', 'B', 'C', 'D'],
+          rounds: const [],
+          pendingRound: const PendingRound(
+            gameId: 'kingOfHearts',
+            gameName: 'Hartenheer',
+            dealerIndex: 0,
+            chooserIndex: 1,
+            input: {'winner': 2},
+          ),
+        );
+        n.loadSession(session);
+        expect(c.read(calculatorProvider).hasMeaningfulPendingInput, isTrue);
+      },
+    );
+
+    test(
+      'DualPlayerInputDescriptor with only one slot set is meaningful (loaded)',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        final session = GameSession(
+          id: 's1',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+          playerNames: const ['A', 'B', 'C', 'D'],
+          rounds: const [],
+          pendingRound: const PendingRound(
+            gameId: 'seventhAndThirteenth',
+            gameName: '7e / 13e',
+            dealerIndex: 0,
+            chooserIndex: 1,
+            input: {'trick13winner': 2},
+          ),
+        );
+        n.loadSession(session);
+        expect(c.read(calculatorProvider).hasMeaningfulPendingInput, isTrue);
+      },
+    );
+  });
+
+  group('deleteLastRound while pending game present', () {
+    test(
+      'deleting last round keeps the pending game intact (current behavior)',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.setDealer(0);
+        n.selectGame(const Clubs());
+        n.updateInput('tricks', [4, 4, 2, 3]);
+        n.deselectGame();
+        // Start a pending game.
+        n.selectGame(const Duck());
+        n.updateInput('tricks', [3, 0, 0, 0]);
+        n.deselectGame();
+        expect(c.read(calculatorProvider).hasPendingGame, isTrue);
+
+        n.deleteLastRound();
+        final s = c.read(calculatorProvider);
+        expect(s.history, isEmpty);
+        // Pending game survives the delete operation.
+        expect(s.hasPendingGame, isTrue);
+        expect(s.pendingGame!.id, 'duck');
+      },
+    );
   });
 }

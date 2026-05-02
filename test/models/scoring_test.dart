@@ -5,6 +5,8 @@ import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 
+import '_double_matrix_helpers.dart';
+
 void main() {
   // ---------------------------------------------------------------------------
   // Helpers

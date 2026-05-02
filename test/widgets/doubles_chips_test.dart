@@ -4,10 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/widgets/doubles_chips.dart';
 
-const playerNames = ['Alice', 'Bob', 'Carol', 'Dan'];
-
-Future<void> pumpHost(WidgetTester tester, Widget child) =>
-    tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
+import '_helpers.dart';
 
 /// Returns the visible chip labels in their on-screen left-to-right,
 /// top-to-bottom order.

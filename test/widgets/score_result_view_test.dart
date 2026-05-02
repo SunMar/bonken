@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,10 +6,7 @@ import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/score_result.dart';
 import 'package:bonken/widgets/score_result_view.dart';
 
-const playerNames = ['Alice', 'Bob', 'Carol', 'Dan'];
-
-Future<void> pumpHost(WidgetTester tester, Widget child) =>
-    tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
+import '_helpers.dart';
 
 void main() {
   group('ScoreResultView', () {

@@ -93,7 +93,7 @@ class PendingRound {
 
 /// A complete record of a saved game session (finished or closed mid-game).
 class GameSession {
-  const GameSession({
+  GameSession({
     required this.id,
     required this.createdAt,
     required this.updatedAt,
@@ -127,7 +127,12 @@ class GameSession {
   bool get isFinished => rounds.length >= totalRounds;
 
   /// Cumulative score for each player index.
-  Map<int, int> get finalScores {
+  ///
+  /// Computed lazily on first access and cached \u2014 the StartScreen card
+  /// reads this multiple times per build (header + winners + sub-text).
+  late final Map<int, int> finalScores = _computeFinalScores();
+
+  Map<int, int> _computeFinalScores() {
     final totals = <int, int>{0: 0, 1: 0, 2: 0, 3: 0};
     for (final r in rounds) {
       for (final e in r.scores.entries) {
@@ -138,8 +143,10 @@ class GameSession {
   }
 
   /// Indices of all players sharing the highest final score, or empty if no rounds.
-  List<int> get winnerIndices {
-    if (rounds.isEmpty) return [];
+  late final List<int> winnerIndices = _computeWinnerIndices();
+
+  List<int> _computeWinnerIndices() {
+    if (rounds.isEmpty) return const [];
     final scores = finalScores;
     final best = scores.values.reduce((a, b) => a > b ? a : b);
     return scores.entries

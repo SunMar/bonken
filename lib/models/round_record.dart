@@ -22,4 +22,24 @@ class RoundRecord {
   final Map<String, dynamic> input;
   final DoubleMatrix doubles;
   final ScoreResult result;
+
+  RoundRecord copyWith({
+    int? roundNumber,
+    MiniGame? game,
+    int? dealerIndex,
+    int? chooserIndex,
+    Map<String, dynamic>? input,
+    DoubleMatrix? doubles,
+    ScoreResult? result,
+  }) {
+    return RoundRecord(
+      roundNumber: roundNumber ?? this.roundNumber,
+      game: game ?? this.game,
+      dealerIndex: dealerIndex ?? this.dealerIndex,
+      chooserIndex: chooserIndex ?? this.chooserIndex,
+      input: input ?? this.input,
+      doubles: doubles ?? this.doubles,
+      result: result ?? this.result,
+    );
+  }
 }

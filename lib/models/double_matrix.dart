@@ -78,10 +78,6 @@ class DoubleMatrix {
     return DoubleMatrix(pairs: updatedPairs, initiators: updatedInitiators);
   }
 
-  /// Convenience: kept for backward compatibility with existing tests.
-  DoubleMatrix withState(int playerA, int playerB, DoubleState state) =>
-      withPair(playerA, playerB, state, initiator: playerA);
-
   /// Returns a fresh matrix where all pairs are [DoubleState.none].
   static DoubleMatrix empty() => const DoubleMatrix();
 

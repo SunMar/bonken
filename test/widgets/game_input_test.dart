@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/widgets/game_input/counts_input.dart';
+import 'package:bonken/widgets/game_input/game_input_form.dart';
 import 'package:bonken/widgets/game_input/player_picker.dart';
-import 'package:bonken/widgets/game_input/dual_player_picker.dart';
 
-const playerNames = ['Alice', 'Bob', 'Carol', 'Dan'];
-
-Future<void> pumpHost(WidgetTester tester, Widget child) =>
-    tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
+import '_helpers.dart';
 
 void main() {
   group('CountsInput', () {
@@ -88,6 +86,51 @@ void main() {
         expect(btn.onPressed, isNull);
       }
     });
+
+    testWidgets('"Alle resterende" button assigns all remaining to that player',
+        (tester) async {
+      List<int>? captured;
+      await pumpHost(
+        tester,
+        CountsInput(
+          playerNames: playerNames,
+          counts: const [2, 1, 0, 0],
+          total: 13,
+          unitLabel: 'slagen',
+          onCountsChanged: (c) => captured = c,
+        ),
+      );
+      // Tap Carol's (index 2) "Alle resterende" button.
+      final btns = find.widgetWithIcon(
+        IconButton,
+        Symbols.expand_circle_right,
+      );
+      await tester.tap(btns.at(2));
+      await tester.pump();
+      expect(captured, [2, 1, 10, 0]);
+    });
+
+    testWidgets('"Alle resterende" button is disabled when total reached',
+        (tester) async {
+      await pumpHost(
+        tester,
+        CountsInput(
+          playerNames: playerNames,
+          counts: const [4, 4, 3, 2],
+          total: 13,
+          unitLabel: 'slagen',
+          onCountsChanged: (_) {},
+        ),
+      );
+      final btns = find.widgetWithIcon(
+        IconButton,
+        Symbols.expand_circle_right,
+      );
+      for (int i = 0; i < btns.evaluate().length; i++) {
+        final btn = tester.widget<IconButton>(btns.at(i));
+        expect(btn.onPressed, isNull);
+      }
+    });
   });
 
   group('PlayerPicker', () {
@@ -126,37 +169,30 @@ void main() {
     });
   });
 
-  group('DualPlayerPicker', () {
+  group('GameInputForm with DualPlayerInputDescriptor', () {
     testWidgets('shows two prompts', (tester) async {
       await pumpHost(
         tester,
-        DualPlayerPicker(
+        GameInputForm(
+          game: const SeventhAndThirteenth(),
           playerNames: playerNames,
-          selectedIndex1: null,
-          prompt1: 'Wie won 7e?',
-          onSelected1: (_) {},
-          selectedIndex2: null,
-          prompt2: 'Wie won 13e?',
-          onSelected2: (_) {},
+          input: const {'trick7winner': null, 'trick13winner': null},
+          onInputChanged: (_, _) {},
         ),
       );
-      expect(find.text('Wie won 7e?'), findsOneWidget);
-      expect(find.text('Wie won 13e?'), findsOneWidget);
+      expect(find.text('Wie won de 7e slag?'), findsOneWidget);
+      expect(find.text('Wie won de 13e slag?'), findsOneWidget);
     });
 
     testWidgets('callbacks fire independently per picker', (tester) async {
-      int? sel1;
-      int? sel2;
+      final updates = <(String, dynamic)>[];
       await pumpHost(
         tester,
-        DualPlayerPicker(
+        GameInputForm(
+          game: const SeventhAndThirteenth(),
           playerNames: playerNames,
-          selectedIndex1: null,
-          prompt1: 'P1',
-          onSelected1: (i) => sel1 = i,
-          selectedIndex2: null,
-          prompt2: 'P2',
-          onSelected2: (i) => sel2 = i,
+          input: const {'trick7winner': null, 'trick13winner': null},
+          onInputChanged: (key, value) => updates.add((key, value)),
         ),
       );
       // Each player name appears twice (once per picker).
@@ -164,8 +200,10 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Dan').last);
       await tester.pump();
-      expect(sel1, 0);
-      expect(sel2, 3);
+      expect(updates, [
+        ('trick7winner', 0),
+        ('trick13winner', 3),
+      ]);
     });
   });
 }

@@ -31,11 +31,11 @@ String formatScore(int score) => score > 0 ? '+$score' : '$score';
 /// Stays consistent across light & dark themes.
 const Color successGreen = Color(0xFF2E7D32);
 
-Color scoreColor(int score, ColorScheme cs) => score > 0
-    ? successGreen
-    : score < 0
-    ? cs.error
-    : cs.onSurfaceVariant;
+Color scoreColor(int score, ColorScheme cs) => switch (score.sign) {
+  > 0 => successGreen,
+  < 0 => cs.error,
+  _ => cs.onSurfaceVariant,
+};
 
 /// Background color used for the "redoubled" state across the app.
 ///
@@ -50,3 +50,17 @@ Color onRedoubleContainer(ColorScheme cs, Brightness brightness) =>
     brightness == Brightness.dark
     ? const Color(0xFFFFCDD2)
     : cs.onErrorContainer;
+
+/// Recomputes [target]'s position after an item is moved from [oldIdx] to
+/// [newIdx] in a list (using the same convention as [ReorderableListView]).
+///
+/// Returns the new index of whatever was previously at [target].  When
+/// [target] equals [oldIdx], the returned value is the new index of the
+/// moved item (i.e. [newIdx], normalised).
+int adjustIndexAfterReorder(int oldIdx, int newIdx, int target) {
+  if (target == oldIdx) return newIdx;
+  var t = target;
+  if (oldIdx < t) t -= 1;
+  if (newIdx <= t) t += 1;
+  return t;
+}

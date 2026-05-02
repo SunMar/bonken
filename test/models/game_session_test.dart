@@ -54,6 +54,41 @@ void main() {
       );
       expect(s.winnerIndices..sort(), [0, 1]);
     });
+
+    test('winnerIndices returns all four when everyone is tied', () {
+      final tiedNeg = sample(
+        rounds: [
+          round(1, {0: -50, 1: -50, 2: -50, 3: -50}),
+        ],
+      );
+      expect(tiedNeg.winnerIndices..sort(), [0, 1, 2, 3]);
+
+      final tiedZero = sample(
+        rounds: [
+          round(1, {0: 0, 1: 0, 2: 0, 3: 0}),
+        ],
+      );
+      expect(tiedZero.winnerIndices..sort(), [0, 1, 2, 3]);
+    });
+
+    test('finalScores ignores pendingRound', () {
+      final s = sample(
+        rounds: [
+          round(1, {0: 100, 1: 50, 2: 80, 3: 30}),
+        ],
+        pending: const PendingRound(
+          gameId: 'duck',
+          gameName: 'Bukken',
+          dealerIndex: 1,
+          chooserIndex: 2,
+          input: {
+            'tricks': [10, 1, 1, 1],
+          },
+        ),
+      );
+      // Pending round contributes nothing to finalScores.
+      expect(s.finalScores, {0: 100, 1: 50, 2: 80, 3: 30});
+    });
   });
 
   group('isFinished', () {

@@ -90,57 +90,61 @@ class StartScreen extends ConsumerWidget {
                       ),
                     );
                   }
-                  return ListView(
+                  return ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 8),
-                        child: Text(
-                          'Spellen',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: cs.onSurfaceVariant,
-                                letterSpacing: 0.5,
-                              ),
-                        ),
-                      ),
-                      for (final session in sessions)
-                        _GameSessionCard(
-                          session: session,
-                          onDelete: () async {
-                            // Capture the messenger BEFORE any awaits, so we
-                            // don't depend on a context that may change.
-                            final messenger = ScaffoldMessenger.of(context);
-                            await ref
-                                .read(gameHistoryProvider.notifier)
-                                .deleteGame(session.id);
-                            messenger.hideCurrentSnackBar();
-                            final controller = messenger.showSnackBar(
-                              SnackBar(
-                                content: const Text('Spel verwijderd'),
-                                duration: const Duration(seconds: 5),
-                                action: SnackBarAction(
-                                  label: 'Ongedaan maken',
-                                  onPressed: () {
-                                    ref
-                                        .read(gameHistoryProvider.notifier)
-                                        .saveGame(session);
-                                  },
+                    // +1 for the "Spellen" header.
+                    itemCount: sessions.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 4, bottom: 8),
+                          child: Text(
+                            'Spellen',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                  letterSpacing: 0.5,
                                 ),
+                          ),
+                        );
+                      }
+                      final session = sessions[index - 1];
+                      return _GameSessionCard(
+                        session: session,
+                        onDelete: () async {
+                          // Capture the messenger BEFORE any awaits, so we
+                          // don't depend on a context that may change.
+                          final messenger = ScaffoldMessenger.of(context);
+                          await ref
+                              .read(gameHistoryProvider.notifier)
+                              .deleteGame(session.id);
+                          messenger.hideCurrentSnackBar();
+                          final controller = messenger.showSnackBar(
+                            SnackBar(
+                              content: const Text('Spel verwijderd'),
+                              duration: const Duration(seconds: 5),
+                              action: SnackBarAction(
+                                label: 'Ongedaan maken',
+                                onPressed: () {
+                                  ref
+                                      .read(gameHistoryProvider.notifier)
+                                      .saveGame(session);
+                                },
                               ),
-                            );
-                            // Belt-and-suspenders: SnackBar's built-in
-                            // auto-dismiss timer doesn't always fire (esp. on
-                            // web).  Force-close it after the duration.
-                            Timer(const Duration(seconds: 5), () {
-                              controller.close();
-                            });
-                          },
-                        ),
-                    ],
+                            ),
+                          );
+                          // Belt-and-suspenders: SnackBar's built-in
+                          // auto-dismiss timer doesn't always fire (esp. on
+                          // web).  Force-close it after the duration.
+                          Timer(const Duration(seconds: 5), () {
+                            controller.close();
+                          });
+                        },
+                      );
+                    },
                   );
                 },
               ),
@@ -158,7 +162,9 @@ class StartScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                 ),
                 onPressed: () {
-                  ref.read(calculatorProvider.notifier).reset();
+                  // SetupScreen holds its own local working state; the
+                  // calculator provider is only mutated when the user
+                  // confirms "Start spel".
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SetupScreen()),
                   );
