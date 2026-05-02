@@ -116,10 +116,66 @@ class _DoublesPickerState extends State<DoublesPicker> {
     widget.onChanged(updated);
   }
 
+  /// Apply a bulk action: the selected initiator declares double against each
+  /// player in [targets].  For each target:
+  ///   * `none`     → become `doubled` with selected as the initiator.
+  ///   * `doubled` (target initiated) → escalate to `redoubled` ("gaat terug")
+  ///     keeping the original target as initiator.
+  ///   * already doubled by selected, or already redoubled → unchanged.
+  void _applyBulk(Iterable<int> targets) {
+    final selected = _selected;
+    if (selected == null) return;
+    var matrix = widget.doubles;
+    for (final t in targets) {
+      if (t == selected) continue;
+      final state = matrix.stateFor(selected, t);
+      final initiator = matrix.initiatorFor(selected, t);
+      if (state == DoubleState.none) {
+        matrix = matrix.withPair(
+          selected,
+          t,
+          DoubleState.doubled,
+          initiator: selected,
+        );
+      } else if (state == DoubleState.doubled && initiator == t) {
+        matrix = matrix.withPair(
+          selected,
+          t,
+          DoubleState.redoubled,
+          initiator: t,
+        );
+      }
+    }
+    if (matrix != widget.doubles) widget.onChanged(matrix);
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = _doublingOrder;
     final cs = Theme.of(context).colorScheme;
+
+    // The bulk action buttons are enabled when an initiator is selected.
+    // For non-chooser initiators both buttons work normally.  The chooser
+    // may not initiate doubles, but if all 3 other players have doubled
+    // (or already redoubled) the chooser, the "Zaal" button switches to
+    // "Zaal terug" and redoubles every still-pending pair in one go.
+    // Disabled buttons remain visible so the surrounding layout doesn't
+    // shift.
+    final selectedIsChooser =
+        _selected != null && _selected == widget.chooserIndex;
+    final chooserDoubledByAll =
+        selectedIsChooser &&
+        order.where((i) => i != _selected).every((i) {
+          final s = widget.doubles.stateFor(_selected!, i);
+          if (s == DoubleState.none) return false;
+          // The pair must have been initiated by the other player; if the
+          // chooser somehow initiated, the bulk "terug" doesn't apply.
+          return widget.doubles.initiatorFor(_selected!, i) == i;
+        });
+    final zaalEnabled = _selected != null &&
+        (!selectedIsChooser || chooserDoubledByAll);
+    final zaalLabel = chooserDoubledByAll ? 'Zaal terug' : 'Zaal';
+    final slappeHapEnabled = _selected != null && !selectedIsChooser;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -146,6 +202,37 @@ class _DoublesPickerState extends State<DoublesPicker> {
               _selected = _selected == i ? null : i;
             }),
           ),
+
+        // --- Bulk action buttons (Zaal / Slappe hap) ---
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: zaalEnabled
+                      ? () => _applyBulk(order.where((i) => i != _selected))
+                      : null,
+                  child: Text(zaalLabel),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: slappeHapEnabled
+                      ? () => _applyBulk(
+                          order.where(
+                            (i) =>
+                                i != _selected && i != widget.chooserIndex,
+                          ),
+                        )
+                      : null,
+                  child: const Text('Slappe hap'),
+                ),
+              ),
+            ],
+          ),
+        ),
 
         const Divider(height: 24),
 
