@@ -37,6 +37,13 @@ class CountsInput extends StatelessWidget {
     onCountsChanged(updated);
   }
 
+  void _addRemaining(int index, int remaining) {
+    if (remaining <= 0) return;
+    final updated = List<int>.from(counts);
+    updated[index] += remaining;
+    onCountsChanged(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -55,6 +62,7 @@ class CountsInput extends StatelessWidget {
             canDecrement: counts[i] > 0,
             onIncrement: () => _increment(i),
             onDecrement: () => _decrement(i),
+            onAddRemaining: () => _addRemaining(i, remaining),
           ),
         const SizedBox(height: 8),
         Row(
@@ -84,6 +92,7 @@ class _PlayerCountRow extends StatelessWidget {
     required this.canDecrement,
     required this.onIncrement,
     required this.onDecrement,
+    required this.onAddRemaining,
   });
 
   final String name;
@@ -92,6 +101,7 @@ class _PlayerCountRow extends StatelessWidget {
   final bool canDecrement;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final VoidCallback onAddRemaining;
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +131,11 @@ class _PlayerCountRow extends StatelessWidget {
             icon: const Icon(Symbols.add_circle),
             onPressed: canIncrement ? onIncrement : null,
             tooltip: 'Meer',
+          ),
+          IconButton(
+            icon: const Icon(Symbols.expand_circle_right),
+            onPressed: canIncrement ? onAddRemaining : null,
+            tooltip: 'Alle resterende',
           ),
         ],
       ),
