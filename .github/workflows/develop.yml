@@ -62,10 +62,12 @@ jobs:
 
       - name: Build develop APK
         run: |
+          GIT_COMMIT="$(git rev-parse --short HEAD)"
           flutter build apk --release \
             --no-tree-shake-icons \
             --build-name=${{ steps.version.outputs.name }} \
             --build-number=${{ steps.version.outputs.code }} \
+            --dart-define=GIT_COMMIT="$GIT_COMMIT" \
             -PappIdSuffix=.develop \
             -PappLabel="Bonken (develop)"
 
