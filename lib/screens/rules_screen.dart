@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/game_rules.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/rules_block_view.dart';
 
 /// Full game-rules page.
@@ -34,7 +35,7 @@ class RulesScreen extends StatelessWidget {
       children = _buildFullDocument(context);
     }
 
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(title: const Text('Bonken')),
       body: Scrollbar(
         child: ListView(

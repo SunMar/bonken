@@ -14,6 +14,7 @@ import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../state/theme_mode_provider.dart';
 import '../utils.dart';
+import '../widgets/app_scaffold.dart';
 import 'calculator_screen.dart';
 import 'rules_screen.dart';
 import 'setup_screen.dart';
@@ -27,154 +28,152 @@ class StartScreen extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final historyAsync = ref.watch(gameHistoryProvider);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ----------------------------------------------------------------
-            // Logo / title area
-            // ----------------------------------------------------------------
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: cs.primaryContainer,
-                    backgroundImage: const AssetImage(
-                      'assets/icon/icon_bonken.png',
+    return AppScaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ----------------------------------------------------------------
+          // Logo / title area
+          // ----------------------------------------------------------------
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: cs.primaryContainer,
+                  backgroundImage: const AssetImage(
+                    'assets/icon/icon_bonken.png',
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bonken',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: cs.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Bonken',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              color: cs.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    Text(
+                      'Scorekaart',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
                       ),
-                      Text(
-                        'Scorekaart',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  _RulesButton(),
-                  _ThemeModeButton(),
-                  _AboutButton(),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                _RulesButton(),
+                _ThemeModeButton(),
+                _AboutButton(),
+              ],
             ),
+          ),
 
-            // ----------------------------------------------------------------
-            // History list (or placeholder)
-            // ----------------------------------------------------------------
-            Expanded(
-              child: historyAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => const SizedBox.shrink(),
-                data: (sessions) {
-                  if (sessions.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'Nog geen gespeelde spellen',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
+          // ----------------------------------------------------------------
+          // History list (or placeholder)
+          // ----------------------------------------------------------------
+          Expanded(
+            child: historyAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => const SizedBox.shrink(),
+              data: (sessions) {
+                if (sessions.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Nog geen gespeelde spellen',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
                       ),
-                    );
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
                     ),
-                    // +1 for the "Spellen" header.
-                    itemCount: sessions.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 4, bottom: 8),
-                          child: Text(
-                            'Spellen',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                  letterSpacing: 0.5,
-                                ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  // +1 for the "Spellen" header.
+                  itemCount: sessions.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 8),
+                        child: Text(
+                          'Spellen',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: cs.onSurfaceVariant,
+                                letterSpacing: 0.5,
+                              ),
+                        ),
+                      );
+                    }
+                    final session = sessions[index - 1];
+                    return _GameSessionCard(
+                      session: session,
+                      onDelete: () async {
+                        // Capture the messenger BEFORE any awaits, so we
+                        // don't depend on a context that may change.
+                        final messenger = ScaffoldMessenger.of(context);
+                        await ref
+                            .read(gameHistoryProvider.notifier)
+                            .deleteGame(session.id);
+                        messenger.hideCurrentSnackBar();
+                        final controller = messenger.showSnackBar(
+                          SnackBar(
+                            content: const Text('Spel verwijderd'),
+                            duration: const Duration(seconds: 5),
+                            action: SnackBarAction(
+                              label: 'Ongedaan maken',
+                              onPressed: () {
+                                ref
+                                    .read(gameHistoryProvider.notifier)
+                                    .saveGame(session);
+                              },
+                            ),
                           ),
                         );
-                      }
-                      final session = sessions[index - 1];
-                      return _GameSessionCard(
-                        session: session,
-                        onDelete: () async {
-                          // Capture the messenger BEFORE any awaits, so we
-                          // don't depend on a context that may change.
-                          final messenger = ScaffoldMessenger.of(context);
-                          await ref
-                              .read(gameHistoryProvider.notifier)
-                              .deleteGame(session.id);
-                          messenger.hideCurrentSnackBar();
-                          final controller = messenger.showSnackBar(
-                            SnackBar(
-                              content: const Text('Spel verwijderd'),
-                              duration: const Duration(seconds: 5),
-                              action: SnackBarAction(
-                                label: 'Ongedaan maken',
-                                onPressed: () {
-                                  ref
-                                      .read(gameHistoryProvider.notifier)
-                                      .saveGame(session);
-                                },
-                              ),
-                            ),
-                          );
-                          // Belt-and-suspenders: SnackBar's built-in
-                          // auto-dismiss timer doesn't always fire (esp. on
-                          // web).  Force-close it after the duration.
-                          Timer(const Duration(seconds: 5), () {
-                            controller.close();
-                          });
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
+                        // Belt-and-suspenders: SnackBar's built-in
+                        // auto-dismiss timer doesn't always fire (esp. on
+                        // web).  Force-close it after the duration.
+                        Timer(const Duration(seconds: 5), () {
+                          controller.close();
+                        });
+                      },
+                    );
+                  },
+                );
+              },
             ),
+          ),
 
-            // ----------------------------------------------------------------
-            // New-game button (always pinned at bottom)
-            // ----------------------------------------------------------------
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-              child: FilledButton.icon(
-                icon: const Icon(Symbols.add),
-                label: const Text('Nieuw spel'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                ),
-                onPressed: () {
-                  // SetupScreen holds its own local working state; the
-                  // calculator provider is only mutated when the user
-                  // confirms "Start spel".
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SetupScreen()),
-                  );
-                },
+          // ----------------------------------------------------------------
+          // New-game button (always pinned at bottom)
+          // ----------------------------------------------------------------
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            child: FilledButton.icon(
+              icon: const Icon(Symbols.add),
+              label: const Text('Nieuw spel'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 20),
               ),
+              onPressed: () {
+                // SetupScreen holds its own local working state; the
+                // calculator provider is only mutated when the user
+                // confirms "Start spel".
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SetupScreen()));
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

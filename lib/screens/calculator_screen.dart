@@ -14,6 +14,7 @@ import '../data/game_rules.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
@@ -353,7 +354,7 @@ class CalculatorScreen extends ConsumerWidget {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) handleBack();
       },
-      child: Scaffold(
+      child: AppScaffold(
         appBar: AppBar(
           title: const Text('Bonken'),
           leading: game != null || isReordering || isEditingPlayers
@@ -498,16 +499,13 @@ class CalculatorScreen extends ConsumerWidget {
               ),
           ],
         ),
-        body: SafeArea(
-          top: false,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: isEditingPlayers
-                ? const _EditPlayersPhase(key: ValueKey('editPlayers'))
-                : game == null
-                ? const _GameSelectionPhase(key: ValueKey('selection'))
-                : _GameInputPhase(key: const ValueKey('input'), game: game),
-          ),
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: isEditingPlayers
+              ? const _EditPlayersPhase(key: ValueKey('editPlayers'))
+              : game == null
+              ? const _GameSelectionPhase(key: ValueKey('selection'))
+              : _GameInputPhase(key: const ValueKey('input'), game: game),
         ),
       ),
     );

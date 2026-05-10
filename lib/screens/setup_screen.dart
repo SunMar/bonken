@@ -8,6 +8,7 @@ import '../models/mini_game.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/player_list_field.dart';
 import 'calculator_screen.dart';
@@ -134,67 +135,64 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         trimmedNames.every((n) => n.isNotEmpty) &&
         lowerNames.toSet().length == 4;
 
-    return Scaffold(
+    return AppScaffold(
       appBar: AppBar(title: const Text('Nieuw spel')),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            // ---- Player names ----
-            Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              'Sleep om de volgorde te wijzigen.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          // ---- Player names ----
+          Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Sleep om de volgorde te wijzigen.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 12),
-            PlayerListField(
-              controllers: _controllers,
-              focusNodes: _focusNodes,
-              suggestions: suggestions,
-              onReorder: _handleReorder,
-              onSubmitted: _handleFieldSubmitted,
-            ),
+          ),
+          const SizedBox(height: 12),
+          PlayerListField(
+            controllers: _controllers,
+            focusNodes: _focusNodes,
+            suggestions: suggestions,
+            onReorder: _handleReorder,
+            onSubmitted: _handleFieldSubmitted,
+          ),
 
-            const SizedBox(height: 32),
+          const SizedBox(height: 32),
 
-            // ---- Dealer for first game ----
-            Text(
-              'Deler eerste spel',
-              style: Theme.of(context).textTheme.titleMedium,
+          // ---- Dealer for first game ----
+          Text(
+            'Deler eerste spel',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'De speler links van de deler kiest het eerste spel.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'De speler links van de deler kiest het eerste spel.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            DealerDropdownField(
-              controllers: _controllers,
-              value: _dealerIndex,
-              hintText: 'Willekeurige deler',
-              onChanged: (v) => setState(() => _dealerIndex = v),
-              onClear: () => setState(() => _dealerIndex = null),
-            ),
+          ),
+          const SizedBox(height: 12),
+          DealerDropdownField(
+            controllers: _controllers,
+            value: _dealerIndex,
+            hintText: 'Willekeurige deler',
+            onChanged: (v) => setState(() => _dealerIndex = v),
+            onClear: () => setState(() => _dealerIndex = null),
+          ),
 
-            const SizedBox(height: 48),
+          const SizedBox(height: 48),
 
-            // ---- Start button ----
-            FilledButton.icon(
-              icon: const Icon(Symbols.play_arrow),
-              label: const Text('Start spel'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              onPressed: canStart ? _handleStart : null,
+          // ---- Start button ----
+          FilledButton.icon(
+            icon: const Icon(Symbols.play_arrow),
+            label: const Text('Start spel'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-          ],
-        ),
+            onPressed: canStart ? _handleStart : null,
+          ),
+        ],
       ),
     );
   }
