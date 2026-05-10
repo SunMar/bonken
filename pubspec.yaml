@@ -31,10 +31,11 @@ dependencies:
 
   # Google Fonts — Roboto bundled as local assets in assets/google_fonts/<version>/
   # allowRuntimeFetching is disabled so the app works fully offline.
-  # When upgrading google_fonts: run `tool/update_google_fonts.sh` to download
-  # the new font files, then update the asset path below and delete the
-  # previous version directory.
-  google_fonts: ^8.1.0
+  # Version is pinned (no caret) so `flutter pub upgrade` won't bump it
+  # without also re-downloading the matching font hashes.  To upgrade,
+  # run `tool/update_google_fonts.sh` — it bumps this version, the asset
+  # path below, and replaces the bundled .ttf files in one step.
+  google_fonts: 8.1.0
 
   # Persistent local storage (used for future game tracking)
   in_app_update: ^4.2.5

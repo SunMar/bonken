@@ -1,19 +1,24 @@
 #!/usr/bin/env bash
-# Download the Roboto Light/Regular/Medium/Bold font files used by the app
-# from Google Fonts' CDN, into assets/google_fonts/<version>/.
+# Upgrade the bundled google_fonts package + its Roboto font assets in lock-step.
 #
-# The "<version>" is the currently-resolved google_fonts package version
-# (read from pubspec.lock) — re-run this script after bumping google_fonts
-# in pubspec.yaml + `flutter pub get`, then update the asset path in
-# pubspec.yaml and the import path in lib/main.dart, and delete the old
-# version directory.
+# google_fonts is pinned to an exact version in pubspec.yaml (no caret) so a
+# plain `flutter pub upgrade` cannot bump it without also re-downloading the
+# matching font hashes — every google_fonts release ships its own per-font
+# hashes embedded in the source (URL: https://fonts.gstatic.com/s/a/<hash>.ttf)
+# and we run with allowRuntimeFetching=false, so the .ttf files bundled under
+# assets/google_fonts/<version>/ MUST match the package version.
 #
-# Why this exists: google_fonts is configured with allowRuntimeFetching=false
-# so the app works fully offline.  Fonts must therefore be bundled as assets,
-# and each google_fonts release ships its own per-font hashes (the URL is
-# https://fonts.gstatic.com/s/a/<hash>.ttf).  This script pulls those hashes
-# out of the package source in the pub cache, so the bundled .ttf files
-# always match what google_fonts expects to load.
+# This script does the whole upgrade atomically:
+#   1. Reads the current pinned version from pubspec.yaml.
+#   2. Temporarily relaxes the constraint to ^current and runs
+#      `flutter pub upgrade google_fonts` to discover the latest compatible
+#      version.
+#   3. If the version changed:
+#        a. Re-pins pubspec.yaml to the new exact version.
+#        b. Updates the assets/google_fonts/<version>/ path in pubspec.yaml.
+#        c. Downloads the matching Roboto Light/Regular/Medium/Bold .ttf files.
+#        d. Deletes the old assets/google_fonts/<old-version>/ directory.
+#      Otherwise restores the pinned constraint and exits.
 #
 # Usage: ./tool/update_google_fonts.sh
 
@@ -21,26 +26,79 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# 1. Resolve the google_fonts version from pubspec.lock.
-version="$(awk '/^  google_fonts:/{flag=1; next} flag && /^    version:/{gsub(/"/,"",$2); print $2; exit}' pubspec.lock)"
-if [[ -z "${version:-}" ]]; then
-  echo "Could not determine google_fonts version from pubspec.lock" >&2
+pubspec="pubspec.yaml"
+
+# Read the currently-pinned version from pubspec.yaml.  Accepts either a
+# pinned version (`google_fonts: 8.1.0`) or a caret constraint
+# (`google_fonts: ^8.1.0`) — the caret form is what we briefly write below.
+read_pubspec_version() {
+  awk '
+    /^[[:space:]]*google_fonts:[[:space:]]*\^?[0-9]/ {
+      v = $2
+      sub(/^\^/, "", v)
+      print v
+      exit
+    }
+  ' "$pubspec"
+}
+
+old_version="$(read_pubspec_version)"
+if [[ -z "${old_version:-}" ]]; then
+  echo "Could not find a 'google_fonts: <version>' line in $pubspec" >&2
   exit 1
 fi
-echo "Using google_fonts version: $version"
+echo "Current pinned google_fonts version: $old_version"
 
-# 2. Locate the package source in the pub cache.
-pkg_dir="$HOME/.pub-cache/hosted/pub.dev/google_fonts-$version"
+# Restore the pinned constraint on any exit (success, failure, or interrupt).
+restore_pin() {
+  local v="${1:-$old_version}"
+  # Replace the line in-place, preserving leading indentation.
+  awk -v v="$v" '
+    /^[[:space:]]*google_fonts:[[:space:]]*\^?[0-9]/ {
+      match($0, /^[[:space:]]*/)
+      indent = substr($0, 1, RLENGTH)
+      print indent "google_fonts: " v
+      next
+    }
+    { print }
+  ' "$pubspec" > "$pubspec.tmp" && mv "$pubspec.tmp" "$pubspec"
+}
+trap 'restore_pin "$old_version"' ERR INT
+
+# 1. Relax to ^old_version so pub can pick a newer compatible release.
+echo "Relaxing constraint to ^$old_version and upgrading…"
+restore_pin "^$old_version"
+flutter pub upgrade google_fonts >/dev/null
+
+# 2. Read whatever version pub resolved into pubspec.lock.
+new_version="$(awk '/^  google_fonts:/{f=1; next} f && /^    version:/{gsub(/"/,"",$2); print $2; exit}' pubspec.lock)"
+if [[ -z "${new_version:-}" ]]; then
+  echo "Could not determine resolved google_fonts version from pubspec.lock" >&2
+  restore_pin "$old_version"
+  exit 1
+fi
+
+# 3. Re-pin pubspec.yaml to whatever pub resolved (new or unchanged).
+restore_pin "$new_version"
+trap - ERR INT
+
+if [[ "$new_version" == "$old_version" ]]; then
+  echo "Already up to date (google_fonts $old_version).  No asset changes."
+  exit 0
+fi
+echo "Upgrading google_fonts: $old_version -> $new_version"
+
+# 4. Locate the new package source in the pub cache.
+pkg_dir="$HOME/.pub-cache/hosted/pub.dev/google_fonts-$new_version"
 if [[ ! -d "$pkg_dir" ]]; then
   echo "google_fonts package not found at $pkg_dir" >&2
-  echo "Run 'flutter pub get' first." >&2
   exit 1
 fi
 roboto_src="$pkg_dir/lib/src/google_fonts_parts/part_r.dart"
 
-# 3. Extract Roboto hashes for the four weights we bundle.
+# 5. Extract Roboto hashes for the four weights we bundle.
 # The Roboto block lists weights in the order w100..w900 (normal style first,
-# then italics).  We want indices 3,4,5,7 = w300,w400,w500,w700 normal.
+# then italics).  Indices 2,3,4,6 = w300,w400,w500,w700 normal.
 mapfile -t hashes < <(
   awk "/^  static TextStyle roboto\\(/,/fontFamily: 'Roboto',/" "$roboto_src" \
     | grep -oE "'[0-9a-f]{64}'" \
@@ -57,8 +115,8 @@ declare -A weights=(
   [Bold]="${hashes[6]}"     # w700
 )
 
-# 4. Download each .ttf into the versioned asset directory.
-out_dir="assets/google_fonts/$version"
+# 6. Download each .ttf into the new versioned asset directory.
+out_dir="assets/google_fonts/$new_version"
 mkdir -p "$out_dir"
 for weight in Light Regular Medium Bold; do
   hash="${weights[$weight]}"
@@ -68,8 +126,26 @@ for weight in Light Regular Medium Bold; do
   curl -fsSL "$url" -o "$dest"
 done
 
+# 7. Update the asset path in pubspec.yaml.
+awk -v v="$new_version" '
+  /^[[:space:]]*-[[:space:]]*assets\/google_fonts\// {
+    match($0, /^[[:space:]]*/)
+    indent = substr($0, 1, RLENGTH)
+    print indent "- assets/google_fonts/" v "/"
+    next
+  }
+  { print }
+' "$pubspec" > "$pubspec.tmp" && mv "$pubspec.tmp" "$pubspec"
+
+# 8. Delete the old asset directory.
+old_dir="assets/google_fonts/$old_version"
+if [[ -d "$old_dir" ]]; then
+  echo "Removing old asset directory: $old_dir"
+  rm -rf "$old_dir"
+fi
+
 echo
-echo "Done.  Next steps:"
-echo "  - Update the asset path in pubspec.yaml to: assets/google_fonts/$version/"
-echo "  - Update the version comment(s) in pubspec.yaml"
-echo "  - Delete any old assets/google_fonts/<other-version>/ directories"
+echo "Done.  google_fonts is now pinned to $new_version with matching font assets."
+echo "Review the diff and commit:"
+echo "  git status"
+echo "  git diff $pubspec"
