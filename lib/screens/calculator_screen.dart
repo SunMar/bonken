@@ -8,6 +8,7 @@ import '../models/games/game_catalog.dart';
 import '../models/mini_game.dart';
 import '../models/round_record.dart';
 import '../models/score_result.dart';
+import '../data/game_rules.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
@@ -20,6 +21,7 @@ import '../widgets/player_list_field.dart';
 import '../widgets/score_result_view.dart';
 import 'setup_screen.dart';
 import 'start_screen.dart';
+import 'rules_screen.dart';
 
 /// Scoped to the CalculatorScreen lifetime — true while reorder mode is active.
 class _IsReorderModeNotifier extends Notifier<bool> {
@@ -315,8 +317,7 @@ class CalculatorScreen extends ConsumerWidget {
         if (!context.mounted) return;
         final confirmed = await _confirmDiscardChanges(
           context,
-          contentText:
-              'Je wijzigingen aan de volgorde worden niet opgeslagen.',
+          contentText: 'Je wijzigingen aan de volgorde worden niet opgeslagen.',
         );
         if (!confirmed) return;
       }
@@ -519,9 +520,7 @@ class _GameSelectionPhase extends ConsumerWidget {
     // is typing in `state.input` (we left this phase before that anyway, but
     // a stale subscription would still keep this widget rebuilding when
     // returning here after a round).
-    final history = ref.watch(
-      calculatorProvider.select((s) => s.history),
-    );
+    final history = ref.watch(calculatorProvider.select((s) => s.history));
     final chooserIndex = ref.watch(
       calculatorProvider.select((s) => s.chooserIndex),
     );
@@ -709,6 +708,23 @@ class _GameTile extends ConsumerWidget {
 // Phase 2 — Game input, doubles, result
 // =============================================================================
 
+/// Per-game amber warnings shown between the chooser selector and the doubles
+/// card.  Surfaces every [Note] block from the rules data so any condition or
+/// special rule is visible at the moment the player needs it.
+List<Widget> _gameRulesWarnings(MiniGame game) {
+  final section = gameSectionFor(game.id);
+  if (section == null) return const [];
+  final notes = section.blocks.whereType<Note>().toList();
+  if (notes.isEmpty) return const [];
+  return [
+    const SizedBox(height: 12),
+    for (int i = 0; i < notes.length; i++) ...[
+      if (i > 0) const SizedBox(height: 8),
+      _AmberWarningBox(label: notes[i].label, text: notes[i].text),
+    ],
+  ];
+}
+
 class _GameInputPhase extends ConsumerWidget {
   const _GameInputPhase({super.key, required this.game});
 
@@ -752,6 +768,7 @@ class _GameInputPhase extends ConsumerWidget {
             );
           },
         ),
+        ..._gameRulesWarnings(game),
         const SizedBox(height: 12),
 
         // --- Doubles picker ---
@@ -821,8 +838,13 @@ class _GameInputPhase extends ConsumerWidget {
         const SizedBox(height: 16),
         Consumer(
           builder: (context, ref, _) {
-            final (result, partialResult, doubles, chooserIndex, playerNames) =
-                ref.watch(
+            final (
+              result,
+              partialResult,
+              doubles,
+              chooserIndex,
+              playerNames,
+            ) = ref.watch(
               calculatorProvider.select(
                 (s) => (
                   s.result,
@@ -892,7 +914,30 @@ class _GameInputHeader extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(game.name, style: tt.titleLarge),
+              Row(
+                children: [
+                  Flexible(child: Text(game.name, style: tt.titleLarge)),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Symbols.menu_book),
+                    iconSize: 20,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    tooltip: 'Spelregels ${game.name}',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => RulesScreen(singleGameId: game.id),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
               Text(
                 isPositive
                     ? 'Positief  ·  +${game.totalPoints} punten totaal'
@@ -965,9 +1010,9 @@ class _ScoreboardCard extends ConsumerWidget {
                 if (state.updatedAt != null)
                   Text(
                     formatDate(state.updatedAt!),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
               ],
             ),
@@ -979,7 +1024,11 @@ class _ScoreboardCard extends ConsumerWidget {
                     child: Column(
                       children: [
                         if (isFinished && winners.contains(i))
-                          Icon(Symbols.emoji_events, size: 14, color: cs.primary)
+                          Icon(
+                            Symbols.emoji_events,
+                            size: 14,
+                            color: cs.primary,
+                          )
                         else
                           const SizedBox(height: 14),
                         Text(
@@ -1046,12 +1095,8 @@ class _HistoryList extends ConsumerWidget {
     // names is referenced by every row but stays constant during gameplay.
     final (history, playerNames, hasPendingGame, pendingGameName) = ref.watch(
       calculatorProvider.select(
-        (s) => (
-          s.history,
-          s.playerNames,
-          s.hasPendingGame,
-          s.pendingGame?.name,
-        ),
+        (s) =>
+            (s.history, s.playerNames, s.hasPendingGame, s.pendingGame?.name),
       ),
     );
     if (history.isEmpty) return const SizedBox.shrink();
@@ -1148,8 +1193,8 @@ class _HistoryList extends ConsumerWidget {
                   playerNames: playerNames,
                   cs: cs,
                   notifier: notifier,
-                  showDelete: record.roundNumber == lastRoundNumber &&
-                      !hasPendingGame,
+                  showDelete:
+                      record.roundNumber == lastRoundNumber && !hasPendingGame,
                   hasPendingGame: hasPendingGame,
                   pendingGameName: pendingGameName,
                 ),
@@ -1203,11 +1248,7 @@ class _HistoryRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _RoundRowHeader(
-                record: record,
-                playerNames: playerNames,
-                cs: cs,
-              ),
+              _RoundRowHeader(record: record, playerNames: playerNames, cs: cs),
               if (record.doubles.hasAnyDouble)
                 DoublesChips(
                   doubles: record.doubles,
@@ -1488,8 +1529,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
 
   void _onFormChanged() => _updateProviders();
 
-  bool get _orderChanged =>
-      !listEquals(_controllers, _originalControllerOrder);
+  bool get _orderChanged => !listEquals(_controllers, _originalControllerOrder);
 
   void _updateProviders() {
     if (!mounted) return;
@@ -1552,9 +1592,6 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
     final dealerChanged = _dealerIndex != _originalDealerIndex;
     final orderChanged = _orderChanged;
     if (_gameInProgress && (dealerChanged || orderChanged)) {
-      final bodyStyle = Theme.of(
-        context,
-      ).textTheme.bodyMedium?.copyWith(color: Colors.amber);
       final confirm = await showConfirmDialog(
         context,
         title: 'Lopend spel wijzigen',
@@ -1562,19 +1599,14 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (orderChanged)
-              _AmberWarningRow(
-                text: _playerOrderShortWarning,
-                style: bodyStyle,
-              ),
-            if (orderChanged && dealerChanged) const SizedBox(height: 6),
-            if (dealerChanged)
-              _AmberWarningRow(
-                text: _dealerShortWarning,
-                style: bodyStyle,
-              ),
-            const SizedBox(height: 10),
-            Text(_inProgressEffectExplanation, style: bodyStyle),
+            if (orderChanged) _AmberWarningBox(text: _playerOrderShortWarning),
+            if (orderChanged && dealerChanged) const SizedBox(height: 8),
+            if (dealerChanged) _AmberWarningBox(text: _dealerShortWarning),
+            const SizedBox(height: 12),
+            Text(
+              _inProgressEffectExplanation,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ),
         confirmLabel: 'Wijzigen',
@@ -1631,12 +1663,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                 ),
                 if (_gameInProgress && orderChanged) ...[
                   const SizedBox(height: 12),
-                  _AmberWarningRow(
-                    text: _playerOrderShortWarning,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: Colors.amber),
-                  ),
+                  _AmberWarningBox(text: _playerOrderShortWarning),
                 ],
               ],
             ),
@@ -1667,13 +1694,8 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                 ),
                 if (_gameInProgress &&
                     _dealerIndex != _originalDealerIndex) ...[
-                  const SizedBox(height: 8),
-                  _AmberWarningRow(
-                    text: _dealerShortWarning,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: Colors.amber),
-                  ),
+                  const SizedBox(height: 12),
+                  _AmberWarningBox(text: _dealerShortWarning),
                 ],
               ],
             ),
@@ -1716,22 +1738,56 @@ class _RoundRowHeader extends StatelessWidget {
   }
 }
 
-/// Compact row with an amber warning icon and amber text.
-class _AmberWarningRow extends StatelessWidget {
-  const _AmberWarningRow({required this.text, this.style});
+/// Boxed amber callout used to surface warnings.
+///
+/// When [label] is set it is rendered as a bold first line above the body
+/// text; otherwise just the body text is shown next to the icon.
+class _AmberWarningBox extends StatelessWidget {
+  const _AmberWarningBox({this.label, required this.text});
 
+  final String? label;
   final String text;
-  final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Symbols.warning_amber, size: 16, color: Colors.amber),
-        const SizedBox(width: 6),
-        Expanded(child: Text(text, style: style)),
-      ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark
+        ? const Color(0x33FFB300) // amber-700 @ ~20% opacity
+        : const Color(0x33FFD54F); // amber-300 @ ~20% opacity
+    final border = isDark ? const Color(0xFF8D6E00) : const Color(0xFFE6B800);
+    final tt = Theme.of(context).textTheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border.all(color: border, width: 1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Symbols.warning_amber, size: 20, color: Colors.amber),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (label != null) ...[
+                  Text(
+                    label!,
+                    style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Text(text, style: tt.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

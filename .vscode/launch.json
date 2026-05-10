@@ -8,6 +8,7 @@
             "name": "bonken",
             "request": "launch",
             "type": "dart",
+            "deviceId": "web-server",
             "args": ["--web-port", "3000"]
         },
         {
@@ -15,6 +16,7 @@
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile",
+            "deviceId": "web-server",
             "args": ["--web-port", "3010"]
         },
         {
@@ -22,6 +24,7 @@
             "request": "launch",
             "type": "dart",
             "flutterMode": "release",
+            "deviceId": "web-server",
             "args": ["--web-port", "3020"]
         }
     ]

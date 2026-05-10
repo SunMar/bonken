@@ -8,7 +8,7 @@ import '../utils.dart';
 ///
 /// Left panel: 4 players in doubling turn order. Tap to select who is doubling.
 /// Right panel: the 3 other players as targets. Tap a target to cycle:
-///   none → doubled ("gaat op") → redoubled ("gaat terug") → none.
+///   none → doubled ("dubbelt") → redoubled ("gaat terug") → none.
 class DoublesPicker extends StatefulWidget {
   const DoublesPicker({
     required this.playerNames,
@@ -302,18 +302,19 @@ class _DoublesPickerState extends State<DoublesPicker> {
         _selected != null && _selected == widget.chooserIndex;
     final chooserDoublers = !selectedIsChooser
         ? const <int>[]
-        : order.where((i) {
-            if (i == _selected) return false;
-            final s = widget.doubles.stateFor(_selected!, i);
-            if (s == DoubleState.none) return false;
-            // The pair must have been initiated by the other player; if the
-            // chooser somehow initiated, the bulk "terug" doesn't apply.
-            return widget.doubles.initiatorFor(_selected!, i) == i;
-          }).toList(growable: false);
-    final chooserTerugMode =
-        selectedIsChooser && chooserDoublers.length >= 2;
-    final zaalEnabled = _selected != null &&
-        (!selectedIsChooser || chooserTerugMode);
+        : order
+              .where((i) {
+                if (i == _selected) return false;
+                final s = widget.doubles.stateFor(_selected!, i);
+                if (s == DoubleState.none) return false;
+                // The pair must have been initiated by the other player; if the
+                // chooser somehow initiated, the bulk "terug" doesn't apply.
+                return widget.doubles.initiatorFor(_selected!, i) == i;
+              })
+              .toList(growable: false);
+    final chooserTerugMode = selectedIsChooser && chooserDoublers.length >= 2;
+    final zaalEnabled =
+        _selected != null && (!selectedIsChooser || chooserTerugMode);
     final zaalLabel = !chooserTerugMode
         ? 'Zaal'
         : (chooserDoublers.length == 3 ? 'Zaal terug' : 'Terug op beide');
@@ -322,21 +323,23 @@ class _DoublesPickerState extends State<DoublesPicker> {
     final zaalTargets = _selected == null
         ? const <int>[]
         : chooserTerugMode
-            ? chooserDoublers
-            : order.where((i) => i != _selected).toList(growable: false);
+        ? chooserDoublers
+        : order.where((i) => i != _selected).toList(growable: false);
     final slappeHapTargets = _selected == null
         ? const <int>[]
         : order
-            .where((i) => i != _selected && i != widget.chooserIndex)
-            .toList(growable: false);
-    final zaalApplied = zaalEnabled &&
+              .where((i) => i != _selected && i != widget.chooserIndex)
+              .toList(growable: false);
+    final zaalApplied =
+        zaalEnabled &&
         (chooserTerugMode
             ? _isZaalTerugApplied(zaalTargets)
             : _isBulkApplied(zaalTargets));
     // "Slappe hap" only counts as applied when the non-chooser targets show
     // initiator-action AND the initiator has NOT acted on the chooser pair —
     // otherwise we're in the Zaal state, which owns the filled affordance.
-    final slappeHapApplied = slappeHapEnabled &&
+    final slappeHapApplied =
+        slappeHapEnabled &&
         !_initiatorActed(_selected!, widget.chooserIndex) &&
         _isBulkApplied(slappeHapTargets);
 
@@ -378,10 +381,10 @@ class _DoublesPickerState extends State<DoublesPicker> {
                   onPressed: !zaalEnabled
                       ? null
                       : zaalApplied
-                          ? (chooserTerugMode
-                              ? () => _undoZaalTerug(zaalTargets)
-                              : () => _clearBulk(zaalTargets))
-                          : () => _applyBulk(zaalTargets),
+                      ? (chooserTerugMode
+                            ? () => _undoZaalTerug(zaalTargets)
+                            : () => _clearBulk(zaalTargets))
+                      : () => _applyBulk(zaalTargets),
                 ),
               ),
               const SizedBox(width: 8),
@@ -392,8 +395,8 @@ class _DoublesPickerState extends State<DoublesPicker> {
                   onPressed: !slappeHapEnabled
                       ? null
                       : slappeHapApplied
-                          ? () => _clearBulk(slappeHapTargets)
-                          : () => _toSlappeHap(slappeHapTargets),
+                      ? () => _clearBulk(slappeHapTargets)
+                      : () => _toSlappeHap(slappeHapTargets),
                 ),
               ),
             ],

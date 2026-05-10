@@ -2,7 +2,11 @@
 
 Een app voor het invoeren van scores en het berekenen van uitslagen van het kaartspel **Bonken**, gebouwd met Flutter. Beschikbaar op Android en installeerbaar als web-app op elk apparaat.
 
+---
+
 ## Spelen
+
+De spelregels staan in de app en zijn te vinden op [sunmar.github.io/bonken/#/spelregels](https://sunmar.github.io/bonken/#/spelregels).
 
 | Platform | Hoe |
 |---|---|

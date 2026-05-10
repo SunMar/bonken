@@ -15,6 +15,7 @@ import '../state/game_history_provider.dart';
 import '../state/theme_mode_provider.dart';
 import '../utils.dart';
 import 'calculator_screen.dart';
+import 'rules_screen.dart';
 import 'setup_screen.dart';
 
 /// Home screen: logo, past-games list, and "Nieuw spel" button.
@@ -66,6 +67,7 @@ class StartScreen extends ConsumerWidget {
                     ],
                   ),
                   const Spacer(),
+                  _RulesButton(),
                   _ThemeModeButton(),
                   _AboutButton(),
                 ],
@@ -215,9 +217,7 @@ class _GameSessionCard extends ConsumerWidget {
               Row(
                 children: [
                   Icon(
-                    session.isFinished
-                        ? Symbols.check_circle
-                        : Symbols.pending,
+                    session.isFinished ? Symbols.check_circle : Symbols.pending,
                     size: 16,
                     color: session.isFinished
                         ? successGreen
@@ -226,9 +226,9 @@ class _GameSessionCard extends ConsumerWidget {
                   const SizedBox(width: 6),
                   Text(
                     formatDate(session.updatedAt),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                   const Spacer(),
                   SizedBox(
@@ -413,10 +413,7 @@ class _AboutButton extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (versionLine != null)
-              Text(
-                versionLine,
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
+              Text(versionLine, style: Theme.of(ctx).textTheme.bodyMedium),
             if (_gitCommit.isNotEmpty)
               Text(
                 'Commit $_gitCommit',
@@ -454,6 +451,24 @@ class _AboutButton extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// AppBar action: opens the game-rules screen.
+class _RulesButton extends StatelessWidget {
+  const _RulesButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Symbols.menu_book),
+      tooltip: 'Spelregels',
+      onPressed: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const RulesScreen()));
+      },
     );
   }
 }

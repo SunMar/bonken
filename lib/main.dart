@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import 'screens/rules_screen.dart';
 import 'screens/start_screen.dart';
 import 'services/app_updater.dart';
 import 'state/theme_mode_provider.dart';
@@ -63,9 +64,54 @@ class BonkenApp extends ConsumerWidget {
         actionIconTheme: _symbolsActionIconTheme,
       ),
       themeMode: themeMode,
-      home: const StartScreen(),
+      // Routing: the start screen is always the bottom of the stack.
+      // Deep links like `/spelregels` or `/spelregels/dominoes` push the
+      // matching rules page on top of it, so the back button returns to
+      // the start screen instead of leaving the app.
+      onGenerateRoute: _generateRoute,
+      onGenerateInitialRoutes: _generateInitialRoutes,
     );
   }
+}
+
+Route<dynamic>? _generateRoute(RouteSettings settings) {
+  final widget = _routeWidgetFor(settings.name);
+  if (widget == null) return null;
+  return MaterialPageRoute(builder: (_) => widget, settings: settings);
+}
+
+List<Route<dynamic>> _generateInitialRoutes(String initialRoute) {
+  final routes = <Route<dynamic>>[
+    MaterialPageRoute(
+      builder: (_) => const StartScreen(),
+      settings: const RouteSettings(name: '/'),
+    ),
+  ];
+  final deep = _routeWidgetFor(initialRoute);
+  if (deep != null && initialRoute != '/') {
+    routes.add(
+      MaterialPageRoute(
+        builder: (_) => deep,
+        settings: RouteSettings(name: initialRoute),
+      ),
+    );
+  }
+  return routes;
+}
+
+/// Returns the widget for a route name, or `null` to fall back to the start
+/// screen.  Recognised routes:
+///   `/spelregels`              → full rules document
+///   `/spelregels/<gameId>`     → rules for one minigame (`MiniGame.id`)
+Widget? _routeWidgetFor(String? name) {
+  if (name == null || name == '/' || name.isEmpty) return null;
+  if (name == '/spelregels') return const RulesScreen();
+  const prefix = '/spelregels/';
+  if (name.startsWith(prefix)) {
+    final id = name.substring(prefix.length);
+    if (id.isNotEmpty) return RulesScreen(singleGameId: id);
+  }
+  return null;
 }
 
 /// Make every auto-generated `BackButton` / `CloseButton` / drawer button
