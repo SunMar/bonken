@@ -128,6 +128,15 @@ const _gameColors = {
 // Shared body text for "discard your edits" confirmation dialogs.
 const _discardChangesMessage = 'Je wijzigingen gaan verloren.';
 
+// Title used for both the "another game is still pending" info dialog and
+// the "discard the in-progress round" confirm dialog.
+const _roundIncompleteTitle = 'Ronde niet afgerond';
+
+// Confirmation body shown when the user tries to save a round whose score
+// fields are not (yet) fully entered.
+const _incompleteScoreSavePrompt =
+    'De score is nog niet compleet. Wil je toch doorgaan met opslaan?';
+
 /// Standard confirmation dialog used whenever the user is about to abandon
 /// unsaved edits. Returns true if the user confirms the discard.
 Future<bool> _confirmDiscardChanges(
@@ -214,7 +223,7 @@ class CalculatorScreen extends ConsumerWidget {
         if (!context.mounted) return;
         final confirm = await showConfirmDialog(
           context,
-          title: 'Ronde niet afgerond',
+          title: _roundIncompleteTitle,
           contentText:
               'Deze ronde is nog niet gescoord. Wil je de invoer verwerpen?',
           confirmLabel: 'Verwerpen',
@@ -268,8 +277,7 @@ class CalculatorScreen extends ConsumerWidget {
           final confirm = await showConfirmDialog(
             context,
             title: 'Score niet compleet',
-            contentText:
-                'De score is nog niet compleet. Wil je toch doorgaan met opslaan?',
+            contentText: _incompleteScoreSavePrompt,
             confirmLabel: 'Opslaan',
           );
           if (confirm != true) return;
@@ -289,8 +297,7 @@ class CalculatorScreen extends ConsumerWidget {
       final confirm = await showConfirmDialog(
         context,
         title: 'Score niet compleet',
-        contentText:
-            'De score is nog niet compleet. Wil je toch doorgaan met opslaan?',
+        contentText: _incompleteScoreSavePrompt,
         confirmLabel: 'Opslaan',
       );
       if (confirm != true) return;
@@ -677,7 +684,7 @@ class _GameTile extends ConsumerWidget {
           if (state.hasPendingGame) {
             await showInfoDialog(
               context,
-              title: 'Ronde niet afgerond',
+              title: _roundIncompleteTitle,
               contentText:
                   '${state.pendingGame!.name} is nog niet afgerond. '
                   'Maak dat spel eerst af.',

@@ -1,0 +1,47 @@
+# Composite action that performs the steps every Bonken build needs:
+#   - install Flutter (version pinned in /.fvmrc at the repo root)
+#   - install Android JDK (when `android: true`)
+#   - run `flutter pub get`
+#   - install rsvg-convert + Roboto fonts (used by tool/generate_icons.sh)
+#   - generate launcher icons
+#
+# Centralising this here means each workflow only has to declare its
+# build-specific steps. The Flutter version lives in /.fvmrc so it stays
+# in sync with local fvm setups.
+name: Setup Bonken build environment
+description: Install Flutter (from .fvmrc), Java, dependencies, and generate launcher icons.
+
+inputs:
+  android:
+    description: Whether to install the Android JDK (set to "true" for builds that produce APK/AAB).
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Java (Android only)
+      if: ${{ inputs.android == 'true' }}
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version-file: .fvmrc
+        channel: stable
+        cache: true
+
+    - name: Install dependencies
+      shell: bash
+      run: flutter pub get
+
+    - name: Install rsvg-convert
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-roboto
+
+    - name: Generate launcher icons
+      shell: bash
+      run: ./tool/generate_icons.sh

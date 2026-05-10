@@ -286,14 +286,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     state = state.copyWith(playerNames: updated, updatedAt: DateTime.now());
   }
 
-  /// Replaces all player names at once.
-  void setAllPlayerNames(List<String> names) {
-    state = state.copyWith(
-      playerNames: List<String>.from(names),
-      updatedAt: DateTime.now(),
-    );
-  }
-
   /// Reorders the player names list, moving the entry at [oldIndex] to
   /// [newIndex] (using the same convention as [ReorderableListView]).
   ///
@@ -330,16 +322,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     // Updates who is dealing the current round.  Past rounds in [history] keep
     // their recorded dealer and are not retroactively re-rotated.  Subsequent
     // rounds will continue to rotate from this new dealer.
-    state = state.copyWith(
-      dealerIndex: index,
-      dealerChosen: true,
-    );
-  }
-
-  /// Clears the explicit dealer choice so that a random dealer will be picked
-  /// when the game starts. Only meaningful before the first round is recorded.
-  void clearDealer() {
-    state = state.copyWith(dealerChosen: false);
+    state = state.copyWith(dealerIndex: index, dealerChosen: true);
   }
 
   void setChooser(int index) {
@@ -534,7 +517,8 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     final item = list.removeAt(oldIndex);
     list.insert(newIndex, item);
     final renumbered = [
-      for (int i = 0; i < list.length; i++) list[i].copyWith(roundNumber: i + 1),
+      for (int i = 0; i < list.length; i++)
+        list[i].copyWith(roundNumber: i + 1),
     ];
     state = state.copyWith(history: renumbered, updatedAt: DateTime.now());
   }
@@ -628,13 +612,8 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Starts a brand-new game session in a single state update: resets all
   /// transient state, applies the given player [names] and [dealerIndex],
-  /// and assigns a fresh session ID. Equivalent to
-  /// `reset()` + `setAllPlayerNames` + `setDealer` + `initSession`, but as
-  /// one atomic emission so the autosave only fires once.
-  void startNewGame({
-    required List<String> names,
-    required int dealerIndex,
-  }) {
+  /// and assigns a fresh session ID.
+  void startNewGame({required List<String> names, required int dealerIndex}) {
     final now = DateTime.now();
     state = CalculatorState(
       sessionId: '${now.microsecondsSinceEpoch}',
@@ -643,18 +622,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       playerNames: List<String>.from(names),
       dealerIndex: dealerIndex,
       dealerChosen: true,
-    );
-  }
-
-  /// Assigns a fresh session ID to the current state, marking it as a
-  /// real game that should be persisted.  Call this exactly once, when
-  /// the user confirms "Start spel".
-  void initSession() {
-    final now = DateTime.now();
-    state = state.copyWith(
-      sessionId: '${now.microsecondsSinceEpoch}',
-      createdAt: now,
-      updatedAt: now,
     );
   }
 

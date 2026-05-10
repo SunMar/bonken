@@ -34,11 +34,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-seed from any names already sitting in the provider. This is how
-    // the "Nieuw spel met dezelfde spelers" button on the finished-game
-    // screen carries names over: it calls setAllPlayerNames(...) before
-    // pushing this screen. For a fresh "Nieuw spel" from the start screen
-    // the provider holds four empty strings, so nothing is pre-filled.
+    // Pre-seed from any names already sitting in the provider. For a fresh
+    // launch (or after [CalculatorNotifier.reset]) the provider holds four
+    // empty strings, so nothing is pre-filled. After a finished game the
+    // names of the previous players are still in the provider and surface
+    // here as a convenience.
     final initialNames = ref.read(calculatorProvider).playerNames;
     _controllers = List.generate(playerCount, (i) {
       final c = TextEditingController(

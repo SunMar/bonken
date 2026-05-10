@@ -380,17 +380,20 @@ void main() {
     });
   });
 
-  group('initSession / buildSession / loadSession', () {
-    test('buildSession returns null before initSession', () {
+  group('startNewGame / buildSession / loadSession', () {
+    test('buildSession returns null before startNewGame', () {
       final c = makeContainer();
       expect(c.read(calculatorProvider.notifier).buildSession(), isNull);
     });
 
-    test('initSession assigns id and timestamps', () {
+    test('startNewGame assigns names, dealer, id and timestamps', () {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
-      n.initSession();
+      n.startNewGame(names: ['A', 'B', 'C', 'D'], dealerIndex: 2);
       final s = c.read(calculatorProvider);
+      expect(s.playerNames, ['A', 'B', 'C', 'D']);
+      expect(s.dealerIndex, 2);
+      expect(s.dealerChosen, isTrue);
       expect(s.sessionId, isNotEmpty);
       expect(s.createdAt, isNotNull);
       expect(s.updatedAt, isNotNull);
@@ -399,12 +402,7 @@ void main() {
     test('buildSession reflects history and pending game', () {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
-      n.setPlayerName(0, 'A');
-      n.setPlayerName(1, 'B');
-      n.setPlayerName(2, 'C');
-      n.setPlayerName(3, 'D');
-      n.setDealer(0);
-      n.initSession();
+      n.startNewGame(names: ['A', 'B', 'C', 'D'], dealerIndex: 0);
       n.selectGame(const Clubs());
       n.updateInput('tricks', [4, 4, 2, 3]);
       n.deselectGame();
@@ -425,12 +423,7 @@ void main() {
     test('loadSession restores history and pending game', () {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
-      n.setPlayerName(0, 'A');
-      n.setPlayerName(1, 'B');
-      n.setPlayerName(2, 'C');
-      n.setPlayerName(3, 'D');
-      n.setDealer(0);
-      n.initSession();
+      n.startNewGame(names: ['A', 'B', 'C', 'D'], dealerIndex: 0);
       n.selectGame(const Clubs());
       n.updateInput('tricks', [4, 4, 2, 3]);
       n.deselectGame();
@@ -459,9 +452,7 @@ void main() {
     test('reset clears all session state', () {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
-      n.setPlayerName(0, 'A');
-      n.setDealer(0);
-      n.initSession();
+      n.startNewGame(names: ['A', '', '', ''], dealerIndex: 0);
       n.reset();
       final s = c.read(calculatorProvider);
       expect(s.sessionId, '');
@@ -584,12 +575,7 @@ void main() {
       () {
         final c = makeContainer();
         final n = c.read(calculatorProvider.notifier);
-        n.setPlayerName(0, 'A');
-        n.setPlayerName(1, 'B');
-        n.setPlayerName(2, 'C');
-        n.setPlayerName(3, 'D');
-        n.setDealer(0);
-        n.initSession();
+        n.startNewGame(names: ['A', 'B', 'C', 'D'], dealerIndex: 0);
         // 2 rounds: round 1 dealer 0, round 2 dealer 1.
         n.selectGame(const Clubs());
         n.updateInput('tricks', [4, 4, 2, 3]);
@@ -656,14 +642,13 @@ void main() {
       n.setPlayerName(1, 'B');
       n.setPlayerName(2, 'C');
       n.setPlayerName(3, 'D');
-      n.setDealer(2);
-      n.clearDealer();
+      // Dealer was never chosen — dealerIndex stays at the default of 0
+      // regardless of reorders.
       n.reorderPlayerNames(2, 0);
       final s = c.read(calculatorProvider);
       expect(s.playerNames, ['C', 'A', 'B', 'D']);
       expect(s.dealerChosen, isFalse);
-      // dealerIndex stays at the previously-set value.
-      expect(s.dealerIndex, 2);
+      expect(s.dealerIndex, 0);
     });
   });
 
