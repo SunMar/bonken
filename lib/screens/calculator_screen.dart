@@ -1531,6 +1531,15 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
 
   bool get _orderChanged => !listEquals(_controllers, _originalControllerOrder);
 
+  /// True if the dealer slot now points at a different *person* than it
+  /// did when entering this phase. Reordering players in a way that keeps
+  /// the same controller (i.e. the same person) at the dealer position is
+  /// not considered a dealer change — even if the numeric [_dealerIndex]
+  /// shifted as a result of the reorder.
+  bool get _dealerPlayerChanged =>
+      _controllers[_dealerIndex] !=
+      _originalControllerOrder[_originalDealerIndex];
+
   void _updateProviders() {
     if (!mounted) return;
     final trimmed = _controllers.map((c) => c.text.trim()).toList();
@@ -1589,7 +1598,10 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
 
   Future<void> _save() async {
     if (_controllers.any((c) => c.text.trim().isEmpty)) return;
-    final dealerChanged = _dealerIndex != _originalDealerIndex;
+    // Whether the dealer *person* changed (drives the warning text).
+    final dealerChanged = _dealerPlayerChanged;
+    // Whether the dealer's numeric index moved (drives the setDealer call).
+    final dealerIndexChanged = _dealerIndex != _originalDealerIndex;
     final orderChanged = _orderChanged;
     if (_gameInProgress && (dealerChanged || orderChanged)) {
       final confirm = await showConfirmDialog(
@@ -1618,7 +1630,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
     for (int i = 0; i < playerCount; i++) {
       notifier.setPlayerName(i, _controllers[i].text.trim());
     }
-    if (dealerChanged) {
+    if (dealerIndexChanged) {
       notifier.setDealer(_dealerIndex);
     }
     ref.read(isEditPlayersModeProvider.notifier).set(false);
@@ -1692,8 +1704,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                     },
                   ),
                 ),
-                if (_gameInProgress &&
-                    _dealerIndex != _originalDealerIndex) ...[
+                if (_gameInProgress && _dealerPlayerChanged) ...[
                   const SizedBox(height: 12),
                   _AmberWarningBox(text: _dealerShortWarning),
                 ],
