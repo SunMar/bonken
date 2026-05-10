@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// Shows a yes/no confirmation [AlertDialog] and resolves to:
 ///
@@ -74,6 +75,43 @@ Future<void> showInfoDialog(
           child: Text(buttonLabel),
         ),
       ],
+    ),
+  );
+}
+
+/// Shows the "[dealerName]" info dialog used when the dealer is picked at
+/// random or rotated automatically. The [title] indicates the context
+/// (e.g. "Willekeurige deler" vs "Nieuwe deler").
+Future<void> showDealerAnnouncementDialog(
+  BuildContext context, {
+  required String dealerName,
+  String title = 'Willekeurige deler',
+}) {
+  return showInfoDialog(
+    context,
+    title: title,
+    content: Builder(
+      builder: (context) {
+        final style = Theme.of(
+          context,
+        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold);
+        final iconSize = (style?.fontSize ?? 28) * 1.1;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Symbols.playing_cards, size: iconSize),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                dealerName,
+                textAlign: TextAlign.center,
+                style: style,
+              ),
+            ),
+          ],
+        );
+      },
     ),
   );
 }

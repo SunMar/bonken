@@ -40,22 +40,24 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('initial state: 4 empty fields, random-dealer hint, Start disabled',
-      (tester) async {
-    await pumpSetup(tester);
+  testWidgets(
+    'initial state: 4 empty fields, random-dealer hint, Start disabled',
+    (tester) async {
+      await pumpSetup(tester);
 
-    expect(find.byType(TextField), findsNWidgets(4));
-    for (int i = 0; i < 4; i++) {
-      final tf = tester.widget<TextField>(find.byType(TextField).at(i));
-      expect(tf.controller!.text, '');
-    }
-    expect(find.text('Willekeurige deler'), findsOneWidget);
+      expect(find.byType(TextField), findsNWidgets(4));
+      for (int i = 0; i < 4; i++) {
+        final tf = tester.widget<TextField>(find.byType(TextField).at(i));
+        expect(tf.controller!.text, '');
+      }
+      expect(find.text('Willekeurige deler'), findsOneWidget);
 
-    final startButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Start spel'),
-    );
-    expect(startButton.onPressed, isNull);
-  });
+      final startButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Start spel'),
+      );
+      expect(startButton.onPressed, isNull);
+    },
+  );
 
   testWidgets('Start enabled once 4 unique names are entered', (tester) async {
     await pumpSetup(tester);
@@ -73,20 +75,21 @@ void main() {
   });
 
   testWidgets(
-      'duplicate names (case-insensitive) show warning and disable Start',
-      (tester) async {
-    await pumpSetup(tester);
-    await enterName(tester, 0, 'Alice');
-    await enterName(tester, 1, 'Bob');
-    await enterName(tester, 2, 'Carol');
-    await enterName(tester, 3, 'alice'); // case-insensitive duplicate
+    'duplicate names (case-insensitive) show warning and disable Start',
+    (tester) async {
+      await pumpSetup(tester);
+      await enterName(tester, 0, 'Alice');
+      await enterName(tester, 1, 'Bob');
+      await enterName(tester, 2, 'Carol');
+      await enterName(tester, 3, 'alice'); // case-insensitive duplicate
 
-    expect(find.text('Twee spelers hebben dezelfde naam.'), findsOneWidget);
-    final startButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Start spel'),
-    );
-    expect(startButton.onPressed, isNull);
-  });
+      expect(find.text('Twee spelers hebben dezelfde naam.'), findsOneWidget);
+      final startButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Start spel'),
+      );
+      expect(startButton.onPressed, isNull);
+    },
+  );
 
   testWidgets('Start disabled while any name slot is empty', (tester) async {
     await pumpSetup(tester);
@@ -100,7 +103,9 @@ void main() {
     expect(startButton.onPressed, isNull);
   });
 
-  testWidgets('does NOT mutate calculatorProvider while typing', (tester) async {
+  testWidgets('does NOT mutate calculatorProvider while typing', (
+    tester,
+  ) async {
     final container = await pumpSetup(tester);
     await enterName(tester, 0, 'Alice');
     await enterName(tester, 1, 'Bob');
@@ -143,80 +148,83 @@ void main() {
   });
 
   testWidgets(
-      'pressing Start with a chosen dealer commits names + dealer + sessionId',
-      (tester) async {
-    final container = await pumpSetup(tester);
-    await enterName(tester, 0, 'Alice');
-    await enterName(tester, 1, 'Bob');
-    await enterName(tester, 2, 'Carol');
-    await enterName(tester, 3, 'Dan');
-    await tester.pumpAndSettle();
+    'pressing Start with a chosen dealer commits names + dealer + sessionId',
+    (tester) async {
+      final container = await pumpSetup(tester);
+      await enterName(tester, 0, 'Alice');
+      await enterName(tester, 1, 'Bob');
+      await enterName(tester, 2, 'Carol');
+      await enterName(tester, 3, 'Dan');
+      await tester.pumpAndSettle();
 
-    await pickDealer(tester, 'Carol');
+      await pickDealer(tester, 'Carol');
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tester.pumpAndSettle();
 
-    final s = container.read(calculatorProvider);
-    expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
-    expect(s.dealerChosen, isTrue);
-    expect(s.dealerIndex, 2);
-    expect(s.sessionId, isNotEmpty);
-  });
+      final s = container.read(calculatorProvider);
+      expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
+      expect(s.dealerChosen, isTrue);
+      expect(s.dealerIndex, 2);
+      expect(s.sessionId, isNotEmpty);
+    },
+  );
 
   testWidgets(
-      'pressing Start without a dealer shows the random-dealer dialog and then commits',
-      (tester) async {
-    final container = await pumpSetup(tester);
-    await enterName(tester, 0, 'Alice');
-    await enterName(tester, 1, 'Bob');
-    await enterName(tester, 2, 'Carol');
-    await enterName(tester, 3, 'Dan');
-    await tester.pumpAndSettle();
+    'pressing Start without a dealer shows the random-dealer dialog and then commits',
+    (tester) async {
+      final container = await pumpSetup(tester);
+      await enterName(tester, 0, 'Alice');
+      await enterName(tester, 1, 'Bob');
+      await enterName(tester, 2, 'Carol');
+      await enterName(tester, 3, 'Dan');
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tester.pumpAndSettle();
 
-    // Random-dealer info dialog is shown.
-    expect(find.text('Willekeurige deler'), findsWidgets);
-    expect(find.text('is geloot om als eerste te delen.'), findsOneWidget);
+      // Random-dealer info dialog is shown.
+      expect(find.text('Willekeurige deler'), findsWidgets);
 
-    // Dismiss dialog (OK button from showInfoDialog).
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+      // Dismiss dialog (OK button from showInfoDialog).
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
 
-    final s = container.read(calculatorProvider);
-    expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
-    expect(s.dealerChosen, isTrue);
-    expect(s.dealerIndex, inInclusiveRange(0, 3));
-    expect(s.sessionId, isNotEmpty);
-  });
+      final s = container.read(calculatorProvider);
+      expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
+      expect(s.dealerChosen, isTrue);
+      expect(s.dealerIndex, inInclusiveRange(0, 3));
+      expect(s.sessionId, isNotEmpty);
+    },
+  );
 
-  testWidgets('reorder via reorderPlayerNames keeps dealer pointing at same player',
-      (tester) async {
-    await pumpSetup(tester);
-    await enterName(tester, 0, 'Alice');
-    await enterName(tester, 1, 'Bob');
-    await enterName(tester, 2, 'Carol');
-    await enterName(tester, 3, 'Dan');
-    await tester.pumpAndSettle();
+  testWidgets(
+    'reorder via reorderPlayerNames keeps dealer pointing at same player',
+    (tester) async {
+      await pumpSetup(tester);
+      await enterName(tester, 0, 'Alice');
+      await enterName(tester, 1, 'Bob');
+      await enterName(tester, 2, 'Carol');
+      await enterName(tester, 3, 'Dan');
+      await tester.pumpAndSettle();
 
-    await pickDealer(tester, 'Carol');
+      await pickDealer(tester, 'Carol');
 
-    // Find ReorderableListView and trigger onReorder programmatically.
-    // Move slot 2 (Carol) to position 0.
-    final reorderable = tester.widget<ReorderableListView>(
-      find.byType(ReorderableListView),
-    );
-    reorderable.onReorder(2, 0);
-    await tester.pumpAndSettle();
+      // Find ReorderableListView and trigger onReorder programmatically.
+      // Move slot 2 (Carol) to position 0.
+      final reorderable = tester.widget<ReorderableListView>(
+        find.byType(ReorderableListView),
+      );
+      reorderable.onReorder(2, 0);
+      await tester.pumpAndSettle();
 
-    // Carol should now be at slot 0, and the dealer dropdown should still
-    // display her name (i.e. dealer index was rotated alongside).
-    final tf0 = tester.widget<TextField>(find.byType(TextField).at(0));
-    expect(tf0.controller!.text, 'Carol');
+      // Carol should now be at slot 0, and the dealer dropdown should still
+      // display her name (i.e. dealer index was rotated alongside).
+      final tf0 = tester.widget<TextField>(find.byType(TextField).at(0));
+      expect(tf0.controller!.text, 'Carol');
 
-    // Dropdown's selected item still shows Carol.
-    expect(find.text('Carol'), findsWidgets);
-  });
+      // Dropdown's selected item still shows Carol.
+      expect(find.text('Carol'), findsWidgets);
+    },
+  );
 }

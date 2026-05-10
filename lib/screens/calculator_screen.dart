@@ -1,3 +1,5 @@
+import 'dart:math' show Random;
+
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
@@ -19,7 +21,6 @@ import '../widgets/drag_handle.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/score_result_view.dart';
-import 'setup_screen.dart';
 import 'start_screen.dart';
 import 'rules_screen.dart';
 
@@ -1067,18 +1068,161 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
     return FilledButton.icon(
       icon: const Icon(Symbols.replay),
       label: const Text('Nieuw spel met dezelfde spelers'),
-      onPressed: () {
-        final state = ref.read(calculatorProvider);
-        final names = List<String>.from(state.playerNames);
-        final notifier = ref.read(calculatorProvider.notifier);
-        notifier.reset();
-        notifier.setAllPlayerNames(names);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const SetupScreen()),
-        );
-      },
+      onPressed: () => _onPressed(context, ref),
     );
   }
+
+  Future<void> _onPressed(BuildContext context, WidgetRef ref) async {
+    final state = ref.read(calculatorProvider);
+    final names = List<String>.from(state.playerNames);
+    final previousDealer = state.dealerIndex;
+
+    final pick = await _showDealerPickerDialog(
+      context,
+      playerNames: names,
+      previousDealerIndex: previousDealer,
+    );
+    if (pick == null) return;
+    if (!context.mounted) return;
+
+    int dealerIndex;
+    bool announce;
+    switch (pick) {
+      case _NextDealerNext():
+        dealerIndex = (previousDealer + 1) % playerCount;
+        announce = true;
+      case _NextDealerRandom():
+        dealerIndex = Random().nextInt(playerCount);
+        announce = true;
+      case _NextDealerSpecific(:final index):
+        dealerIndex = index;
+        announce = false;
+    }
+
+    if (announce) {
+      await showDealerAnnouncementDialog(
+        context,
+        dealerName: names[dealerIndex],
+        title: 'Nieuwe deler',
+      );
+      if (!context.mounted) return;
+    }
+
+    final notifier = ref.read(calculatorProvider.notifier);
+    notifier.startNewGame(names: names, dealerIndex: dealerIndex);
+    final session = notifier.buildSession();
+    if (session != null) {
+      await ref.read(gameHistoryProvider.notifier).saveGame(session);
+    }
+    // Stay on the calculator screen — startNewGame already reset state to
+    // a fresh game-selection phase, so the screen rebuilds accordingly.
+  }
+}
+
+/// Result of [_showDealerPickerDialog].
+sealed class _NextDealerChoice {
+  const _NextDealerChoice();
+}
+
+class _NextDealerNext extends _NextDealerChoice {
+  const _NextDealerNext();
+}
+
+class _NextDealerRandom extends _NextDealerChoice {
+  const _NextDealerRandom();
+}
+
+class _NextDealerSpecific extends _NextDealerChoice {
+  const _NextDealerSpecific(this.index);
+  final int index;
+}
+
+Future<_NextDealerChoice?> _showDealerPickerDialog(
+  BuildContext context, {
+  required List<String> playerNames,
+  required int previousDealerIndex,
+}) {
+  final nextIndex = (previousDealerIndex + 1) % playerCount;
+  return showDialog<_NextDealerChoice>(
+    context: context,
+    builder: (ctx) {
+      final tt = Theme.of(ctx).textTheme;
+      final cs = Theme.of(ctx).colorScheme;
+      Widget choiceTile({
+        required IconData icon,
+        required String title,
+        String? subtitle,
+        required VoidCallback onTap,
+      }) {
+        return InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icon, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: tt.bodyLarge),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      return AlertDialog(
+        title: const Text('Wie deelt het volgende spel?'),
+        contentPadding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              choiceTile(
+                icon: Symbols.skip_next,
+                title: 'Volgende speler',
+                subtitle: playerNames[nextIndex],
+                onTap: () => Navigator.pop(ctx, const _NextDealerNext()),
+              ),
+              choiceTile(
+                icon: Symbols.shuffle,
+                title: 'Willekeurig',
+                onTap: () => Navigator.pop(ctx, const _NextDealerRandom()),
+              ),
+              const Divider(height: 16),
+              for (int i = 0; i < playerCount; i++)
+                choiceTile(
+                  icon: Symbols.person,
+                  title: playerNames[i],
+                  onTap: () => Navigator.pop(ctx, _NextDealerSpecific(i)),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuleren'),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 // =============================================================================

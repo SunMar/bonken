@@ -122,4 +122,43 @@ void main() {
       expect(find.text('Klaar'), findsNothing);
     });
   });
+
+  group('showDealerAnnouncementDialog', () {
+    testWidgets('shows dealer name and tagline, default title', (tester) async {
+      await pumpHost(
+        tester,
+        Builder(
+          builder: (ctx) => ElevatedButton(
+            onPressed: () =>
+                showDealerAnnouncementDialog(ctx, dealerName: 'Carol'),
+            child: const Text('open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Willekeurige deler'), findsOneWidget);
+      expect(find.text('Carol'), findsOneWidget);
+    });
+
+    testWidgets('uses custom title when provided', (tester) async {
+      await pumpHost(
+        tester,
+        Builder(
+          builder: (ctx) => ElevatedButton(
+            onPressed: () => showDealerAnnouncementDialog(
+              ctx,
+              dealerName: 'Bob',
+              title: 'Nieuwe deler',
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Nieuwe deler'), findsOneWidget);
+      expect(find.text('Bob'), findsOneWidget);
+    });
+  });
 }

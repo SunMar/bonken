@@ -101,45 +101,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final dealerIndex = _dealerIndex ?? Random().nextInt(playerCount);
 
     if (dealerWasRandom) {
-      final dealerName = names[dealerIndex];
-      await showInfoDialog(
+      await showDealerAnnouncementDialog(
         context,
-        title: 'Willekeurige deler',
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Builder(
-              builder: (context) {
-                final style = Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.bold);
-                final iconSize = (style?.fontSize ?? 28) * 1.1;
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Symbols.playing_cards, size: iconSize),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        dealerName,
-                        textAlign: TextAlign.center,
-                        style: style,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'is geloot om als eerste te delen.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        ),
+        dealerName: names[dealerIndex],
       );
       if (!mounted) return;
     }
@@ -152,9 +116,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => const CalculatorScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const CalculatorScreen()),
     );
   }
 
@@ -179,62 +141,61 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-          // ---- Player names ----
-          Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            'Sleep om de volgorde te wijzigen.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            // ---- Player names ----
+            Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Sleep om de volgorde te wijzigen.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          PlayerListField(
-            controllers: _controllers,
-            focusNodes: _focusNodes,
-            suggestions: suggestions,
-            onReorder: _handleReorder,
-            onSubmitted: _handleFieldSubmitted,
-          ),
-
-          const SizedBox(height: 32),
-
-          // ---- Dealer for first game ----
-          Text(
-            'Deler eerste spel',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'De speler links van de deler kiest het eerste spel.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            PlayerListField(
+              controllers: _controllers,
+              focusNodes: _focusNodes,
+              suggestions: suggestions,
+              onReorder: _handleReorder,
+              onSubmitted: _handleFieldSubmitted,
             ),
-          ),
-          const SizedBox(height: 12),
-          DealerDropdownField(
-            controllers: _controllers,
-            value: _dealerIndex,
-            hintText: 'Willekeurige deler',
-            onChanged: (v) => setState(() => _dealerIndex = v),
-            onClear: () => setState(() => _dealerIndex = null),
-          ),
 
-          const SizedBox(height: 48),
+            const SizedBox(height: 32),
 
-          // ---- Start button ----
-          FilledButton.icon(
-            icon: const Icon(Symbols.play_arrow),
-            label: const Text('Start spel'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+            // ---- Dealer for first game ----
+            Text(
+              'Deler eerste spel',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            onPressed: canStart ? _handleStart : null,
-          ),
+            const SizedBox(height: 4),
+            Text(
+              'De speler links van de deler kiest het eerste spel.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DealerDropdownField(
+              controllers: _controllers,
+              value: _dealerIndex,
+              hintText: 'Willekeurige deler',
+              onChanged: (v) => setState(() => _dealerIndex = v),
+              onClear: () => setState(() => _dealerIndex = null),
+            ),
+
+            const SizedBox(height: 48),
+
+            // ---- Start button ----
+            FilledButton.icon(
+              icon: const Icon(Symbols.play_arrow),
+              label: const Text('Start spel'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: canStart ? _handleStart : null,
+            ),
           ],
         ),
       ),
     );
   }
 }
-
