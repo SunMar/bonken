@@ -30,8 +30,7 @@ jobs:
         with:
           android: 'true'
 
-      - name: Run tests
-        run: flutter test
+      - uses: ./.github/actions/verify
 
       # -----------------------------------------------------------------
       # Derive version info from the git tag.

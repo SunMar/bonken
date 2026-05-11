@@ -57,17 +57,19 @@ class _PlayerButton extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? cs.primaryContainer : Colors.transparent,
+          color: isSelected ? cs.secondaryContainer : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
+          // M3 selection convention: filled secondaryContainer IS the
+          // affordance; outline drops away on selection.
           border: Border.all(
-            color: isSelected ? cs.primary : cs.outlineVariant,
+            color: isSelected ? Colors.transparent : cs.outlineVariant,
           ),
         ),
         child: Text(
           name,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
+            color: isSelected ? cs.onSecondaryContainer : cs.onSurface,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),

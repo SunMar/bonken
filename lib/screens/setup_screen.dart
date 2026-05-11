@@ -11,6 +11,7 @@ import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/player_list_field.dart';
+import '../widgets/primary_action_button.dart';
 import 'calculator_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
@@ -35,16 +36,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-seed from any names already sitting in the provider. For a fresh
-    // launch (or after [CalculatorNotifier.reset]) the provider holds four
-    // empty strings, so nothing is pre-filled. After a finished game the
-    // names of the previous players are still in the provider and surface
-    // here as a convenience.
-    final initialNames = ref.read(calculatorProvider).playerNames;
-    _controllers = List.generate(playerCount, (i) {
-      final c = TextEditingController(
-        text: i < initialNames.length ? initialNames[i] : '',
-      );
+    // Always start with empty fields. Names from a previous (finished or
+    // resumed) session live in the calculator provider, but surfacing them
+    // here is confusing — the user reached this screen by pressing
+    // "Nieuw spel", which should mean a clean slate.
+    _controllers = List.generate(playerCount, (_) {
+      final c = TextEditingController();
       // Rebuild on every keystroke so the duplicate warning, dropdown
       // labels, and Start-button enabled-state stay in sync.
       c.addListener(_onAnyChange);
@@ -177,19 +174,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             controllers: _controllers,
             value: _dealerIndex,
             hintText: 'Willekeurige deler',
+            allowRandomDealer: true,
             onChanged: (v) => setState(() => _dealerIndex = v),
-            onClear: () => setState(() => _dealerIndex = null),
           ),
 
           const SizedBox(height: 48),
 
           // ---- Start button ----
-          FilledButton.icon(
+          PrimaryActionButton(
             icon: const Icon(Symbols.play_arrow),
             label: const Text('Start spel'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
             onPressed: canStart ? _handleStart : null,
           ),
         ],

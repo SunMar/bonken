@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
-import '../utils.dart';
+import '../theme/app_theme_extensions.dart';
 
 /// A compact row of doubles chips for a round, e.g.
 /// [primaryChip "A × B"] [tertiaryChip "C ×× D"]
@@ -25,10 +25,12 @@ class DoublesChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const pairs = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-    final cs = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
-    final redoubleBg = redoubleContainer(cs, brightness);
-    final onRedoubleBg = onRedoubleContainer(cs, brightness);
+    final theme = Theme.of(context);
+    final dc =
+        theme.extension<DoubleStateColors>() ??
+        (theme.brightness == Brightness.dark
+            ? DoubleStateColors.dark
+            : DoubleStateColors.light);
 
     // Collect active pairs first so we can sort them.
     // Tuple: (initiator, other, initiatorTurn, otherTurn)
@@ -59,17 +61,17 @@ class DoublesChips extends StatelessWidget {
           ? '${names[initiator]} ×× ${names[other]}'
           : '${names[initiator]} × ${names[other]}';
       final bg = state == DoubleState.redoubled
-          ? redoubleBg
-          : cs.primaryContainer;
+          ? dc.redoubledBackground
+          : dc.doubledBackground;
       final fg = state == DoubleState.redoubled
-          ? onRedoubleBg
-          : cs.onPrimaryContainer;
+          ? dc.onRedoubledBackground
+          : dc.onDoubledBackground;
       chips.add(
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             label,

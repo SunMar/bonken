@@ -101,7 +101,7 @@ class _ScoreRow extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final color = scoreColor(score, cs);
+    final color = scoreColor(score, context);
     final label = formatScore(score);
 
     return Padding(

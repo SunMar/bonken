@@ -80,8 +80,12 @@ class RulesBlockView extends StatelessWidget {
   }
 }
 
-/// Yellow callout box used to render [Note] blocks, mirroring the styling of
-/// the static HTML rules page.
+/// Material 3 highlighted callout used to render [Note] blocks.
+///
+/// Uses the theme's `surfaceContainerHighest` for a subtle raised tint
+/// against the surrounding rules text, with a `primary` left bar and bold
+/// label to flag that the content is a sidenote worth pausing on.  Stays
+/// in lock-step with the seed colour and dark-mode palette automatically.
 class _NoteCallout extends StatelessWidget {
   const _NoteCallout({required this.label, required this.text});
 
@@ -90,14 +94,12 @@ class _NoteCallout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF2A2410) : const Color(0xFFFFF7E0);
-    final border = isDark ? const Color(0xFF806A23) : const Color(0xFFF0C651);
+    final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
-        color: bg,
-        border: Border(left: BorderSide(color: border, width: 3)),
+        color: cs.surfaceContainerHighest,
+        border: Border(left: BorderSide(color: cs.primary, width: 3)),
         borderRadius: const BorderRadius.only(
           topRight: Radius.circular(4),
           bottomRight: Radius.circular(4),
@@ -106,11 +108,11 @@ class _NoteCallout extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(10, 8, 12, 10),
       child: Text.rich(
         TextSpan(
-          style: tt.bodyMedium,
+          style: tt.bodyMedium?.copyWith(color: cs.onSurface),
           children: [
             TextSpan(
               text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, color: cs.primary),
             ),
             TextSpan(text: text),
           ],

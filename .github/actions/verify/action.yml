@@ -1,0 +1,17 @@
+name: Verify
+description: |
+  Run static analysis (with fatal infos) and the full test suite.
+  Centralized so develop.yml and release.yml use the exact same
+  verification steps. Assumes the workspace has already been prepared
+  by ./.github/actions/setup-build.
+
+runs:
+  using: composite
+  steps:
+    - name: Analyze (fatal on infos)
+      shell: bash
+      run: flutter analyze --fatal-infos
+
+    - name: Run tests
+      shell: bash
+      run: flutter test

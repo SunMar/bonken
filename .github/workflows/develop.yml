@@ -30,8 +30,7 @@ jobs:
         with:
           android: 'true'
 
-      - name: Run tests
-        run: flutter test
+      - uses: ./.github/actions/verify
 
       # versionName  = 0.0.0-develop.<run>+<sha>   (informational only)
       # versionCode  = GITHUB_RUN_NUMBER          (monotonic, unique per build)

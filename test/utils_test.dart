@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bonken/theme/app_theme_extensions.dart';
 import 'package:bonken/utils.dart';
 
 void main() {
@@ -29,27 +30,53 @@ void main() {
   });
 
   group('scoreColor', () {
-    final cs = const ColorScheme.light();
-    test('positive uses successGreen', () {
-      expect(scoreColor(10, cs), successGreen);
-    });
-    test('negative uses cs.error', () {
-      expect(scoreColor(-10, cs), cs.error);
-    });
-    test('zero uses cs.onSurfaceVariant', () {
-      expect(scoreColor(0, cs), cs.onSurfaceVariant);
-    });
-  });
+    Future<Color> resolve(
+      WidgetTester tester,
+      int score,
+      ThemeData theme,
+    ) async {
+      late Color result;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Builder(
+            builder: (context) {
+              result = scoreColor(score, context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      return result;
+    }
 
-  group('redoubleContainer / onRedoubleContainer', () {
-    final cs = const ColorScheme.light();
-    test('light mode uses errorContainer', () {
-      expect(redoubleContainer(cs, Brightness.light), cs.errorContainer);
-      expect(onRedoubleContainer(cs, Brightness.light), cs.onErrorContainer);
+    testWidgets('zero falls back to onSurfaceVariant', (tester) async {
+      final theme = ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        extensions: const [ScoreColors.light],
+      );
+      final color = await resolve(tester, 0, theme);
+      expect(color, theme.colorScheme.onSurfaceVariant);
     });
-    test('dark mode uses hand-picked muted dark red', () {
-      expect(redoubleContainer(cs, Brightness.dark), const Color(0xFF7D3535));
-      expect(onRedoubleContainer(cs, Brightness.dark), const Color(0xFFFFCDD2));
+
+    testWidgets('positive uses ScoreColors.positive', (tester) async {
+      final theme = ThemeData(extensions: const [ScoreColors.light]);
+      final color = await resolve(tester, 10, theme);
+      expect(color, ScoreColors.light.positive);
+    });
+
+    testWidgets('negative uses ScoreColors.negative', (tester) async {
+      final theme = ThemeData(extensions: const [ScoreColors.dark]);
+      final color = await resolve(tester, -10, theme);
+      expect(color, ScoreColors.dark.negative);
+    });
+
+    testWidgets('falls back to brightness defaults when extension missing', (
+      tester,
+    ) async {
+      final theme = ThemeData(brightness: Brightness.dark);
+      final color = await resolve(tester, 5, theme);
+      expect(color, ScoreColors.dark.positive);
     });
   });
 

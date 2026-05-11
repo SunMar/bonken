@@ -13,6 +13,7 @@ import '../models/score_result.dart';
 import '../data/game_rules.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
+import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
@@ -21,6 +22,7 @@ import '../widgets/doubles_picker.dart';
 import '../widgets/drag_handle.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/player_list_field.dart';
+import '../widgets/primary_action_button.dart';
 import '../widgets/score_result_view.dart';
 import 'start_screen.dart';
 import 'rules_screen.dart';
@@ -117,14 +119,9 @@ const _gameSymbols = {
   'dominoes': 'D',
 };
 
-// Per-suit accent colors. Games not in this map fall back to the
-// positive/negative theme color.
-const _gameColors = {
-  'clubs': Color(0xFF3A3A3A), // dark grey
-  'spades': Color(0xFF0D2B4E), // deep marine blue
-  'diamonds': Color(0xFFCC6600), // muted orange
-  'hearts': Color(0xFFB52424), // muted red
-};
+// Per-suit accent colors live in [GameSuitColors] (a `ThemeExtension`)
+// so they can be themed/overridden alongside the rest of the palette.
+// See `lib/theme/app_theme_extensions.dart`.
 
 // Shared body text for "discard your edits" confirmation dialogs.
 const _discardChangesMessage = 'Je wijzigingen gaan verloren.';
@@ -568,14 +565,18 @@ class _GameSelectionPhase extends ConsumerWidget {
           const _ScoreboardCard(),
           if (isFinished) ...[
             const SizedBox(height: 12),
-            const Center(child: _NewGameSamePlayersButton()),
+            // No Center wrapper here: the long label
+            // "Nieuw spel met dezelfde spelers" would shrink-wrap to its
+            // intrinsic (overflowing) width.  Letting the button take the
+            // ListView's content width gives the label room to lay out.
+            const _NewGameSamePlayersButton(),
           ],
         ],
         if (!isReordering && !isFinished && negativeGames.isNotEmpty) ...[
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Negatieve spellen',
-            color: Theme.of(context).colorScheme.error,
+            color: scoreColor(-1, context),
           ),
           const SizedBox(height: 8),
           for (final game in negativeGames)
@@ -585,7 +586,7 @@ class _GameSelectionPhase extends ConsumerWidget {
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Positieve spellen',
-            color: Theme.of(context).colorScheme.primary,
+            color: scoreColor(1, context),
           ),
           const SizedBox(height: 8),
           for (final game in positiveGames)
@@ -631,7 +632,7 @@ class _GameTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final isPositive = game.category == GameCategory.positive;
-    final accentColor = isPositive ? cs.primary : cs.error;
+    final accentColor = scoreColor(isPositive ? 1 : -1, context);
 
     final pendingGameId = ref.watch(
       calculatorProvider.select((s) => s.pendingGame?.id),
@@ -652,7 +653,7 @@ class _GameTile extends ConsumerWidget {
         title: Text(
           game.name,
           style: TextStyle(
-            color: isDisabled ? cs.onSurface.withAlpha(60) : null,
+            color: isDisabled ? cs.onSurface.withValues(alpha: 0.38) : null,
           ),
         ),
         subtitle: Text(
@@ -662,14 +663,16 @@ class _GameTile extends ConsumerWidget {
               ? 'Positief  ·  +${game.totalPoints} punten totaal'
               : 'Negatief  ·  ${game.totalPoints} punten totaal',
           style: TextStyle(
-            color: isDisabled ? cs.onSurface.withAlpha(60) : accentColor,
+            color: isDisabled
+                ? cs.onSurface.withValues(alpha: 0.38)
+                : accentColor,
           ),
         ),
         trailing: isPending
             ? Icon(Symbols.hourglass_top, color: cs.tertiary)
             : Icon(
                 Symbols.chevron_right,
-                color: isDisabled ? cs.onSurface.withAlpha(60) : null,
+                color: isDisabled ? cs.onSurface.withValues(alpha: 0.38) : null,
               ),
         onTap: () async {
           final state = ref.read(calculatorProvider);
@@ -744,9 +747,8 @@ class _GameInputPhase extends ConsumerWidget {
     // numeric stepper hold) does not rebuild the doubles card, the header,
     // or the chooser selector.
     final notifier = ref.read(calculatorProvider.notifier);
-    final cs = Theme.of(context).colorScheme;
     final isPositive = game.category == GameCategory.positive;
-    final accentColor = isPositive ? cs.primary : cs.error;
+    final accentColor = scoreColor(isPositive ? 1 : -1, context);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1050,7 +1052,7 @@ class _ScoreboardCard extends ConsumerWidget {
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: scoreColor(totals[i], cs),
+                                color: scoreColor(totals[i], context),
                               ),
                         ),
                       ],
@@ -1070,7 +1072,7 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FilledButton.icon(
+    return PrimaryActionButton(
       icon: const Icon(Symbols.replay),
       label: const Text('Nieuw spel met dezelfde spelers'),
       onPressed: () => _onPressed(context, ref),
@@ -1324,32 +1326,49 @@ class _HistoryList extends ConsumerWidget {
 
     // Normal mode: reversed (most recent first), with edit buttons.
     final lastRoundNumber = history.last.roundNumber;
+    final theme = Theme.of(context);
+    // Theme-scoped compact density for everything in this card.  The history
+    // card is a "data-dense list" surface (Material's term), so trailing
+    // IconButtons inherit Material 3's `small` size variant (~32dp slot,
+    // 18dp glyph) instead of the default 48dp touch target.  Individual
+    // IconButtons below stay free of size/density overrides.
+    final compactIconTheme = theme.copyWith(
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          iconSize: 18,
+          minimumSize: const Size(32, 32),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
+    );
     return RepaintBoundary(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Gespeelde rondes',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              for (final record in history.reversed) ...[
-                const Divider(height: 16),
-                _HistoryRow(
-                  record: record,
-                  playerNames: playerNames,
-                  cs: cs,
-                  notifier: notifier,
-                  showDelete:
-                      record.roundNumber == lastRoundNumber && !hasPendingGame,
-                  hasPendingGame: hasPendingGame,
-                  pendingGameName: pendingGameName,
-                ),
+      child: Theme(
+        data: compactIconTheme,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Gespeelde rondes', style: theme.textTheme.titleSmall),
+                for (final record in history.reversed) ...[
+                  const Divider(height: 16),
+                  _HistoryRow(
+                    record: record,
+                    playerNames: playerNames,
+                    cs: cs,
+                    notifier: notifier,
+                    showDelete:
+                        record.roundNumber == lastRoundNumber &&
+                        !hasPendingGame,
+                    hasPendingGame: hasPendingGame,
+                    pendingGameName: pendingGameName,
+                  ),
+                ],
+                const SizedBox(height: 8),
               ],
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
         ),
       ),
@@ -1362,11 +1381,9 @@ class _HistoryList extends ConsumerWidget {
 /// Extracted as a const-friendly widget so iterating over reversed history
 /// produces independent subtrees that won't all rebuild together.
 ///
-/// The trailing column always reserves the same vertical space as a row
-/// with both edit + delete IconButtons. For non-last rows we render a
-/// [SizedBox] placeholder of [kMinInteractiveDimension] so the edit icons
-/// stay aligned across rows without paying for an offscreen [IconButton]
-/// (which is what the previous `Visibility(maintainState: true)` setup did).
+/// Only the most recent round shows a delete button.  The edit icon sits at
+/// the top of the trailing column, so non-last rows simply omit the delete
+/// button and let the row collapse to its natural height.
 class _HistoryRow extends StatelessWidget {
   const _HistoryRow({
     required this.record,
@@ -1436,7 +1453,10 @@ class _HistoryRow extends StatelessWidget {
                     Text(
                       formatScore(record.result.scores[i] ?? 0),
                       style: tt.bodyMedium?.copyWith(
-                        color: scoreColor(record.result.scores[i] ?? 0, cs),
+                        color: scoreColor(
+                          record.result.scores[i] ?? 0,
+                          context,
+                        ),
                       ),
                     ),
                 ],
@@ -1445,21 +1465,21 @@ class _HistoryRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        // Edit + (optional) delete buttons. Non-last rows still reserve
-        // the delete-button vertical space so all edit icons line up.
+        // Edit + (optional) delete buttons.  Only the most recent round
+        // gets a delete button; non-last rows just show edit and the row
+        // collapses to its natural height.  Size/density come from the
+        // compact IconButtonTheme installed on the surrounding card.
         Column(
           children: [
             IconButton(
-              icon: const Icon(Symbols.edit, size: 18),
+              icon: const Icon(Symbols.edit),
               tooltip: 'Wijzigen',
-              visualDensity: VisualDensity.compact,
               onPressed: () => notifier.restoreRound(record),
             ),
             if (showDelete)
               IconButton(
-                icon: const Icon(Symbols.delete, size: 18),
+                icon: const Icon(Symbols.delete),
                 tooltip: 'Ronde verwijderen',
-                visualDensity: VisualDensity.compact,
                 onPressed: () async {
                   if (hasPendingGame) {
                     await showInfoDialog(
@@ -1484,11 +1504,7 @@ class _HistoryRow extends StatelessWidget {
                   if (confirm != true) return;
                   notifier.deleteLastRound();
                 },
-              )
-            else
-              // Placeholder so the edit icon stays aligned with rows that
-              // do show a delete button. Same height as a compact IconButton.
-              const SizedBox(height: kMinInteractiveDimension),
+              ),
           ],
         ),
       ],
@@ -1526,23 +1542,23 @@ class _ChooserSelector extends ConsumerWidget {
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 6),
-            DropdownButtonFormField<int>(
-              initialValue: chooserIndex,
-              decoration: const InputDecoration(
+            DropdownMenu<int>(
+              key: ValueKey(chooserIndex),
+              initialSelection: chooserIndex,
+              enableSearch: false,
+              enableFilter: false,
+              requestFocusOnTap: false,
+              expandedInsets: EdgeInsets.zero,
+              menuStyle: const MenuStyle(visualDensity: VisualDensity.compact),
+              inputDecorationTheme: const InputDecorationTheme(
                 isDense: true,
                 border: OutlineInputBorder(),
               ),
-              items: [
+              dropdownMenuEntries: [
                 for (int i = 0; i < playerCount; i++)
-                  DropdownMenuItem(
-                    value: i,
-                    child: Text(
-                      playerNames[i],
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                  DropdownMenuEntry<int>(value: i, label: playerNames[i]),
               ],
-              onChanged: (selected) async {
+              onSelected: (selected) async {
                 if (selected == null || selected == chooserIndex) return;
                 if (selected == defaultChooserIndex) {
                   notifier.setChooser(selected);
@@ -1848,6 +1864,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
                     controllers: _controllers,
                     value: _dealerIndex,
                     onChanged: (v) {
+                      if (v == null) return;
                       setState(() => _dealerIndex = v);
                       _updateProviders();
                     },
@@ -1910,25 +1927,25 @@ class _AmberWarningBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark
-        ? const Color(0x33FFB300) // amber-700 @ ~20% opacity
-        : const Color(0x33FFD54F); // amber-300 @ ~20% opacity
-    final border = isDark ? const Color(0xFF8D6E00) : const Color(0xFFE6B800);
+    final warning =
+        Theme.of(context).extension<WarningColors>() ??
+        (Theme.of(context).brightness == Brightness.dark
+            ? WarningColors.dark
+            : WarningColors.light);
     final tt = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
-        color: bg,
-        border: Border.all(color: border, width: 1),
+        color: warning.background,
+        border: Border.all(color: warning.border, width: 1),
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(Symbols.warning_amber, size: 20, color: Colors.amber),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(Symbols.warning_amber, size: 20, color: warning.icon),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1938,11 +1955,17 @@ class _AmberWarningBox extends StatelessWidget {
                 if (label != null) ...[
                   Text(
                     label!,
-                    style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: tt.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: warning.foreground,
+                    ),
                   ),
                   const SizedBox(height: 2),
                 ],
-                Text(text, style: tt.bodyMedium),
+                Text(
+                  text,
+                  style: tt.bodyMedium?.copyWith(color: warning.foreground),
+                ),
               ],
             ),
           ),
@@ -1968,17 +1991,20 @@ class GameAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final suits =
+        Theme.of(context).extension<GameSuitColors>() ??
+        GameSuitColors.standard;
     final isPositive = game.category == GameCategory.positive;
-    final accentColor = isPositive ? cs.primary : cs.error;
-    final symbolColor = _gameColors[game.id] ?? accentColor;
+    final accentColor = scoreColor(isPositive ? 1 : -1, context);
+    final symbolColor = suits.forGameId(game.id) ?? accentColor;
     final symbol = _gameSymbols[game.id] ?? '?';
     return CircleAvatar(
       radius: radius,
-      backgroundColor: symbolColor.withAlpha(disabled ? 15 : 30),
+      backgroundColor: symbolColor.withValues(alpha: disabled ? 0.06 : 0.12),
       child: _GameSymbol(
         symbol: symbol,
         gameId: game.id,
-        color: disabled ? cs.onSurface.withAlpha(60) : symbolColor,
+        color: disabled ? cs.onSurface.withValues(alpha: 0.38) : symbolColor,
         fontSize: 16,
       ),
     );

@@ -15,6 +15,7 @@ import '../state/game_history_provider.dart';
 import '../state/theme_mode_provider.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/primary_action_button.dart';
 import 'calculator_screen.dart';
 import 'rules_screen.dart';
 import 'setup_screen.dart';
@@ -157,12 +158,9 @@ class StartScreen extends ConsumerWidget {
           // ----------------------------------------------------------------
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: FilledButton.icon(
+            child: PrimaryActionButton(
               icon: const Icon(Symbols.add),
               label: const Text('Nieuw spel'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-              ),
               onPressed: () {
                 // SetupScreen holds its own local working state; the
                 // calculator provider is only mutated when the user
@@ -183,6 +181,22 @@ class StartScreen extends ConsumerWidget {
 // Past-game card
 // =============================================================================
 
+/// Picks the closest `clock_loader_*` glyph for an in-progress game.
+///
+/// Material Symbols ships a six-step loader series whose pie-style fill
+/// reads naturally as "X of N done" — perfect for Bonken's fixed 12-round
+/// arc. The finished state uses a filled `check_circle` (see
+/// [_GameSessionCard]) so the transition completes the same animation.
+IconData _progressIcon(int roundsPlayed) {
+  final pct = (roundsPlayed / GameSession.totalRounds * 100).round();
+  if (pct < 15) return Symbols.clock_loader_10;
+  if (pct < 30) return Symbols.clock_loader_20;
+  if (pct < 50) return Symbols.clock_loader_40;
+  if (pct < 70) return Symbols.clock_loader_60;
+  if (pct < 90) return Symbols.clock_loader_80;
+  return Symbols.clock_loader_90;
+}
+
 class _GameSessionCard extends ConsumerWidget {
   const _GameSessionCard({required this.session, required this.onDelete});
 
@@ -202,63 +216,82 @@ class _GameSessionCard extends ConsumerWidget {
       ).push(MaterialPageRoute(builder: (_) => const CalculatorScreen()));
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Date + rounds played + status
-              Row(
-                children: [
-                  Icon(
-                    session.isFinished ? Symbols.check_circle : Symbols.pending,
-                    size: 16,
-                    color: session.isFinished
-                        ? successGreen
-                        : cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    formatDate(session.updatedAt),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+    // Same theme-scoped compact icon-button density as the in-game history
+    // card.  Card-trailing IconButtons (currently just Verwijderen) get the
+    // 32×32 slot / 18dp glyph variant without per-button overrides, and any
+    // future trailing icon (e.g. share, archive) inherits the same size.
+    final theme = Theme.of(context);
+    final compactIconTheme = theme.copyWith(
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          iconSize: 18,
+          minimumSize: const Size(32, 32),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          foregroundColor: cs.onSurfaceVariant,
+        ),
+      ),
+    );
+
+    return Theme(
+      data: compactIconTheme,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date + rounds played + status
+                Row(
+                  children: [
+                    Icon(
+                      session.isFinished
+                          ? Symbols.check_circle
+                          : _progressIcon(session.rounds.length),
+                      // Filled check rhymes with a fully-filled clock_loader,
+                      // turning the in-progress → finished transition into the
+                      // last frame of the same loader animation. Monochrome on
+                      // both states — completion is carried by the glyph, not
+                      // by colour.
+                      fill: session.isFinished ? 1 : 0,
+                      size: 16,
                       color: cs.onSurfaceVariant,
                     ),
-                  ),
-                  const Spacer(),
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 20,
-                      color: cs.onSurfaceVariant,
+                    const SizedBox(width: 6),
+                    Text(
+                      formatDate(session.updatedAt),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
                       icon: const Icon(Symbols.delete),
                       tooltip: 'Verwijderen',
                       onPressed: onDelete,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Player scores (4 columns)
-              Row(
-                children: [
-                  for (int i = 0; i < playerCount; i++)
-                    Expanded(
-                      child: _PlayerScoreChip(
-                        name: session.playerNames[i],
-                        score: scores[i] ?? 0,
-                        isWinner: winners.contains(i),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Player scores (4 columns)
+                Row(
+                  children: [
+                    for (int i = 0; i < playerCount; i++)
+                      Expanded(
+                        child: _PlayerScoreChip(
+                          name: session.playerNames[i],
+                          score: scores[i] ?? 0,
+                          isWinner: winners.contains(i),
+                        ),
                       ),
-                    ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -286,14 +319,14 @@ class _PlayerScoreChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: isWinner
           ? BoxDecoration(
-              color: cs.primaryContainer,
+              color: cs.tertiaryContainer,
               borderRadius: BorderRadius.circular(8),
             )
           : null,
       child: Column(
         children: [
           if (isWinner) ...[
-            Icon(Symbols.emoji_events, size: 14, color: cs.primary),
+            Icon(Symbols.emoji_events, size: 14, color: cs.onTertiaryContainer),
             const SizedBox(height: 2),
           ],
           Text(
@@ -310,7 +343,7 @@ class _PlayerScoreChip extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
-              color: scoreColor(score, cs),
+              color: scoreColor(score, context),
             ),
           ),
         ],

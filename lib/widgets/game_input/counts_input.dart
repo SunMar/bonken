@@ -51,35 +51,51 @@ class CountsInput extends StatelessWidget {
     final remaining = total - sum;
     final isComplete = sum == total;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (int i = 0; i < playerCount; i++)
-          _PlayerCountRow(
-            name: playerNames[i],
-            count: counts[i],
-            canIncrement: remaining > 0,
-            canDecrement: counts[i] > 0,
-            onIncrement: () => _increment(i),
-            onDecrement: () => _decrement(i),
-            onAddRemaining: () => _addRemaining(i, remaining),
-          ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              'Totaal: $sum / $total $unitLabel',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isComplete
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.error,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+    // Theme-scoped compact density for the per-row stepper buttons.
+    // Each player row has three IconButtons (-, +, all-remaining); rather
+    // than repeating density/padding overrides on each, the `_PlayerCountRow`
+    // children inherit a small-variant IconButtonTheme installed here.
+    final compactStepperTheme = theme.copyWith(
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
         ),
-      ],
+      ),
+    );
+
+    return Theme(
+      data: compactStepperTheme,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < playerCount; i++)
+            _PlayerCountRow(
+              name: playerNames[i],
+              count: counts[i],
+              canIncrement: remaining > 0,
+              canDecrement: counts[i] > 0,
+              onIncrement: () => _increment(i),
+              onDecrement: () => _decrement(i),
+              onAddRemaining: () => _addRemaining(i, remaining),
+            ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                'Totaal: $sum / $total $unitLabel',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isComplete
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -113,8 +129,6 @@ class _PlayerCountRow extends StatelessWidget {
             child: Text(name, style: Theme.of(context).textTheme.bodyLarge),
           ),
           IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
             icon: const Icon(Symbols.remove_circle),
             onPressed: canDecrement ? onDecrement : null,
             tooltip: 'Minder',
@@ -130,15 +144,11 @@ class _PlayerCountRow extends StatelessWidget {
             ),
           ),
           IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
             icon: const Icon(Symbols.add_circle),
             onPressed: canIncrement ? onIncrement : null,
             tooltip: 'Meer',
           ),
           IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
             icon: const Icon(Symbols.expand_circle_right),
             onPressed: canIncrement ? onAddRemaining : null,
             tooltip: 'Alle resterende',

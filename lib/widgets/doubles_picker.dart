@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
-import '../utils.dart';
+import '../theme/app_theme_extensions.dart';
 
 /// Two-panel doubles picker.
 ///
@@ -517,10 +517,13 @@ class _InitiatorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
-    final redoubleBg = redoubleContainer(cs, brightness);
-    final onRedoubleBg = onRedoubleContainer(cs, brightness);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final dc =
+        theme.extension<DoubleStateColors>() ??
+        (theme.brightness == Brightness.dark
+            ? DoubleStateColors.dark
+            : DoubleStateColors.light);
 
     final tile = Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -531,10 +534,14 @@ class _InitiatorTile extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
-            color: isSelected ? cs.primaryContainer : Colors.transparent,
+            color: isSelected ? cs.secondaryContainer : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
+            // M3 selection convention (FilterChip, NavigationBar indicator):
+            // the filled secondaryContainer IS the affordance; the outline
+            // disappears once selected. Unselected tiles keep the subtle
+            // outlineVariant border so the row stays scannable.
             border: Border.all(
-              color: isSelected ? cs.primary : cs.outlineVariant,
+              color: isSelected ? Colors.transparent : cs.outlineVariant,
             ),
           ),
           child: Row(
@@ -544,7 +551,7 @@ class _InitiatorTile extends StatelessWidget {
                   name,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
+                    color: isSelected ? cs.onSecondaryContainer : cs.onSurface,
                     fontWeight: isSelected
                         ? FontWeight.bold
                         : FontWeight.normal,
@@ -552,23 +559,15 @@ class _InitiatorTile extends StatelessWidget {
                 ),
               ),
               if (involvedCount > 0) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: hasRedouble ? redoubleBg : cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$involvedCount',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: hasRedouble ? onRedoubleBg : cs.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                const SizedBox(width: 8),
+                Badge(
+                  backgroundColor: hasRedouble
+                      ? dc.redoubledBackground
+                      : dc.doubledBackground,
+                  textColor: hasRedouble
+                      ? dc.onRedoubledBackground
+                      : dc.onDoubledBackground,
+                  label: Text('$involvedCount'),
                 ),
               ],
             ],
@@ -576,7 +575,7 @@ class _InitiatorTile extends StatelessWidget {
         ),
       ),
     );
-    return isDimmed ? Opacity(opacity: 0.4, child: tile) : tile;
+    return isDimmed ? Opacity(opacity: 0.38, child: tile) : tile;
   }
 }
 
@@ -607,23 +606,26 @@ class _TargetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
-    final redoubleBg = redoubleContainer(cs, brightness);
-    final onRedoubleBg = onRedoubleContainer(cs, brightness);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final dc =
+        theme.extension<DoubleStateColors>() ??
+        (theme.brightness == Brightness.dark
+            ? DoubleStateColors.dark
+            : DoubleStateColors.light);
 
     // Tile background mirrors the pair state regardless of direction.
     final Color? bg = switch (state) {
       DoubleState.none => null,
-      DoubleState.doubled => cs.primaryContainer,
-      DoubleState.redoubled => redoubleBg,
+      DoubleState.doubled => dc.doubledBackground,
+      DoubleState.redoubled => dc.redoubledBackground,
     };
 
     Widget chip(String label, Color background, Color foreground) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
@@ -639,7 +641,7 @@ class _TargetTile extends StatelessWidget {
     if (isInitiator) {
       rowChildren = [
         if (state == DoubleState.doubled || state == DoubleState.redoubled) ...[
-          chip('dubbelt', cs.primaryContainer, cs.onPrimaryContainer),
+          chip('dubbelt', dc.doubledBackground, dc.onDoubledBackground),
           const SizedBox(width: 6),
         ],
         Text(
@@ -649,7 +651,7 @@ class _TargetTile extends StatelessWidget {
         ),
         if (state == DoubleState.redoubled) ...[
           const SizedBox(width: 6),
-          chip('gaat terug', redoubleBg, onRedoubleBg),
+          chip('gaat terug', dc.redoubledBackground, dc.onRedoubledBackground),
         ],
         const Spacer(),
       ];
@@ -660,8 +662,12 @@ class _TargetTile extends StatelessWidget {
           state == DoubleState.redoubled
               ? 'gaat terug op'
               : 'is gedubbeld door',
-          state == DoubleState.redoubled ? redoubleBg : cs.primaryContainer,
-          state == DoubleState.redoubled ? onRedoubleBg : cs.onPrimaryContainer,
+          state == DoubleState.redoubled
+              ? dc.redoubledBackground
+              : dc.doubledBackground,
+          state == DoubleState.redoubled
+              ? dc.onRedoubledBackground
+              : dc.onDoubledBackground,
         ),
         const SizedBox(width: 6),
         Text(
@@ -682,7 +688,7 @@ class _TargetTile extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
-            color: bg?.withAlpha(80) ?? Colors.transparent,
+            color: bg?.withValues(alpha: 0.38) ?? Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: bg ?? cs.outlineVariant),
           ),
@@ -690,6 +696,6 @@ class _TargetTile extends StatelessWidget {
         ),
       ),
     );
-    return isInteractive ? tile : Opacity(opacity: 0.4, child: tile);
+    return isInteractive ? tile : Opacity(opacity: 0.38, child: tile);
   }
 }

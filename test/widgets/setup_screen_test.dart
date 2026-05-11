@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/screens/setup_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
+import 'package:bonken/widgets/player_name_field.dart';
 
 /// Wraps [SetupScreen] in MaterialApp + ProviderScope and pumps it.
 /// Returns the [ProviderContainer] so tests can inspect state.
@@ -23,13 +24,23 @@ Future<ProviderContainer> pumpSetup(WidgetTester tester) async {
 
 /// Enters [name] into the player slot at [index] (0..3).
 Future<void> enterName(WidgetTester tester, int index, String name) async {
-  await tester.enterText(find.byType(TextField).at(index), name);
+  await tester.enterText(playerNameTextField(index), name);
   await tester.pump();
 }
 
+/// Finds the TextField inside the [index]-th [PlayerNameField] (so the
+/// dealer DropdownMenu's internal TextField doesn't get counted).
+Finder playerNameTextField(int index) => find.descendant(
+  of: find.byType(PlayerNameField).at(index),
+  matching: find.byType(TextField),
+);
+
 /// Opens the dealer dropdown and picks the menu item with the given label.
 Future<void> pickDealer(WidgetTester tester, String name) async {
-  await tester.tap(find.byType(DropdownButtonFormField<int>));
+  // DealerDropdownField uses Material 3's DropdownMenu, which renders as
+  // a TextField with a trailing chevron.  Tapping the field opens the
+  // overlay; tap the entry by its visible label inside the overlay.
+  await tester.tap(find.byType(DropdownMenu<int>));
   await tester.pumpAndSettle();
   await tester.tap(find.text(name).last);
   await tester.pumpAndSettle();
@@ -40,17 +51,45 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  testWidgets('fields stay empty even when provider already holds player names '
+      '(regression: loading a past game must not leak into "Nieuw spel")', (
+    tester,
+  ) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    // Simulate the state after loading/finishing a previous game.
+    container
+        .read(calculatorProvider.notifier)
+        .startNewGame(names: ['Alice', 'Bob', 'Carol', 'Dave'], dealerIndex: 0);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SetupScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (int i = 0; i < 4; i++) {
+      final tf = tester.widget<TextField>(playerNameTextField(i));
+      expect(tf.controller!.text, '', reason: 'slot $i must start empty');
+    }
+    // Drain the autosave debounce timer scheduled by startNewGame so the
+    // test teardown doesn't trip the "pending Timer" check.
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
   testWidgets(
     'initial state: 4 empty fields, random-dealer hint, Start disabled',
     (tester) async {
       await pumpSetup(tester);
 
-      expect(find.byType(TextField), findsNWidgets(4));
+      expect(find.byType(PlayerNameField), findsNWidgets(4));
       for (int i = 0; i < 4; i++) {
-        final tf = tester.widget<TextField>(find.byType(TextField).at(i));
+        final tf = tester.widget<TextField>(playerNameTextField(i));
         expect(tf.controller!.text, '');
       }
-      expect(find.text('Willekeurige deler'), findsOneWidget);
+      expect(find.text('Willekeurige deler'), findsWidgets);
 
       final startButton = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Start spel'),
@@ -117,7 +156,20 @@ void main() {
     expect(s.dealerChosen, isFalse);
   });
 
-  testWidgets('picking a dealer surfaces clear (X) button', (tester) async {
+  /// Reads the visible text inside the dealer DropdownMenu's input field.
+  String dealerFieldText(WidgetTester tester) {
+    final tf = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(DropdownMenu<int>),
+        matching: find.byType(TextField),
+      ),
+    );
+    return tf.controller!.text;
+  }
+
+  testWidgets('picking "Willekeurige deler" from the menu clears the choice', (
+    tester,
+  ) async {
     await pumpSetup(tester);
     await enterName(tester, 0, 'Alice');
     await enterName(tester, 1, 'Bob');
@@ -125,27 +177,50 @@ void main() {
     await enterName(tester, 3, 'Dan');
     await tester.pumpAndSettle();
 
+    // First pick a real dealer.
     await pickDealer(tester, 'Bob');
+    expect(dealerFieldText(tester), 'Bob');
 
-    expect(find.byTooltip('Wissen (willekeurige deler)'), findsOneWidget);
+    // Re-open and pick the random-dealer entry.
+    await pickDealer(tester, 'Willekeurige deler');
+
+    // The field reverts to "Willekeurige deler" — the random-dealer entry
+    // is now selected, so Bob is no longer committed as the manual dealer.
+    expect(dealerFieldText(tester), 'Willekeurige deler');
   });
 
-  testWidgets('clearing the dealer brings back the hint', (tester) async {
-    await pumpSetup(tester);
-    await enterName(tester, 0, 'Alice');
-    await enterName(tester, 1, 'Bob');
-    await enterName(tester, 2, 'Carol');
-    await enterName(tester, 3, 'Dan');
-    await tester.pumpAndSettle();
+  testWidgets(
+    'picking "Willekeurige deler" after a real dealer routes Start through '
+    'the random-dealer flow',
+    (tester) async {
+      final container = await pumpSetup(tester);
+      await enterName(tester, 0, 'Alice');
+      await enterName(tester, 1, 'Bob');
+      await enterName(tester, 2, 'Carol');
+      await enterName(tester, 3, 'Dan');
+      await tester.pumpAndSettle();
 
-    await pickDealer(tester, 'Bob');
+      // Pick Bob, then change our mind back to random.
+      await pickDealer(tester, 'Bob');
+      await pickDealer(tester, 'Willekeurige deler');
 
-    await tester.tap(find.byTooltip('Wissen (willekeurige deler)'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Willekeurige deler'), findsOneWidget);
-    expect(find.byTooltip('Wissen (willekeurige deler)'), findsNothing);
-  });
+      // Random-dealer announcement dialog appears (same as if Bob had
+      // never been picked).
+      expect(find.text('OK'), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      // A game has been committed; the drawn dealer is one of the four
+      // players (we don't assert which — Random() is, well, random).
+      final s = container.read(calculatorProvider);
+      expect(s.dealerChosen, isTrue);
+      expect(s.dealerIndex, inInclusiveRange(0, 3));
+      expect(s.sessionId, isNotEmpty);
+    },
+  );
 
   testWidgets(
     'pressing Start with a chosen dealer commits names + dealer + sessionId',
@@ -220,7 +295,7 @@ void main() {
 
       // Carol should now be at slot 0, and the dealer dropdown should still
       // display her name (i.e. dealer index was rotated alongside).
-      final tf0 = tester.widget<TextField>(find.byType(TextField).at(0));
+      final tf0 = tester.widget<TextField>(playerNameTextField(0));
       expect(tf0.controller!.text, 'Carol');
 
       // Dropdown's selected item still shows Carol.

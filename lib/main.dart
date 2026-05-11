@@ -11,6 +11,7 @@ import 'screens/rules_screen.dart';
 import 'screens/start_screen.dart';
 import 'services/app_updater.dart';
 import 'state/theme_mode_provider.dart';
+import 'theme/app_theme_extensions.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +54,12 @@ class BonkenApp extends ConsumerWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),
         actionIconTheme: _symbolsActionIconTheme,
+        extensions: [
+          WarningColors.light,
+          GameSuitColors.standard,
+          DoubleStateColors.light,
+          ScoreColors.light,
+        ],
       ),
       darkTheme: ThemeData(
         colorSchemeSeed: Colors.indigo,
@@ -62,6 +69,12 @@ class BonkenApp extends ConsumerWidget {
           ThemeData(brightness: Brightness.dark).textTheme,
         ),
         actionIconTheme: _symbolsActionIconTheme,
+        extensions: [
+          WarningColors.dark,
+          GameSuitColors.standard,
+          DoubleStateColors.dark,
+          ScoreColors.dark,
+        ],
       ),
       themeMode: themeMode,
       // Routing: the start screen is always the bottom of the stack.

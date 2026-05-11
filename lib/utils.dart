@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'theme/app_theme_extensions.dart';
+
 /// Maximum number of characters allowed in a player name.
 const int kPlayerNameMaxLength = 20;
 
@@ -27,29 +29,21 @@ String formatDate(DateTime dt) {
 
 String formatScore(int score) => score > 0 ? '+$score' : '$score';
 
-/// Material-tinted "success green" used for positive scores and completion icons.
-/// Stays consistent across light & dark themes.
-const Color successGreen = Color(0xFF2E7D32);
-
-Color scoreColor(int score, ColorScheme cs) => switch (score.sign) {
-  > 0 => successGreen,
-  < 0 => cs.error,
-  _ => cs.onSurfaceVariant,
-};
-
-/// Background color used for the "redoubled" state across the app.
+/// Tint for a player's cumulative or per-round score, based on its sign.
 ///
-/// In light mode this uses the theme's [ColorScheme.errorContainer]
-/// (a soft pastel red).  In dark mode the generated errorContainer is too
-/// loud, so a hand-picked muted dark red is used instead.
-Color redoubleContainer(ColorScheme cs, Brightness brightness) =>
-    brightness == Brightness.dark ? const Color(0xFF7D3535) : cs.errorContainer;
-
-/// Foreground color paired with [redoubleContainer].
-Color onRedoubleContainer(ColorScheme cs, Brightness brightness) =>
-    brightness == Brightness.dark
-    ? const Color(0xFFFFCDD2)
-    : cs.onErrorContainer;
+/// Reads the [ScoreColors] theme extension; falls back to the
+/// brightness-appropriate static if unavailable (e.g. unthemed test
+/// widgets).
+Color scoreColor(int score, BuildContext context) {
+  if (score == 0) return Theme.of(context).colorScheme.onSurfaceVariant;
+  final theme = Theme.of(context);
+  final sc =
+      theme.extension<ScoreColors>() ??
+      (theme.brightness == Brightness.dark
+          ? ScoreColors.dark
+          : ScoreColors.light);
+  return score > 0 ? sc.positive : sc.negative;
+}
 
 /// Recomputes [target]'s position after an item is moved from [oldIdx] to
 /// [newIdx] in a list (using the same convention as [ReorderableListView]).

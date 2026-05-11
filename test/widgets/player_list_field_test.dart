@@ -74,8 +74,9 @@ void main() {
       await teardown(tester);
     });
 
-    testWidgets('shows duplicate warning on case-insensitive collision',
-        (tester) async {
+    testWidgets('shows duplicate warning on case-insensitive collision', (
+      tester,
+    ) async {
       await pumpHost(tester, host());
       await tester.enterText(find.byType(TextField).at(0), 'Alice');
       await tester.enterText(find.byType(TextField).at(1), 'alice');
@@ -93,8 +94,9 @@ void main() {
       await teardown(tester);
     });
 
-    testWidgets('asserts when controllers/focusNodes have wrong length',
-        (tester) async {
+    testWidgets('asserts when controllers/focusNodes have wrong length', (
+      tester,
+    ) async {
       expect(
         () => PlayerListField(
           controllers: [TextEditingController()],
@@ -112,7 +114,9 @@ void main() {
     late List<TextEditingController> controllers;
 
     setUp(() {
-      controllers = [for (final n in playerNames) TextEditingController(text: n)];
+      controllers = [
+        for (final n in playerNames) TextEditingController(text: n),
+      ];
     });
 
     tearDown(() {
@@ -121,8 +125,9 @@ void main() {
       }
     });
 
-    testWidgets('uses controller text as labels (with fallback)',
-        (tester) async {
+    testWidgets('uses controller text as labels (with fallback)', (
+      tester,
+    ) async {
       controllers[2].text = ''; // Carol slot empty
       await pumpHost(
         tester,
@@ -159,45 +164,42 @@ void main() {
       expect(picked, 2);
     });
 
-    testWidgets('clear (X) button only shown when value!=null AND onClear given',
-        (tester) async {
-      // Case 1: value=null → no X
+    testWidgets('"Willekeurige deler" entry only present when '
+        'allowRandomDealer is true', (tester) async {
+      // Case 1: default (allowRandomDealer:false) → entry absent.
       await pumpHost(
         tester,
         DealerDropdownField(
           controllers: controllers,
           value: null,
           onChanged: (_) {},
-          onClear: () {},
         ),
       );
-      expect(find.byTooltip('Wissen (willekeurige deler)'), findsNothing);
+      await tester.tap(find.byType(DealerDropdownField));
+      await tester.pumpAndSettle();
+      expect(find.text('Willekeurige deler'), findsNothing);
+      // Close the menu before pumping the next case.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
 
-      // Case 2: value=2 but no onClear → no X
+      // Case 2: allowRandomDealer:true → entry present, picking it
+      // reports null via onChanged.
+      int? lastPick = -999;
       await pumpHost(
         tester,
         DealerDropdownField(
           controllers: controllers,
-          value: 2,
-          onChanged: (_) {},
+          value: null,
+          allowRandomDealer: true,
+          onChanged: (v) => lastPick = v,
         ),
       );
-      expect(find.byTooltip('Wissen (willekeurige deler)'), findsNothing);
-
-      // Case 3: value=2 AND onClear → X visible
-      bool cleared = false;
-      await pumpHost(
-        tester,
-        DealerDropdownField(
-          controllers: controllers,
-          value: 2,
-          onChanged: (_) {},
-          onClear: () => cleared = true,
-        ),
-      );
-      expect(find.byTooltip('Wissen (willekeurige deler)'), findsOneWidget);
-      await tester.tap(find.byTooltip('Wissen (willekeurige deler)'));
-      expect(cleared, isTrue);
+      await tester.tap(find.byType(DealerDropdownField));
+      await tester.pumpAndSettle();
+      expect(find.text('Willekeurige deler'), findsWidgets);
+      await tester.tap(find.text('Willekeurige deler').last);
+      await tester.pumpAndSettle();
+      expect(lastPick, isNull);
     });
   });
 
@@ -240,7 +242,9 @@ void main() {
       expect(focusNodes[1].hasFocus, isTrue);
     });
 
-    testWidgets('unfocuses current when next slot is non-empty', (tester) async {
+    testWidgets('unfocuses current when next slot is non-empty', (
+      tester,
+    ) async {
       await pumpHost(
         tester,
         Column(
