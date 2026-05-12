@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -113,8 +114,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
     }
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const CalculatorScreen()),
+    unawaited(
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const CalculatorScreen()),
+      ),
     );
   }
 

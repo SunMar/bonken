@@ -5,6 +5,16 @@ import 'score_result.dart';
 /// Number of players in a Bonken game (always 4).
 const int playerCount = 4;
 
+/// Position of [player] in the doubling turn order for a round chosen by
+/// [chooserIndex]: `0` is the first to double (the player to the left of
+/// the chooser, i.e. `(chooserIndex + 1) % 4`) and `3` is the chooser
+/// themselves, who doubles last.
+///
+/// The same index drives both the input list ordering in `DoublesPicker`
+/// and the chip ordering in `DoublesChips`, so they always agree.
+int doublingTurnIndex(int player, int chooserIndex) =>
+    (player - chooserIndex - 1 + playerCount) % playerCount;
+
 /// The category of a mini-game.
 enum GameCategory { positive, negative }
 

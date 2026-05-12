@@ -35,8 +35,8 @@ class _DoublesPickerState extends State<DoublesPicker> {
   int? _selected; // currently selected initiator index
 
   List<int> get _doublingOrder {
-    final first = (widget.chooserIndex + 1) % 4;
-    return List.generate(4, (i) => (first + i) % 4);
+    final first = (widget.chooserIndex + 1) % playerCount;
+    return List.generate(playerCount, (i) => (first + i) % playerCount);
   }
 
   /// Number of other players this player is in any doubled/redoubled situation with.

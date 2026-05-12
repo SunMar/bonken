@@ -285,3 +285,26 @@ class ScoreColors extends ThemeExtension<ScoreColors> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Shared theme builders
+// ---------------------------------------------------------------------------
+
+/// Returns [base] with an [IconButtonThemeData] override that matches
+/// Material 3's `small` icon-button variant (~32dp slot, 18dp glyph). Used
+/// to give data-dense list surfaces (history rows, session cards) a
+/// compact trailing-icon size without per-button overrides; pass
+/// [foregroundColor] to tint glyphs that should fade into a muted row.
+ThemeData compactIconButtonTheme(ThemeData base, {Color? foregroundColor}) {
+  return base.copyWith(
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        iconSize: 18,
+        minimumSize: const Size(32, 32),
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        foregroundColor: foregroundColor,
+      ),
+    ),
+  );
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
+import '../models/mini_game.dart' show doublingTurnIndex;
 import '../theme/app_theme_extensions.dart';
 
 /// A compact row of doubles chips for a round, e.g.
@@ -40,9 +41,8 @@ class DoublesChips extends StatelessWidget {
       if (state == DoubleState.none) continue;
       final initiator = doubles.initiatorFor(a, b) ?? a;
       final other = initiator == a ? b : a;
-      // Turn 0 = first to double (chooser+1), turn 3 = chooser themselves.
-      final initiatorTurn = (initiator - chooserIndex - 1 + 4) % 4;
-      final otherTurn = (other - chooserIndex - 1 + 4) % 4;
+      final initiatorTurn = doublingTurnIndex(initiator, chooserIndex);
+      final otherTurn = doublingTurnIndex(other, chooserIndex);
       active.add((initiator, other, initiatorTurn, otherTurn));
     }
     // Primary: initiator's turn position; secondary: other's turn position

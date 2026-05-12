@@ -13,6 +13,7 @@ import '../models/game_session.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../state/theme_mode_provider.dart';
+import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/primary_action_button.dart';
@@ -167,7 +168,7 @@ class StartScreen extends ConsumerWidget {
                 // confirms "Start spel".
                 Navigator.of(
                   context,
-                ).push(MaterialPageRoute(builder: (_) => const SetupScreen()));
+                ).push(MaterialPageRoute<void>(builder: (_) => const SetupScreen()));
               },
             ),
           ),
@@ -213,7 +214,7 @@ class _GameSessionCard extends ConsumerWidget {
       ref.read(calculatorProvider.notifier).loadSession(session);
       Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const CalculatorScreen()));
+      ).push(MaterialPageRoute<void>(builder: (_) => const CalculatorScreen()));
     }
 
     // Same theme-scoped compact icon-button density as the in-game history
@@ -221,16 +222,9 @@ class _GameSessionCard extends ConsumerWidget {
     // 32×32 slot / 18dp glyph variant without per-button overrides, and any
     // future trailing icon (e.g. share, archive) inherits the same size.
     final theme = Theme.of(context);
-    final compactIconTheme = theme.copyWith(
-      iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(
-          iconSize: 18,
-          minimumSize: const Size(32, 32),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          foregroundColor: cs.onSurfaceVariant,
-        ),
-      ),
+    final compactIconTheme = compactIconButtonTheme(
+      theme,
+      foregroundColor: cs.onSurfaceVariant,
     );
 
     return Theme(
@@ -499,7 +493,7 @@ class _RulesButton extends StatelessWidget {
       onPressed: () {
         Navigator.of(
           context,
-        ).push(MaterialPageRoute(builder: (_) => const RulesScreen()));
+        ).push(MaterialPageRoute<void>(builder: (_) => const RulesScreen()));
       },
     );
   }

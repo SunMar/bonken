@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/double_matrix.dart';
@@ -15,6 +16,7 @@ import '../utils.dart';
 import 'game_history_provider.dart';
 
 /// Holds the transient state for the score calculator screen.
+@immutable
 class CalculatorState {
   const CalculatorState({
     this.sessionId = '',
@@ -41,11 +43,14 @@ class CalculatorState {
     this.editOriginalChooserIndex,
   });
 
-  /// Unique ID for this game session; empty until [CalculatorNotifier.reset]
-  /// is called.
+  /// Unique ID for this game session; empty until a session is started via
+  /// [CalculatorNotifier.startNewGame] or restored via
+  /// [CalculatorNotifier.loadSession]. [CalculatorNotifier.reset] clears
+  /// it back to empty when the session is closed or deleted.
   final String sessionId;
 
-  /// When this session was started; null until reset() is called.
+  /// When this session was started; null until [CalculatorNotifier.startNewGame]
+  /// or [CalculatorNotifier.loadSession] populates it.
   final DateTime? createdAt;
 
   /// Last time meaningful content was saved (completed round, reorder,
@@ -626,7 +631,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   /// Builds a [GameSession] from the current state.
-  /// Returns null if the session has not been initialised yet.
+  ///
+  /// Returns `null` when [CalculatorState.sessionId] is still empty — i.e.
+  /// before [startNewGame] or [loadSession] has assigned an id. This is
+  /// reachable from the autosave scheduler, which fires for any state
+  /// mutation including the very first player-name edits on the setup
+  /// screen; persisting nothing in that window is intentional.
   GameSession? buildSession() {
     if (state.sessionId.isEmpty) return null;
     final now = DateTime.now();

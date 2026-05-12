@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' show Random;
 
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
@@ -419,9 +420,13 @@ class CalculatorScreen extends ConsumerWidget {
                   } else if (value == 'close') {
                     if (!context.mounted) return;
                     ref.read(calculatorProvider.notifier).reset();
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const StartScreen()),
-                      (_) => false,
+                    unawaited(
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const StartScreen(),
+                        ),
+                        (_) => false,
+                      ),
                     );
                   } else if (value == 'delete') {
                     final confirm = await showConfirmDialog(
@@ -440,9 +445,13 @@ class CalculatorScreen extends ConsumerWidget {
                         .deleteGame(sessionId);
                     if (!context.mounted) return;
                     ref.read(calculatorProvider.notifier).reset();
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const StartScreen()),
-                      (_) => false,
+                    unawaited(
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const StartScreen(),
+                        ),
+                        (_) => false,
+                      ),
                     );
                   }
                 },
@@ -938,7 +947,7 @@ class _GameInputHeader extends ConsumerWidget {
                     tooltip: 'Spelregels ${game.name}',
                     onPressed: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => RulesScreen(singleGameId: game.id),
                         ),
                       );
@@ -1332,16 +1341,7 @@ class _HistoryList extends ConsumerWidget {
     // IconButtons inherit Material 3's `small` size variant (~32dp slot,
     // 18dp glyph) instead of the default 48dp touch target.  Individual
     // IconButtons below stay free of size/density overrides.
-    final compactIconTheme = theme.copyWith(
-      iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(
-          iconSize: 18,
-          minimumSize: const Size(32, 32),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-        ),
-      ),
-    );
+    final compactIconTheme = compactIconButtonTheme(theme);
     return RepaintBoundary(
       child: Theme(
         data: compactIconTheme,

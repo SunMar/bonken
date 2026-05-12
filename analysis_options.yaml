@@ -9,6 +9,20 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  language:
+    # Forbid implicit downcasts from `dynamic` (and other looser types):
+    # every cast must be explicit. Catches the JSON-parsing class of bug
+    # where a missing `as int` silently lets a String through until runtime.
+    strict-casts: true
+    # Forbid types being inferred as `dynamic`. Forces an explicit type
+    # annotation (or a type the inferencer can pin down) at the point a
+    # value enters typed code.
+    strict-inference: true
+    # Forbid bare generic types like `List` or `Map` — must be `List<T>` /
+    # `Map<K, V>`. Stops `dynamic` from leaking in via collection literals.
+    strict-raw-types: true
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
@@ -21,8 +35,26 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Flag `await`-able expressions whose result isn't awaited or explicitly
+    # discarded with `unawaited(...)`. Prevents accidental fire-and-forget
+    # async calls.
+    unawaited_futures: true
+    # Require trailing commas on multi-element argument/parameter lists so
+    # `dart format` produces stable, one-arg-per-line output instead of
+    # cascading reflows when a single argument is added or removed.
+    require_trailing_commas: true
+    # Forbid method/getter calls on `dynamic` values. Pairs with
+    # strict-casts/strict-inference: those keep `dynamic` from spreading
+    # in the first place; this stops it being silently used once present.
+    avoid_dynamic_calls: true
+    # Require an explicit return type on every method/function. Defends
+    # against accidental `dynamic` returns when the inferencer can't pin a
+    # type down (especially on async methods).
+    always_declare_return_types: true
+    # Forbid `Type.toString()` (e.g. `widget.runtimeType.toString()`) since
+    # the result is altered by minification / `dart compile`. Use a
+    # discriminator field instead.
+    avoid_type_to_string: true
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
