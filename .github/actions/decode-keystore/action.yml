@@ -1,0 +1,40 @@
+# Composite action that decodes the Android upload keystore from environment
+# secrets and writes android/key.properties so Gradle picks it up automatically.
+#
+# Used by both the release workflow (Play Store keystore, `play-store`
+# environment) and the develop workflow (separate develop keystore,
+# `develop` environment). The two environments hold different keystore
+# bytes / passwords but expose them under the same variable names, so this
+# action is environment-agnostic.
+#
+# Required env (set by the calling workflow from the chosen environment):
+#   ANDROID_KEYSTORE_BASE64   (secret) — base64-encoded PKCS12 file
+#   ANDROID_KEYSTORE_PASSWORD (secret) — keystore password (PKCS12 uses
+#                                       the same password for the entry,
+#                                       so it is also written as
+#                                       keyPassword in key.properties).
+#   ANDROID_KEY_ALIAS         (secret) — key alias inside the keystore
+name: Decode Android upload keystore
+description: Decode the upload keystore from secrets and write android/key.properties.
+
+runs:
+  using: composite
+  steps:
+    - name: Decode upload keystore
+      shell: bash
+      run: |
+        if [[ -z "$ANDROID_KEYSTORE_BASE64" ]]; then
+          echo "::error::ANDROID_KEYSTORE_BASE64 is not set in the selected environment"
+          exit 1
+        fi
+        if [[ -z "$ANDROID_KEY_ALIAS" ]]; then
+          echo "::error::ANDROID_KEY_ALIAS is not set in the selected environment"
+          exit 1
+        fi
+        echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/keystore.p12
+        cat > android/key.properties <<EOF
+        storeFile=keystore.p12
+        storePassword=$ANDROID_KEYSTORE_PASSWORD
+        keyAlias=$ANDROID_KEY_ALIAS
+        keyPassword=$ANDROID_KEYSTORE_PASSWORD
+        EOF

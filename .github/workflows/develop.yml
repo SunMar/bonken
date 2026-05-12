@@ -5,8 +5,11 @@ name: Develop
 # a different launcher label, so it coexists on the device with the
 # Play Store install and can never be overwritten by it.
 #
-# Signed with the standard debug key (created automatically by the
-# Flutter/Android toolchain), so no upload-keystore secrets are needed.
+# Signed with a dedicated develop upload keystore (held in the `develop`
+# GitHub environment, separate from the Play Store release keystore in
+# `play-store`).  This keeps the production signing key out of every CI
+# run on the develop branch while still producing a properly-signed APK
+# (debug-signed APKs are increasingly blocked by Android / Play Protect).
 
 on:
   push:
@@ -23,6 +26,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: develop
     steps:
       - uses: actions/checkout@v6
 
@@ -31,6 +35,18 @@ jobs:
           android: 'true'
 
       - uses: ./.github/actions/verify
+
+      # -----------------------------------------------------------------
+      # Decode upload keystore from the `develop` environment secrets.
+      # This is a dedicated develop signing key, separate from the Play
+      # Store release keystore. Same env-var names as `release.yml` so the
+      # composite action is reused unchanged.
+      # -----------------------------------------------------------------
+      - uses: ./.github/actions/decode-keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
 
       # versionName  = 0.0.0-develop.<run>+<sha>   (informational only)
       # versionCode  = GITHUB_RUN_NUMBER          (monotonic, unique per build)
