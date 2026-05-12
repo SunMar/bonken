@@ -576,7 +576,7 @@ class _GameSelectionPhase extends ConsumerWidget {
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Negatieve spellen',
-            color: scoreColor(-1, context),
+            color: scoreColorNegative(context),
           ),
           const SizedBox(height: 8),
           for (final game in negativeGames)
@@ -586,7 +586,7 @@ class _GameSelectionPhase extends ConsumerWidget {
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Positieve spellen',
-            color: scoreColor(1, context),
+            color: scoreColorPositive(context),
           ),
           const SizedBox(height: 8),
           for (final game in positiveGames)

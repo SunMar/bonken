@@ -223,9 +223,29 @@ class DoubleStateColors extends ThemeExtension<DoubleStateColors> {
 /// hue, and `cs.error` overloads error semantics with a value that's just
 /// negative, not actually wrong. Hence a dedicated extension.
 ///
-/// Light and dark mode use M3 tone-40 / tone-80 pairs, mirroring the
-/// way M3 derives its own `error` role across brightness — same hue,
-/// shifted tone, balanced contrast on the surrounding surface.
+/// ## Why these specific hex values
+///
+/// The pairs were chosen in **HCT** (hue-chroma-tone — Material 3's
+/// perceptually uniform colour space; see Google's `material_color_utilities`
+/// package) rather than picked from a swatch, so positive and negative read
+/// as equally weighted instead of one shouting over the other.
+///
+/// Recipe:
+///
+/// * **Hue** — `162°` (cool green) and `18°` (warm red). Roughly opposite
+///   on the HCT wheel, both shifted slightly off pure primary so they
+///   harmonise with the cool indigo seed of the rest of the app.
+/// * **Tone** — M3's accent bands: `T 45` for light mode, `T 70` for dark.
+///   (Pure M3 uses 40/80; we nudged inward because the 40/80 pair tested
+///   slightly washed-out on phone hardware vs. desktop sRGB.)
+/// * **Chroma** — matched within each theme (`C 45` light, `C 50` dark) so
+///   the two colours carry the same visual weight. Pure red can go far
+///   higher in chroma than pure green at these tones in sRGB, but pushing
+///   red to its ceiling makes it feel like an alert — exactly the
+///   `cs.error` overload we wanted to avoid.
+///
+/// To explore alternatives: `dart run tool/hct.dart from H,C,T ...`
+/// (or `to RRGGBB ...` for the inverse).
 @immutable
 class ScoreColors extends ThemeExtension<ScoreColors> {
   const ScoreColors({required this.positive, required this.negative});
@@ -241,13 +261,13 @@ class ScoreColors extends ThemeExtension<ScoreColors> {
   /// Score == 0 falls back to the surrounding theme's `onSurfaceVariant`
   /// (the standard "muted body text" tone), so it isn't carried here.
   static const light = ScoreColors(
-    positive: Color(0xFF2A7D55), // cool green, M3 tone-40 band
-    negative: Color(0xFFD32F2F), // warm red, M3 tone-40 band
+    positive: Color(0xFF0C7A4F), // cool green, H 162 / C 45 / T 45
+    negative: Color(0xFFA84F52), // warm red,  H  18 / C 45 / T 45
   );
 
   static const dark = ScoreColors(
-    positive: Color(0xFF7AD3A3), // cool green, M3 tone-80 band
-    negative: Color(0xFFFFA89E), // warm red, M3 tone-80 band
+    positive: Color(0xFF50BF89), // cool green, H 162 / C 50 / T 70
+    negative: Color(0xFFFE898B), // warm red,  H  18 / C 50 / T 70
   );
 
   @override

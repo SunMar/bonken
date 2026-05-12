@@ -35,14 +35,20 @@ String formatScore(int score) => score > 0 ? '+$score' : '$score';
 /// brightness-appropriate static if unavailable (e.g. unthemed test
 /// widgets).
 Color scoreColor(int score, BuildContext context) {
-  if (score == 0) return Theme.of(context).colorScheme.onSurfaceVariant;
+  if (score == 0) return scoreColorNeutral(context);
+  return score > 0 ? scoreColorPositive(context) : scoreColorNegative(context);
+}
+
+Color scoreColorPositive(BuildContext context) => _scoreColors(context).positive;
+Color scoreColorNegative(BuildContext context) => _scoreColors(context).negative;
+Color scoreColorNeutral(BuildContext context) => Theme.of(context).colorScheme.onSurfaceVariant;
+
+ScoreColors _scoreColors(BuildContext context) {
   final theme = Theme.of(context);
-  final sc =
-      theme.extension<ScoreColors>() ??
+  return theme.extension<ScoreColors>() ??
       (theme.brightness == Brightness.dark
           ? ScoreColors.dark
           : ScoreColors.light);
-  return score > 0 ? sc.positive : sc.negative;
 }
 
 /// Recomputes [target]'s position after an item is moved from [oldIdx] to
