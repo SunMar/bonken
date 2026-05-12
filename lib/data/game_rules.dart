@@ -2,19 +2,15 @@
 // Game rules — single source of truth for ALL Bonken rule text.
 // =============================================================================
 //
-// This file is intentionally Flutter-free (no Material, no widgets) so it can
-// be reused by `tool/generate_rules_html.dart` to produce the static
-// `web/spelregels.html` page.  Renderers (Flutter screen, HTML generator)
-// translate the structured blocks below into their target medium.
-//
-// All rule text lives here.  Do not duplicate any of it in widgets, README,
+// All rule text lives here. Do not duplicate any of it in widgets, README,
 // or anywhere else: link to it / reference it instead.
+//
+// The file is intentionally Flutter-free (no Material, no widgets) so the
+// content stays portable: any renderer can walk the [Block] tree and
+// translate it to its target medium.
 // =============================================================================
 
-/// Top-level title of the rules document.
-const String kRulesTitle = 'Bonken';
-
-/// Short tagline rendered just below the title.
+/// Short tagline rendered just below the rules-screen heading.
 const String kRulesTagline =
     'Bonken is een kaartspel voor 4 spelers met een standaard pak van 52 '
     'kaarten (zonder jokers).';
@@ -56,14 +52,9 @@ class TableBlock extends Block {
   final List<int> alignRight;
 }
 
-/// A labeled callout inside a game section.  Some labels (`voorwaarde`,
-/// `bijzonderheid`) are also surfaced as inline amber warnings on the score
-/// input screen.
+/// A labeled callout inside a game section.
 class Note extends Block {
-  const Note({required this.key, required this.label, required this.text});
-
-  /// Stable identifier used by the app to look up notes (e.g. `voorwaarde`).
-  final String key;
+  const Note({required this.label, required this.text});
 
   /// Display label shown in front of the text (e.g. `Voorwaarde`).
   final String label;
@@ -89,32 +80,19 @@ class GameSection {
   final String gameId;
   final String title;
   final List<Block> blocks;
-
-  /// Returns the [Note] with the given [key], or `null` if absent.
-  Note? noteByKey(String key) {
-    for (final b in blocks) {
-      if (b is Note && b.key == key) return b;
-    }
-    return null;
-  }
 }
 
 // -----------------------------------------------------------------------------
-// Reusable text fragments (intentionally defined once)
+// Reusable text fragments
 // -----------------------------------------------------------------------------
 
 /// The "harten alleen na bijgespeelde harten" rule, shared by Harten Heer
-/// and Hartenpunten (both as the in-section Note and the inline amber warning).
+/// and Hartenpunten.
 const String kHeartsLeadRule =
     'Als je niet kan bekennen mag je bijspelen wat je wil, maar uitkomen en '
     'terugkomen mag alleen met harten als er in een eerdere slag al een keer '
     'een harten is (bij)gespeeld. Is er nog geen harten (bij)gespeeld, maar '
     'heb je alleen nog harten op hand, dan mag je wel harten spelen.';
-
-/// The Domino-must-hold-Aas-or-2 rule.
-const String kDominoVoorwaardeText =
-    'Je mag Domino alleen kiezen als je minstens één Aas of 2 op hand hebt '
-    '(of in de laatste ronde als Domino het enige overgebleven spel is).';
 
 // -----------------------------------------------------------------------------
 // Top-of-document sections
@@ -349,7 +327,7 @@ const GameSection _kingOfHeartsSection = GameSection(
   title: 'Harten Heer (totaal -100)',
   blocks: [
     Para('**Wie de slag wint waarin de harten heer valt, krijgt -100.**'),
-    Note(key: 'bijzonderheid', label: 'Bijzonderheid', text: kHeartsLeadRule),
+    Note(label: 'Extra spelregel', text: kHeartsLeadRule),
   ],
 );
 
@@ -402,7 +380,7 @@ const GameSection _heartPointsSection = GameSection(
     Para(
       'Hartenkaarten die zijn bijgespeeld door iemand die niet kon bekennen tellen ook mee.',
     ),
-    Note(key: 'bijzonderheid', label: 'Bijzonderheid', text: kHeartsLeadRule),
+    Note(label: 'Extra spelregel', text: kHeartsLeadRule),
     Para(
       '**Voorbeeld:** als jij 5 hartenkaarten in je gewonnen slagen hebt, krijg je 5 x -10 = -50.',
     ),
@@ -439,9 +417,14 @@ const GameSection _dominoesSection = GameSection(
   blocks: [
     Para('In dit spel speel je geen slagen.'),
     Para('Je bouwt met de kaarten op tafel vier rijen, één per kleur.'),
-    Note(key: 'voorwaarde', label: 'Voorwaarde', text: kDominoVoorwaardeText),
     Note(
-      key: 'voorwaardeDubbel',
+      label: 'Voorwaarde',
+      text:
+          'Je mag Domino alleen kiezen als je minstens één Aas of 2 op hand '
+          'hebt (of in de laatste ronde als Domino het enige overgebleven '
+          'spel is).',
+    ),
+    Note(
       label: 'Voorwaarde bij dubbelen',
       text:
           'Je mag alleen dubbelen of teruggaan als je minstens '
@@ -510,7 +493,7 @@ GameSection? gameSectionFor(String gameId) {
 }
 
 // -----------------------------------------------------------------------------
-// Document order — used by both the in-app screen and the HTML generator.
+// Document order — used by the in-app rules screen.
 // -----------------------------------------------------------------------------
 
 /// Top-level non-game sections, in document order, that come BEFORE the
