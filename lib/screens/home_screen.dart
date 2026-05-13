@@ -16,6 +16,7 @@ import '../state/theme_mode_provider.dart';
 import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/primary_action_button.dart';
 import 'score_input_screen.dart';
 import 'rules_screen.dart';
@@ -122,30 +123,18 @@ class HomeScreen extends ConsumerWidget {
                         // Capture the messenger BEFORE any awaits, so we
                         // don't depend on a context that may change.
                         final messenger = ScaffoldMessenger.of(context);
+                        final container = ProviderScope.containerOf(
+                          context,
+                          listen: false,
+                        );
                         await ref
                             .read(gameHistoryProvider.notifier)
                             .deleteGame(session.id);
-                        messenger.hideCurrentSnackBar();
-                        final controller = messenger.showSnackBar(
-                          SnackBar(
-                            content: const Text('Spel verwijderd'),
-                            duration: const Duration(seconds: 5),
-                            action: SnackBarAction(
-                              label: 'Ongedaan maken',
-                              onPressed: () {
-                                ref
-                                    .read(gameHistoryProvider.notifier)
-                                    .saveGame(session);
-                              },
-                            ),
-                          ),
+                        showGameDeletedSnackBar(
+                          messenger,
+                          container,
+                          session,
                         );
-                        // Belt-and-suspenders: SnackBar's built-in
-                        // auto-dismiss timer doesn't always fire (esp. on
-                        // web).  Force-close it after the duration.
-                        Timer(const Duration(seconds: 5), () {
-                          controller.close();
-                        });
                       },
                     );
                   },
@@ -320,7 +309,12 @@ class _PlayerScoreChip extends StatelessWidget {
       child: Column(
         children: [
           if (isWinner) ...[
-            Icon(Symbols.emoji_events, size: 14, color: cs.onTertiaryContainer),
+            Icon(
+              Symbols.emoji_events,
+              size: 14,
+              color: cs.onTertiaryContainer,
+              fill: 1,
+            ),
             const SizedBox(height: 2),
           ],
           Text(

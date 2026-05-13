@@ -20,6 +20,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/drag_handle.dart';
+import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
@@ -419,6 +420,31 @@ class ScoreInputScreen extends ConsumerWidget {
                     );
                     if (confirm != true) return;
                     if (!context.mounted) return;
+                    // Delete-from-menu undo flow:
+                    //   1. Snapshot the GameSession (buildSession) BEFORE
+                    //      the delete, so the snackbar's undo can re-save
+                    //      it byte-for-byte.
+                    //   2. Capture the ScaffoldMessenger + root
+                    //      ProviderContainer BEFORE any await — both must
+                    //      outlive this widget, which gets disposed by
+                    //      pushAndRemoveUntil below. The container is
+                    //      resolved via ProviderScope.containerOf because
+                    //      ref.read on a disposed ConsumerWidget would
+                    //      no-op silently.
+                    //   3. Delete from history, reset the calculator, then
+                    //      navigate to HomeScreen.
+                    //   4. Show the snackbar AFTER the navigation so it
+                    //      anchors to the freshly-mounted HomeScreen
+                    //      (the messenger is app-level, so the snackbar
+                    //      survives the navigation either way).
+                    final messenger = ScaffoldMessenger.of(context);
+                    final container = ProviderScope.containerOf(
+                      context,
+                      listen: false,
+                    );
+                    final session = ref
+                        .read(calculatorProvider.notifier)
+                        .buildSession();
                     final sessionId = ref.read(calculatorProvider).sessionId;
                     await ref
                         .read(gameHistoryProvider.notifier)
@@ -433,6 +459,9 @@ class ScoreInputScreen extends ConsumerWidget {
                         (_) => false,
                       ),
                     );
+                    if (session != null) {
+                      showGameDeletedSnackBar(messenger, container, session);
+                    }
                   }
                 },
                 itemBuilder: (_) {
