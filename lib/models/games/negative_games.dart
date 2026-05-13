@@ -1,3 +1,5 @@
+import 'package:material_symbols_icons/symbols.dart';
+
 import '../input_descriptor.dart';
 import '../mini_game.dart';
 
@@ -15,6 +17,7 @@ class KingOfHearts extends MiniGame {
     : super(
         id: 'kingOfHearts',
         name: 'Harten Heer',
+        symbol: const TextSymbol('HH'),
         category: GameCategory.negative,
         pointsPerUnit: -100,
         totalPoints: -100,
@@ -46,6 +49,7 @@ class KingsAndJacks extends MiniGame {
     : super(
         id: 'kingsAndJacks',
         name: 'Heren / Boeren',
+        symbol: const TextSymbol('H/B'),
         category: GameCategory.negative,
         pointsPerUnit: -25,
         totalPoints: -200,
@@ -79,6 +83,7 @@ class Queens extends MiniGame {
     : super(
         id: 'queens',
         name: 'Vrouwen',
+        symbol: const TextSymbol('V'),
         category: GameCategory.negative,
         pointsPerUnit: -45,
         totalPoints: -180,
@@ -111,6 +116,7 @@ class Duck extends MiniGame {
     : super(
         id: 'duck',
         name: 'Bukken',
+        symbol: const IconSymbol(Symbols.keyboard_double_arrow_down),
         category: GameCategory.negative,
         pointsPerUnit: -10,
         totalPoints: -130,
@@ -143,6 +149,7 @@ class HeartPoints extends MiniGame {
     : super(
         id: 'heartPoints',
         name: 'Harten punten',
+        symbol: const IconSymbol(Symbols.heart_broken),
         category: GameCategory.negative,
         pointsPerUnit: -10,
         totalPoints: -130,
@@ -182,6 +189,7 @@ class SeventhAndThirteenth extends MiniGame {
     : super(
         id: 'seventhAndThirteenth',
         name: '7e / 13e',
+        symbol: const TextSymbol('7/13'),
         category: GameCategory.negative,
         pointsPerUnit: -50,
         totalPoints: -100,
@@ -219,6 +227,7 @@ class FinalTrick extends MiniGame {
     : super(
         id: 'finalTrick',
         name: 'Laatste slag',
+        symbol: const TextSymbol('13'),
         category: GameCategory.negative,
         pointsPerUnit: -100,
         totalPoints: -100,
@@ -253,6 +262,7 @@ class Dominoes extends MiniGame {
     : super(
         id: 'dominoes',
         name: 'Domino',
+        symbol: const TextSymbol('D'),
         category: GameCategory.negative,
         pointsPerUnit: -100,
         totalPoints: -100,

@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 import '../input_descriptor.dart';
 import '../mini_game.dart';
 
@@ -6,12 +8,15 @@ import '../mini_game.dart';
 /// Input key: 'tricks' — List of length 4 (tricks per player).
 /// Total score: 13 tricks × +20 = +260.
 abstract class PositiveGame extends MiniGame {
-  const PositiveGame({required super.id, required super.name})
-    : super(
-        category: GameCategory.positive,
-        pointsPerUnit: 20,
-        totalPoints: 260,
-      );
+  const PositiveGame({
+    required super.id,
+    required super.name,
+    required super.symbol,
+  }) : super(
+         category: GameCategory.positive,
+         pointsPerUnit: 20,
+         totalPoints: 260,
+       );
 
   @override
   List<int> rawCounts(Map<String, dynamic> input) {
@@ -30,25 +35,46 @@ abstract class PositiveGame extends MiniGame {
 
 /// Klaveren (Clubs) – Clubs is trump.
 class Clubs extends PositiveGame {
-  const Clubs() : super(id: 'clubs', name: 'Klaveren');
+  const Clubs()
+    : super(
+        id: 'clubs',
+        name: 'Klaveren',
+        symbol: const IconSymbol(CupertinoIcons.suit_club_fill),
+      );
 }
 
 /// Ruiten (Diamonds) – Diamonds is trump.
 class Diamonds extends PositiveGame {
-  const Diamonds() : super(id: 'diamonds', name: 'Ruiten');
+  const Diamonds()
+    : super(
+        id: 'diamonds',
+        name: 'Ruiten',
+        symbol: const IconSymbol(CupertinoIcons.suit_diamond_fill),
+      );
 }
 
 /// Harten (Hearts) – Hearts is trump.
 class Hearts extends PositiveGame {
-  const Hearts() : super(id: 'hearts', name: 'Harten');
+  const Hearts()
+    : super(
+        id: 'hearts',
+        name: 'Harten',
+        symbol: const IconSymbol(CupertinoIcons.suit_heart_fill),
+      );
 }
 
 /// Schoppen (Spades) – Spades is trump.
 class Spades extends PositiveGame {
-  const Spades() : super(id: 'spades', name: 'Schoppen');
+  const Spades()
+    : super(
+        id: 'spades',
+        name: 'Schoppen',
+        symbol: const IconSymbol(CupertinoIcons.suit_spade_fill),
+      );
 }
 
 /// Zonder troef (No Trump) – No trump suit; highest card of led suit wins.
 class NoTrump extends PositiveGame {
-  const NoTrump() : super(id: 'noTrump', name: 'Zonder troef');
+  const NoTrump()
+    : super(id: 'noTrump', name: 'Zonder troef', symbol: const TextSymbol('SA'));
 }

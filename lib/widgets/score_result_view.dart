@@ -109,7 +109,7 @@ class _ScoreRow extends StatelessWidget {
       child: Row(
         children: [
           if (isWinner) ...[
-            Icon(Symbols.emoji_events, size: 16, color: cs.primary),
+            Icon(Symbols.emoji_events, size: 16, color: cs.primary, fill: 1),
             const SizedBox(width: 4),
           ] else
             const SizedBox(width: 20),

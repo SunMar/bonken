@@ -50,6 +50,25 @@ void main() {
       final ids = allGames.map((g) => g.id).toList();
       expect(ids.toSet().length, equals(ids.length));
     });
+
+    test('every game has a non-empty TextSymbol or an IconSymbol', () {
+      for (final game in allGames) {
+        // Exhaustive switch on the [GameSymbol] sealed class: if a third
+        // variant is ever added, this test will fail to compile until it
+        // is updated, mirroring the runtime safety net in `_GameSymbol`.
+        switch (game.symbol) {
+          case TextSymbol(:final text):
+            expect(
+              text.isNotEmpty,
+              isTrue,
+              reason: '${game.id} text symbol must not be empty',
+            );
+          case IconSymbol():
+            // Icon presence is enforced by the type system.
+            break;
+        }
+      }
+    });
   });
 
   // ---------------------------------------------------------------------------

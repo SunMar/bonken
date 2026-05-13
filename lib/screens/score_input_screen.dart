@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' show Random;
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -100,25 +99,6 @@ final _hasPlayersChangesProvider =
     NotifierProvider.autoDispose<_HasPlayersChangesNotifier, bool>(
       _HasPlayersChangesNotifier.new,
     );
-
-// Game symbols displayed next to each game name in the selection list.
-// The four playing-card suits are NOT rendered from Unicode characters: on
-// Android the text shaper falls back to Noto Color Emoji for ♣ ♦ ♥ ♠ even
-// with the U+FE0E (VS15) text-presentation selector appended, which means the
-// suits would render as colored emoji. Instead, the suit-based games render
-// as vector icons (see [_GameSymbol]); the entries below are only used as a
-// safety fallback for the non-suit games.
-const _gameSymbols = {
-  'noTrump': 'SA',
-  'kingOfHearts': '',
-  'kingsAndJacks': 'H/B',
-  'queens': 'V',
-  'duck': '▼',
-  'heartPoints': '',
-  'seventhAndThirteenth': '7/13',
-  'finalTrick': '★',
-  'dominoes': 'D',
-};
 
 // Per-suit accent colors live in [GameSuitColors] (a `ThemeExtension`)
 // so they can be themed/overridden alongside the rest of the palette.
@@ -1016,7 +996,12 @@ class _ScoreboardCard extends ConsumerWidget {
             Row(
               children: [
                 if (isFinished) ...[
-                  Icon(Symbols.emoji_events, size: 18, color: cs.primary),
+                  Icon(
+                    Symbols.emoji_events,
+                    size: 18,
+                    color: cs.primary,
+                    fill: 1,
+                  ),
                   const SizedBox(width: 6),
                 ],
                 Text(
@@ -1045,6 +1030,7 @@ class _ScoreboardCard extends ConsumerWidget {
                             Symbols.emoji_events,
                             size: 14,
                             color: cs.primary,
+                            fill: 1,
                           )
                         else
                           const SizedBox(height: 14),
@@ -1997,13 +1983,11 @@ class GameAvatar extends StatelessWidget {
     final isPositive = game.category == GameCategory.positive;
     final accentColor = scoreColor(isPositive ? 1 : -1, context);
     final symbolColor = suits.forGameId(game.id) ?? accentColor;
-    final symbol = _gameSymbols[game.id] ?? '?';
     return CircleAvatar(
       radius: radius,
       backgroundColor: symbolColor.withValues(alpha: disabled ? 0.06 : 0.12),
       child: _GameSymbol(
-        symbol: symbol,
-        gameId: game.id,
+        symbol: game.symbol,
         color: disabled ? cs.onSurface.withValues(alpha: 0.38) : symbolColor,
         fontSize: 16,
       ),
@@ -2011,95 +1995,49 @@ class GameAvatar extends StatelessWidget {
   }
 }
 
-/// Renders a game symbol. The four suit-based games (and the games derived
-/// from them — `kingOfHearts`, `heartPoints`) are rendered with vector
-/// [CupertinoIcons] suit glyphs so they look monochrome and consistent on all
-/// platforms (Android otherwise renders the Unicode suit characters as
-/// colored emoji, even with the VS15 text selector). All other games fall
-/// back to the textual [symbol].
+/// Renders a [GameSymbol]: a [TextSymbol] renders as bold text, an
+/// [IconSymbol] renders as a vector icon sized to roughly match the cap
+/// height of adjacent text. Suit icons use [CupertinoIcons] so they look
+/// monochrome on Android (Unicode suits would otherwise render as colored
+/// emoji); other icons use [Symbols] (Material Symbols) for well-centered
+/// vector glyphs.
 class _GameSymbol extends StatelessWidget {
   const _GameSymbol({
     required this.symbol,
-    required this.gameId,
     required this.color,
     required this.fontSize,
   });
 
-  final String symbol;
-  final String gameId;
+  final GameSymbol symbol;
   final Color color;
   final double fontSize;
 
-  static const _suitIcons = {
-    'clubs': CupertinoIcons.suit_club_fill,
-    'diamonds': CupertinoIcons.suit_diamond_fill,
-    'hearts': CupertinoIcons.suit_heart_fill,
-    'spades': CupertinoIcons.suit_spade_fill,
-  };
-
-  Widget _suitIcon(IconData icon, double size) =>
-      Icon(icon, size: size, color: color);
-
-  /// Suit glyph size that matches the cap height of adjacent letters and
-  /// follows the user's text scale setting. Shared by all suit-based games
-  /// (clubs/diamonds/hearts/spades, kingOfHearts, heartPoints) so the icons
-  /// look visually consistent across the app.
-  double _suitIconSize(BuildContext context) =>
-      MediaQuery.textScalerOf(context).scale(fontSize) * 1.1;
-
   @override
   Widget build(BuildContext context) {
-    final suit = _suitIcons[gameId];
-    if (suit != null) {
-      return _suitIcon(suit, _suitIconSize(context));
-    }
-    if (gameId == 'kingOfHearts') {
-      // Render heart + 'H' as a single text run so the icon participates in
-      // the same baseline/line-box layout as the letter.  This keeps them
-      // aligned much more reliably than two side-by-side widgets, which
-      // suffer from sub-pixel rounding differences (especially at low zoom
-      // levels in the browser).
-      return Text.rich(
-        TextSpan(
-          children: [
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Icon(
-                CupertinoIcons.suit_heart_fill,
-                size: _suitIconSize(context),
-                color: color,
-              ),
-            ),
-            TextSpan(
-              text: 'H',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: fontSize,
-                height: 1.0,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (gameId == 'heartPoints') {
-      final iconSize = _suitIconSize(context);
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _suitIcon(CupertinoIcons.suit_heart_fill, iconSize),
-          _suitIcon(CupertinoIcons.suit_heart_fill, iconSize),
-        ],
-      );
-    }
-    return Text(
-      symbol,
-      style: TextStyle(
+    // Sealed-class switch: adding a third [GameSymbol] variant in the model
+    // layer would make this expression fail to compile until a branch is
+    // added here, which is the whole point of the sealed-class refactor.
+    return switch (symbol) {
+      IconSymbol(:final icon) => Icon(
+        icon,
+        // Icon size matches the cap height of adjacent letters and follows
+        // the user's text scale setting so icons and text avatars look
+        // visually consistent across the app.
+        size: MediaQuery.textScalerOf(context).scale(fontSize) * 1.1,
         color: color,
-        fontWeight: FontWeight.bold,
-        fontSize: fontSize,
+        // `fill: 1` renders Material Symbols (a variable font) in their
+        // filled variant. It's a no-op on [CupertinoIcons], so it's safe
+        // to apply unconditionally.
+        fill: 1,
       ),
-    );
+      TextSymbol(:final text) => Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: fontSize,
+        ),
+      ),
+    };
   }
 }
