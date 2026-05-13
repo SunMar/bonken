@@ -258,10 +258,10 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
       await tester.pumpAndSettle();
 
-      // Random-dealer info dialog is shown.
-      expect(find.text('Willekeurige deler'), findsWidgets);
+      // Random-dealer announcement dialog is shown (sentence visible).
+      expect(find.text('is geloot als deler.'), findsOneWidget);
 
-      // Dismiss dialog (OK button from showInfoDialog).
+      // Dismiss dialog.
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 

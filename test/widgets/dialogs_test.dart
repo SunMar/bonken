@@ -124,7 +124,9 @@ void main() {
   });
 
   group('showDealerAnnouncementDialog', () {
-    testWidgets('shows dealer name and tagline, default title', (tester) async {
+    testWidgets('shows dealer name and default "random" sentence', (
+      tester,
+    ) async {
       await pumpHost(
         tester,
         Builder(
@@ -137,11 +139,11 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      expect(find.text('Willekeurige deler'), findsOneWidget);
+      expect(find.text('is geloot als deler.'), findsOneWidget);
       expect(find.text('Carol'), findsOneWidget);
     });
 
-    testWidgets('uses custom title when provided', (tester) async {
+    testWidgets('uses "next" sentence when kind is next', (tester) async {
       await pumpHost(
         tester,
         Builder(
@@ -149,7 +151,7 @@ void main() {
             onPressed: () => showDealerAnnouncementDialog(
               ctx,
               dealerName: 'Bob',
-              title: 'Nieuwe deler',
+              kind: DealerAnnouncementKind.next,
             ),
             child: const Text('open'),
           ),
@@ -157,7 +159,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      expect(find.text('Nieuwe deler'), findsOneWidget);
+      expect(find.text('is de volgende deler.'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
     });
   });

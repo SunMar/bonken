@@ -81,39 +81,80 @@ Future<void> showInfoDialog(
   );
 }
 
-/// Shows the "[dealerName]" info dialog used when the dealer is picked at
-/// random or rotated automatically. The [title] indicates the context
-/// (e.g. "Willekeurige deler" vs "Nieuwe deler").
+/// How a dealer was picked, used by [showDealerAnnouncementDialog] to
+/// choose the sentence shown below the player's name.
+enum DealerAnnouncementKind {
+  /// Picked at random (start of game, or mid-game "Willekeurig" reroll).
+  random('is geloot als deler.'),
+
+  /// Rotated to the next seat after a completed round.
+  next('is de volgende deler.');
+
+  const DealerAnnouncementKind(this.sentence);
+
+  /// The trailing sentence rendered after `<dealerName> `, with the
+  /// leading space and trailing period included.
+  final String sentence;
+}
+
+/// Shows the dealer-announcement info dialog used when the dealer is picked
+/// at random or rotated automatically.
+///
+/// The dialog title is the literal label "Deler"; the content is the data
+/// point itself (icon + player name) followed by a small grey sentence
+/// describing how this player became dealer (e.g. "is geloot als deler.").
 Future<void> showDealerAnnouncementDialog(
   BuildContext context, {
   required String dealerName,
-  String title = 'Willekeurige deler',
+  DealerAnnouncementKind kind = DealerAnnouncementKind.random,
 }) {
-  return showInfoDialog(
-    context,
-    title: title,
-    content: Builder(
-      builder: (context) {
-        final style = Theme.of(
-          context,
-        ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold);
-        final iconSize = (style?.fontSize ?? 28) * 1.1;
-        return Row(
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      final cs = theme.colorScheme;
+      final nameStyle = theme.textTheme.titleLarge?.copyWith(
+        fontWeight: FontWeight.bold,
+      );
+      final iconSize = (nameStyle?.fontSize ?? 22) * 1.1;
+      return AlertDialog(
+        title: const Text('Deler', textAlign: TextAlign.center),
+        content: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Symbols.playing_cards, size: iconSize),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                dealerName,
-                textAlign: TextAlign.center,
-                style: style,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Symbols.playing_cards, size: iconSize),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    dealerName,
+                    textAlign: TextAlign.center,
+                    style: nameStyle,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              kind.sentence,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
               ),
             ),
           ],
-        );
-      },
-    ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      );
+    },
   );
 }

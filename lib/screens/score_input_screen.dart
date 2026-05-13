@@ -1088,24 +1088,24 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
     if (!context.mounted) return;
 
     int dealerIndex;
-    bool announce;
+    DealerAnnouncementKind? announceKind;
     switch (pick) {
       case _NextDealerNext():
         dealerIndex = (previousDealer + 1) % playerCount;
-        announce = true;
+        announceKind = DealerAnnouncementKind.next;
       case _NextDealerRandom():
         dealerIndex = Random().nextInt(playerCount);
-        announce = true;
+        announceKind = DealerAnnouncementKind.random;
       case _NextDealerSpecific(:final index):
         dealerIndex = index;
-        announce = false;
+        announceKind = null;
     }
 
-    if (announce) {
+    if (announceKind != null) {
       await showDealerAnnouncementDialog(
         context,
         dealerName: names[dealerIndex],
-        title: 'Nieuwe deler',
+        kind: announceKind,
       );
       if (!context.mounted) return;
     }
