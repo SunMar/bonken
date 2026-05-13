@@ -25,10 +25,10 @@ import '../widgets/game_input/game_input_form.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/score_result_view.dart';
-import 'start_screen.dart';
+import 'home_screen.dart';
 import 'rules_screen.dart';
 
-/// Scoped to the CalculatorScreen lifetime — true while reorder mode is active.
+/// Scoped to the ScoreInputScreen lifetime — true while reorder mode is active.
 class _IsReorderModeNotifier extends Notifier<bool> {
   @override
   bool build() => false;
@@ -154,11 +154,11 @@ Future<bool> _confirmDiscardChanges(
 }
 
 // =============================================================================
-// CalculatorScreen — top-level screen
+// ScoreInputScreen — top-level screen
 // =============================================================================
 
-class CalculatorScreen extends ConsumerWidget {
-  const CalculatorScreen({super.key});
+class ScoreInputScreen extends ConsumerWidget {
+  const ScoreInputScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -423,7 +423,7 @@ class CalculatorScreen extends ConsumerWidget {
                     unawaited(
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute<void>(
-                          builder: (_) => const StartScreen(),
+                          builder: (_) => const HomeScreen(),
                         ),
                         (_) => false,
                       ),
@@ -448,7 +448,7 @@ class CalculatorScreen extends ConsumerWidget {
                     unawaited(
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute<void>(
-                          builder: (_) => const StartScreen(),
+                          builder: (_) => const HomeScreen(),
                         ),
                         (_) => false,
                       ),

@@ -128,7 +128,7 @@ class GameSession {
 
   /// Cumulative score for each player index.
   ///
-  /// Computed lazily on first access and cached — the StartScreen card
+  /// Computed lazily on first access and cached — the HomeScreen card
   /// reads this multiple times per build (header + winners + sub-text).
   late final Map<int, int> finalScores = _computeFinalScores();
 
@@ -144,7 +144,7 @@ class GameSession {
 
   /// Indices of all players sharing the highest final score, or empty if no
   /// rounds. Lazy + cached for the same reason as [finalScores]: the
-  /// StartScreen session card reads winners on every build (badge + label +
+  /// HomeScreen session card reads winners on every build (badge + label +
   /// sub-text), and the underlying scores never change once the session is
   /// loaded into memory.
   late final List<int> winnerIndices = _computeWinnerIndices();

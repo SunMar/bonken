@@ -8,7 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import 'screens/rules_screen.dart';
-import 'screens/start_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/app_updater.dart';
 import 'state/theme_mode_provider.dart';
 import 'theme/app_theme_extensions.dart';
@@ -96,7 +96,7 @@ Route<dynamic>? _generateRoute(RouteSettings settings) {
 List<Route<dynamic>> _generateInitialRoutes(String initialRoute) {
   final routes = <Route<dynamic>>[
     MaterialPageRoute(
-      builder: (_) => const StartScreen(),
+      builder: (_) => const HomeScreen(),
       settings: const RouteSettings(name: '/'),
     ),
   ];

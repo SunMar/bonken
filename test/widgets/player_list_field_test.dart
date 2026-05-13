@@ -29,7 +29,7 @@ void main() {
 
     Widget host({void Function(int, int)? onReorder}) => StatefulBuilder(
       builder: (context, setState) {
-        // Mimic SetupScreen: rebuild on every keystroke so the
+        // Mimic NewGameScreen: rebuild on every keystroke so the
         // duplicate warning reflects the latest controller text.
         for (final c in controllers) {
           c

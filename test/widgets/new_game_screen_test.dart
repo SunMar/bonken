@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:bonken/screens/setup_screen.dart';
+import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/player_name_field.dart';
 
-/// Wraps [SetupScreen] in MaterialApp + ProviderScope and pumps it.
+/// Wraps [NewGameScreen] in MaterialApp + ProviderScope and pumps it.
 /// Returns the [ProviderContainer] so tests can inspect state.
 Future<ProviderContainer> pumpSetup(WidgetTester tester) async {
   final container = ProviderContainer();
@@ -15,7 +15,7 @@ Future<ProviderContainer> pumpSetup(WidgetTester tester) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: SetupScreen()),
+      child: const MaterialApp(home: NewGameScreen()),
     ),
   );
   await tester.pumpAndSettle();
@@ -65,7 +65,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: SetupScreen()),
+        child: const MaterialApp(home: NewGameScreen()),
       ),
     );
     await tester.pumpAndSettle();

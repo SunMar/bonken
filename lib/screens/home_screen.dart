@@ -17,13 +17,13 @@ import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/primary_action_button.dart';
-import 'calculator_screen.dart';
+import 'score_input_screen.dart';
 import 'rules_screen.dart';
-import 'setup_screen.dart';
+import 'new_game_screen.dart';
 
 /// Home screen: logo, past-games list, and "Nieuw spel" button.
-class StartScreen extends ConsumerWidget {
-  const StartScreen({super.key});
+class HomeScreen extends ConsumerWidget {
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -163,12 +163,12 @@ class StartScreen extends ConsumerWidget {
               icon: const Icon(Symbols.add),
               label: const Text('Nieuw spel'),
               onPressed: () {
-                // SetupScreen holds its own local working state; the
+                // NewGameScreen holds its own local working state; the
                 // calculator provider is only mutated when the user
                 // confirms "Start spel".
                 Navigator.of(
                   context,
-                ).push(MaterialPageRoute<void>(builder: (_) => const SetupScreen()));
+                ).push(MaterialPageRoute<void>(builder: (_) => const NewGameScreen()));
               },
             ),
           ),
@@ -214,7 +214,7 @@ class _GameSessionCard extends ConsumerWidget {
       ref.read(calculatorProvider.notifier).loadSession(session);
       Navigator.of(
         context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const CalculatorScreen()));
+      ).push(MaterialPageRoute<void>(builder: (_) => const ScoreInputScreen()));
     }
 
     // Same theme-scoped compact icon-button density as the in-game history

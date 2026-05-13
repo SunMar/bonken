@@ -13,21 +13,21 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
-import 'calculator_screen.dart';
+import 'score_input_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
 ///
 /// Holds purely local working state — the [calculatorProvider] is only
 /// mutated when the user confirms "Start spel". Backing out of this screen
 /// therefore requires no cleanup.
-class SetupScreen extends ConsumerStatefulWidget {
-  const SetupScreen({super.key});
+class NewGameScreen extends ConsumerStatefulWidget {
+  const NewGameScreen({super.key});
 
   @override
-  ConsumerState<SetupScreen> createState() => _SetupScreenState();
+  ConsumerState<NewGameScreen> createState() => _NewGameScreenState();
 }
 
-class _SetupScreenState extends ConsumerState<SetupScreen> {
+class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
 
@@ -116,7 +116,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (!mounted) return;
     unawaited(
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const CalculatorScreen()),
+        MaterialPageRoute<void>(builder: (_) => const ScoreInputScreen()),
       ),
     );
   }
