@@ -35,8 +35,8 @@ void main(List<String> args) {
 }
 
 void _usage() {
-  print('Usage: dart run tool/hct.dart to   RRGGBB    [RRGGBB ...]');
-  print('       dart run tool/hct.dart from H,C,T     [H,C,T ...]');
+  print('Usage: dart run tool/hct.dart to    RRGGBB  [RRGGBB ...]');
+  print('       dart run tool/hct.dart from  H,C,T   [H,C,T ...]');
 }
 
 void _toHct(List<String> args) {
