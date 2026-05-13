@@ -91,80 +91,73 @@ class GameSection {
 const String kHeartsLeadRule =
     'Als je niet kan bekennen mag je bijspelen wat je wil, maar uitkomen en '
     'terugkomen mag alleen met harten als er in een eerdere slag al een keer '
-    'een harten is (bij)gespeeld. Is er nog geen harten (bij)gespeeld, maar '
-    'heb je alleen nog harten op hand, dan mag je wel harten spelen.';
+    'harten is (bij)gespeeld of als harten de enige kleur is die je nog op '
+    'hand hebt.';
 
 // -----------------------------------------------------------------------------
 // Top-of-document sections
 // -----------------------------------------------------------------------------
 
 const Section kDoelSection = Section(
-  title: 'Doel van het spel',
+  title: 'Doel',
   blocks: [
     Para(
-      'Je speelt een pot van 12 rondes. Er zijn 13 mogelijke spellen: 5 '
-      'positieve en 8 negatieve. In een pot speel je altijd alle 8 negatieve '
-      'spellen en 4 van de 5 positieve. Daardoor blijft vanzelf 1 positief '
-      'spel over dat niet gespeeld wordt.',
+      'Je speelt 12 rondes. Er zijn 13 mogelijke spelvormen: 8 negatieve en '
+      '5 positieve. Je speelt altijd alle 8 negatieve spelvormen en 4 van de '
+      '5 positieve. Daardoor blijft vanzelf 1 positieve spelvorm over dat '
+      'niet gespeeld wordt.',
     ),
+    Para('Bij negatieve spelvormen probeer je strafpunten te vermijden.'),
+    Para('Bij positieve spelvormen probeer je slagen te pakken.'),
+    Para('Wie na 12 rondes de meeste punten heeft, wint het spel.'),
     Para(
-      'Bonken draait in elke ronde om dezelfde vraag: waar wil je in dit '
-      'spel juist wel of juist niet op spelen?',
-    ),
-    Para('Bij positieve spellen probeer je slagen te pakken.'),
-    Para('Bij negatieve spellen probeer je strafpunten te vermijden.'),
-    Para('Wie na 12 rondes de meeste punten heeft, wint de pot.'),
-    Para(
-      'De totale puntentelling van een pot komt altijd op nul uit. De 4 '
-      'positieve spellen in een pot zijn samen goed voor +1040 punten '
-      '(+260 x 4), en de 8 negatieve spellen samen voor -1040 punten. De som '
-      'van de eindstand van alle vier spelers is altijd nul: wat de ene '
-      'speler wint, verliest een andere speler.',
+      'De totale puntentelling van een spel komt altijd op nul uit. De 4 '
+      'positieve spelvormen zijn samen goed voor +1040 punten (+260 x 4), en '
+      'de 8 negatieve spelvormen zijn samen -1040 punten. De som van de '
+      'eindstand van alle vier spelers is altijd nul: wat de ene speler wint '
+      'verliest een andere speler.',
     ),
   ],
 );
 
 const Section kOpzetSection = Section(
-  title: 'Opzet van een pot',
+  title: 'Opzet',
   blocks: [
     BulletList([
       '4 spelers',
       '13 kaarten per speler per ronde',
-      '12 rondes per pot',
+      '12 rondes per spel',
       'één deler per ronde (draait met de klok mee)',
       'één kiezer per ronde (de speler links van de deler)',
+      'weinig schudden (voor de scheve verdelingen)',
     ]),
     Para(
-      'Over een hele pot is iedereen precies 3 keer deler en 3 keer kiezer.',
+      'Over een heel spel is iedereen precies 3 keer deler en 3 keer kiezer.',
     ),
     Para(
-      'Tijdens een pot geldt ook nog deze beperking voor het kiezen van spellen:',
+      'Voor het kiezen van een spelvorm gelden deze beperkingen:',
     ),
     BulletList([
-      'elke speler mag maximaal 2 negatieve spellen kiezen',
-      'elke speler mag maximaal 1 positief spel kiezen',
+      'elke speler mag maximaal 2 negatieve spelvormen kiezen',
+      'elke speler mag maximaal 1 positieve spelvorm kiezen',
     ]),
     Para('In de praktijk betekent dat:'),
     BulletList([
-      'alle 8 negatieve spellen worden gespeeld',
-      '4 van de 5 positieve spellen worden gespeeld',
-      '1 positief spel blijft over en vervalt vanzelf',
+      'alle 8 negatieve spelvormen worden gespeeld',
+      '4 van de 5 positieve spelvormen worden gespeeld',
+      '1 positieve spelvorm blijft over en vervalt vanzelf',
+      'de kiezer in laatste ronde heeft bij een negatieve spelvorm een verplichte keus (de rest is al gespeeld)',
     ]),
   ],
 );
 
-const Section kSpeloverzichtSection = Section(
-  title: 'Speloverzicht',
+const Section kSpelvormenSection = Section(
+  title: 'Spelvormen',
   blocks: [
     TableBlock(
-      headers: ['Spel', 'Soort', 'Waar draait het om?', 'Totaal'],
+      headers: ['Spelvorm', 'Soort', 'Waar draait het om?', 'Totaal'],
       alignRight: [3],
       rows: [
-        ['Klaveren', 'Positief', 'Slagen pakken, klaveren is troef', '+260'],
-        ['Ruiten', 'Positief', 'Slagen pakken, ruiten is troef', '+260'],
-        ['Harten', 'Positief', 'Slagen pakken, harten is troef', '+260'],
-        ['Schoppen', 'Positief', 'Slagen pakken, schoppen is troef', '+260'],
-        ['Zonder troef', 'Positief', 'Slagen pakken zonder troef', '+260'],
         ['Harten Heer', 'Negatief', 'Harten heer vermijden', '-100'],
         ['Heren / Boeren', 'Negatief', 'Heren en boeren vermijden', '-200'],
         ['Vrouwen', 'Negatief', 'Vrouwen vermijden', '-180'],
@@ -173,6 +166,11 @@ const Section kSpeloverzichtSection = Section(
         ['7e / 13e slag', 'Negatief', 'De 7e en 13e slag vermijden', '-100'],
         ['Laatste slag', 'Negatief', 'De laatste slag vermijden', '-100'],
         ['Domino', 'Negatief', 'Niet als laatste eindigen', '-100'],
+        ['Klaveren', 'Positief', 'Slagen pakken, klaveren is troef', '+260'],
+        ['Ruiten', 'Positief', 'Slagen pakken, ruiten is troef', '+260'],
+        ['Harten', 'Positief', 'Slagen pakken, harten is troef', '+260'],
+        ['Schoppen', 'Positief', 'Slagen pakken, schoppen is troef', '+260'],
+        ['Zonder troef', 'Positief', 'Slagen pakken zonder troef', '+260'],
       ],
     ),
   ],
@@ -182,29 +180,27 @@ const Section kVerloopSection = Section(
   title: 'Verloop van een ronde',
   blocks: [
     NumberedList([
-      'De deler deelt alle kaarten (13 per speler).',
-      'De speler links van de deler is de kiezer en kiest een spel dat nog niet gespeeld is.',
-      'Voor het spelen kunnen spelers dubbelen of teruggaan.',
-      'Daarna wordt gespeeld (de deler komt uit).',
+      'De deler schudt de kaarten (maar niet teveel, maximaal 3 keer heffen).',
+      'De deler deelt alle kaarten (13 per speler) met grote stappen (bijvoorbeeld 5-4-4).',
+      'De speler links van de deler is de kiezer en kiest een spelvorm die nog niet gespeeld is (maximaal 2 negatieve en 1 positieve spelvorm per speler).',
+      'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatst. De kiezer mag niet dubbelen, alleen teruggaan.',
+      'Daarna wordt gespeeld waarbij de deler uitkomt.',
       'De ronde wordt gescoord.',
-      'De deler schuift één plek door met de klok mee.',
+      'De volgende speler (met de klok mee) wordt deler.',
     ]),
-    Para(
-      'Bij 12 van de 13 spellen speel je een gewoon slagenspel. Alleen Domino werkt anders.',
-    ),
   ],
 );
 
 const Section kPositieveIntroSection = Section(
-  title: 'Positieve spellen',
-  blocks: [Para('Bij een positief spel wil je slagen pakken.')],
+  title: 'Positieve spelvormen',
+  blocks: [Para('Bij een positieve spelvorm wil je slagen pakken.')],
 );
 
 const Section kNegatieveIntroSection = Section(
-  title: 'Negatieve spellen',
+  title: 'Negatieve spelvormen',
   blocks: [
-    Para('Bij negatieve spellen probeer je strafpunten te vermijden.'),
-    Para('Alle negatieve spellen speel je zonder troef.'),
+    Para('Bij negatieve spelvormen probeer je strafpunten te vermijden.'),
+    Para('Alle negatieve spelvormen speel je zonder troef.'),
   ],
 );
 
@@ -227,34 +223,35 @@ const Section kDubbelenSection = Section(
     Para(
       'Als iemand jou heeft gedubbeld en je moet zelf nog aan de beurt komen, '
       'dan mag je teruggaan. Ben je al aan de beurt geweest, dan mag je niet '
-      'meer teruggaan. Wie bij de eigen beurt past, kan later in die ronde '
-      'ook niet meer teruggaan.',
+      'meer teruggaan.',
     ),
     Para(
-      'De kiezer mag zelf niemand dubbelen, maar mag wel teruggaan als '
-      'iemand de kiezer heeft gedubbeld.',
+      'De kiezer mag zelf niemand dubbelen, maar mag wel teruggaan op spelers '
+      'die de kiezer hebben gedubbeld.',
     ),
     Para(
       'In Domino geldt de extra voorwaarde dat je pas iemand mag dubbelen of '
       'mag teruggaan op iemand als je minstens één Aas of 2 op hand hebt.',
     ),
     Para(
-      'Bij het verrekenen van een dubbel kijk je eerst naar het verschil '
-      'tussen 2 spelers in wat de spelvorm telt. Afhankelijk van het spel '
-      'gaat het dan bijvoorbeeld om slagen, strafkaarten of strafslagen. Dat '
-      'verschil vormt de basis van de verrekening. Bij een dubbel wordt dat '
-      'verschil 1 keer extra meegerekend. Gaat iemand terug, dan wordt het '
-      'verschil zelfs verdubbeld. Daarna vermenigvuldig je dat verschil met '
-      'de waarde per stuk van de spelvorm. Hebben 2 spelers hetzelfde '
-      'resultaat, dan is de verrekening 0. Hebben ze een verschillend '
-      'resultaat, dan gaan de extra punten naar de speler met (onderling) '
-      'het betere resultaat en worden diezelfde punten afgetrokken van de '
-      'speler met (onderling) het slechtere resultaat.',
+      'Bij het verrekenen van een dubbel kijk je naar het verschil tussen 2 '
+      'spelers in wat de spelvorm telt. Afhankelijk van de spelvorm gaat het '
+      'dan bijvoorbeeld om slagen, strafkaarten of strafslagen. Dat verschil '
+      'vormt de basis van de verrekening. Bij een dubbel wordt het verschil '
+      'één keer verrekend tussen de spelers. Gaat iemand terug, dan wordt het '
+      'verschil zelfs twee keer verrekend.',
     ),
     Para(
-      'Deze verrekening gebeurt per dubbel tussen 2 spelers. In een ronde '
-      'kunnen meerdere dubbels naast elkaar actief zijn. In het uiterste '
-      'geval moeten zelfs alle 6 mogelijke dubbels apart worden verrekend.',
+      'Je vermenigvuldigt het verschil met de waarde per stuk van de spelvorm. '
+      'Hebben 2 spelers hetzelfde resultaat, dan is de verrekening 0. Hebben '
+      'ze een verschillend resultaat, dan gaan de extra punten naar de speler '
+      'met (onderling) het betere resultaat en worden diezelfde punten '
+      'afgetrokken van de speler met (onderling) het slechtere resultaat. '
+      'Als iemand terug is gegaan doe je dit twee keer.',
+    ),
+    Para(
+      'Deze verrekening gebeurt per dubbel tussen 2 spelers. In het uiterste '
+      'geval moeten alle 6 mogelijke dubbels worden verrekend.',
     ),
     Para(
       'Bij het uitrekenen van de score maakt het niet uit wie de dubbel '
@@ -263,20 +260,26 @@ const Section kDubbelenSection = Section(
       'dubbel door speler A was gedaan.',
     ),
     Para(
-      '**Voorbeeld 1:** in Vrouwen is elke vrouw -45 punten. Als speler A 1 '
-      'vrouw wint en speler B 3 vrouwen wint, zit er 2 vrouwen verschil '
+      '**Voorbeeld 1:** in Vrouwen is elke vrouw -45 punten. Als speler A 3 '
+      'vrouwen wint en speler B 1 vrouw wint, zit er 2 vrouwen verschil '
       'tussen hen. Als speler A is gedubbeld door speler B, worden die 2 '
-      'strafkaarten nog 1 keer extra verrekend. A krijgt daardoor 2 x -45 = '
-      '-90 punten, en B krijgt 2 x +45 = +90 punten. Gaat A terug, dan wordt '
-      'het verschil verdubbeld en krijgt A -180 punten en B +180 punten.',
+      'strafkaarten extra verrekend. A krijgt dan 2 x -45 = -90 punten, en B '
+      'krijgt 2 x +45 = +90 punten. Is A terug gegaan, dan verreken je nog '
+      'een keer het verschil en krijgt A -180 punten en B +180 punten. '
+      'Dit is bovenop de gewone score van het spel en andere dubbels. '
+      'Zonder andere dubbels zou B in totaal +135 punten krijgen deze ronde '
+      '(1 x -45 = -45 voor de vrouw en +180 voor de dubbel met teruggaan).',
     ),
     Para(
       '**Voorbeeld 2:** in Harten is elke slag +20. Als speler A 2 slagen '
       'wint en speler B 7 slagen wint, zit er 5 slagen verschil tussen hen. '
-      'Als speler A is gedubbeld door speler B, worden die 5 slagen nog 1 '
-      'keer extra verrekend. A krijgt daardoor 5 x -20 = -100 punten, en B '
-      'krijgt 5 x +20 = +100 punten. Gaat A terug, dan wordt het verschil '
-      'verdubbeld en krijgt A -200 punten en B +200 punten.',
+      'Als speler A is gedubbeld door speler B, worden die 5 slagen extra '
+      'verrekend. A krijgt dan 5 x -20 = -100 punten, en B krijgt 5 x +20 = '
+      '+100 punten. Is A terug gegaan, dan verreken je nog een keer het '
+      'verschil en krijgt A -200 punten en B +200 punten. '
+      'Dit is bovenop de gewone score van het spel en andere dubbels. '
+      'Zonder andere dubbels zou A in totaal -160 punten krijgen deze ronde '
+      '(2 x +20 = +40 voor de slagen en -200 voor de dubbel met teruggaan).',
     ),
   ],
 );
@@ -296,7 +299,7 @@ GameSection _trickGame({
     gameId: gameId,
     title: '$displayName (totaal +260)',
     blocks: [
-      const Para('In dit spel wil je slagen pakken.'),
+      const Para('In deze spelvorm wil je slagen pakken.'),
       Para(suitDescription),
       const Para('**Elke gewonnen slag is +20.**'),
       Para(
@@ -311,7 +314,7 @@ const GameSection _zonderTroefSection = GameSection(
   gameId: 'noTrump',
   title: 'Zonder troef (totaal +260)',
   blocks: [
-    Para('In dit spel wil je slagen pakken.'),
+    Para('In deze spelvorm wil je slagen pakken.'),
     Para('Je speelt zonder troef.'),
     Para('**Elke gewonnen slag is +20.**'),
     Para(
@@ -415,14 +418,14 @@ const GameSection _dominoesSection = GameSection(
   gameId: 'dominoes',
   title: 'Domino (totaal -100)',
   blocks: [
-    Para('In dit spel speel je geen slagen.'),
+    Para('Dit is de enige spelvorm waar je niet met slagen speelt.'),
     Para('Je bouwt met de kaarten op tafel vier rijen, één per kleur.'),
     Note(
-      label: 'Voorwaarde',
+      label: 'Voorwaarde om te kiezen',
       text:
           'Je mag Domino alleen kiezen als je minstens één Aas of 2 op hand '
-          'hebt (of in de laatste ronde als Domino het enige overgebleven '
-          'spel is).',
+          'hebt. Deze voorwaarde vervalt als het de laatste ronde is en '
+          'Domino de enige overgebleven spelvorm is.',
     ),
     Note(
       label: 'Voorwaarde bij dubbelen',
@@ -501,7 +504,7 @@ GameSection? gameSectionFor(String gameId) {
 const List<Section> kSectionsBeforeGames = [
   kDoelSection,
   kOpzetSection,
-  kSpeloverzichtSection,
+  kSpelvormenSection,
   kVerloopSection,
 ];
 
