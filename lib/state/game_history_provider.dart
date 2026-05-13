@@ -74,10 +74,12 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   }
 
   /// All unique player names that have appeared across all saved sessions,
-  /// sorted by how often they appear (most frequent first).
+  /// sorted by how often they appear (most frequent first); ties are broken
+  /// alphabetically (case-insensitive) so the order is stable and
+  /// predictable across calls.
   ///
   /// Returns an empty list while the history is still loading. Cached between
-  /// mutations so the SetupScreen autocomplete doesn't recompute the
+  /// mutations so the NewGameScreen autocomplete doesn't recompute the
   /// frequency map every keystroke.
   List<String> get playerNameSuggestions {
     final cached = _suggestionsCache;
@@ -93,7 +95,19 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
       }
     }
     final result = counts.keys.toList()
-      ..sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
+      ..sort((a, b) => _compareByFrequencyThenName(a, b, counts));
     return _suggestionsCache = List.unmodifiable(result);
+  }
+
+  /// Comparator for [playerNameSuggestions]: descending by frequency in
+  /// [counts], then ascending case-insensitive alphabetical for ties.
+  static int _compareByFrequencyThenName(
+    String a,
+    String b,
+    Map<String, int> counts,
+  ) {
+    final byFrequency = (counts[b] ?? 0).compareTo(counts[a] ?? 0);
+    if (byFrequency != 0) return byFrequency;
+    return a.toLowerCase().compareTo(b.toLowerCase());
   }
 }

@@ -198,5 +198,23 @@ void main() {
       final s = n.playerNameSuggestions;
       expect(s.toSet().length, s.length);
     });
+
+    test('breaks frequency ties alphabetically (case-insensitive)', () async {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      await c.read(gameHistoryProvider.future);
+      final n = c.read(gameHistoryProvider.notifier);
+      // All four names appear exactly once → must be alphabetical.
+      // Names are inserted in non-alphabetical insertion order to make
+      // sure the sort, not insertion order, drives the result.
+      await n.saveGame(
+        session(
+          '1',
+          DateTime(2024, 1, 1),
+          names: ['carol', 'Alice', 'bob', 'Dan'],
+        ),
+      );
+      expect(n.playerNameSuggestions, ['Alice', 'bob', 'carol', 'Dan']);
+    });
   });
 }
