@@ -698,5 +698,48 @@ void main() {
       },
     );
 
+    testWidgets(
+      'bulk action buttons honour the 48dp touch-target floor that '
+      'matches the surrounding tile rhythm',
+      (tester) async {
+        // chooser=2, Carol initiator with one doubled target → "Zaal"
+        // and "Slappe hap" both rendered. Pick whichever button shows.
+        DoubleMatrix matrix = DoubleMatrix.empty()
+            .withPair(2, 0, DoubleState.doubled, initiator: 0);
+        await pumpHost(
+          tester,
+          DoublesPicker(
+            playerNames: playerNames,
+            chooserIndex: 2,
+            doubles: matrix,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.tap(find.text('Carol').first);
+        await tester.pump();
+
+        // Both bulk buttons should clear the 48dp minimum height.
+        for (final label in ['Zaal', 'Slappe hap']) {
+          final size = tester.getSize(find.text(label).hitTestable());
+          // Sanity: text widget itself is the inner child of the button;
+          // measure the button instead.
+          final button = find
+              .ancestor(
+                of: find.text(label),
+                matching: find.byWidgetPredicate(
+                  (w) => w is OutlinedButton || w is FilledButton,
+                ),
+              )
+              .first;
+          final btnSize = tester.getSize(button);
+          expect(
+            btnSize.height,
+            greaterThanOrEqualTo(48),
+            reason: '"$label" button height ${btnSize.height} < 48dp '
+                '(tile rhythm broken); text size was $size',
+          );
+        }
+      },
+    );
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart' show doublingTurnIndex;
 import '../theme/app_theme_extensions.dart';
+import 'double_state_chip.dart';
 
 /// A compact row of doubles chips for a round, e.g.
 /// [primaryChip "A × B"] [tertiaryChip "C ×× D"]
@@ -67,20 +68,7 @@ class DoublesChips extends StatelessWidget {
           ? dc.onRedoubledBackground
           : dc.onDoubledBackground;
       chips.add(
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: fg,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        DoubleStateChip(label: label, background: bg, foreground: fg),
       );
     }
 

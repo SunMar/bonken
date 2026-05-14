@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
 import '../theme/app_theme_extensions.dart';
+import 'double_state_chip.dart';
 
 /// Two-panel doubles picker.
 ///
@@ -487,9 +488,15 @@ class _BulkButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Match the 48dp tile rhythm of the initiator/target rows above —
+    // the M3 default common-button height is 40dp, which reads short
+    // sandwiched between 48dp tile rows.
+    final style = FilledButton.styleFrom(
+      minimumSize: const Size.fromHeight(48),
+    );
     return filled
-        ? FilledButton(onPressed: onPressed, child: Text(label))
-        : OutlinedButton(onPressed: onPressed, child: Text(label));
+        ? FilledButton(style: style, onPressed: onPressed, child: Text(label))
+        : OutlinedButton(style: style, onPressed: onPressed, child: Text(label));
   }
 }
 
@@ -532,7 +539,10 @@ class _InitiatorTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          // M3 ListTile-equivalent rhythm: 16h horizontal padding, with
+          // vertical sized to clear the 48dp touch-target floor on top
+          // of a single line of bodyMedium (~20dp).
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: isSelected ? cs.secondaryContainer : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
@@ -621,20 +631,12 @@ class _TargetTile extends StatelessWidget {
       DoubleState.redoubled => dc.redoubledBackground,
     };
 
-    Widget chip(String label, Color background, Color foreground) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: foreground,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
+    Widget chip(String label, Color background, Color foreground) =>
+        DoubleStateChip(
+          label: label,
+          background: background,
+          foreground: foreground,
+        );
 
     // Build the row children depending on direction and state.
     final List<Widget> rowChildren;
@@ -686,7 +688,8 @@ class _TargetTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          // Matches `_InitiatorTile` — see padding comment there.
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: bg?.withValues(alpha: 0.38) ?? Colors.transparent,
             borderRadius: BorderRadius.circular(8),

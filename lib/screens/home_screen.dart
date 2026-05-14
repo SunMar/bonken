@@ -90,7 +90,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 const Spacer(),
                 _RulesButton(),
-                _ThemeModeButton(),
+                ThemeModeButton(),
                 AboutButton(),
               ],
             ),
@@ -255,8 +255,14 @@ class _GameSessionCard extends ConsumerWidget {
   }
 }
 
-class _ThemeModeButton extends ConsumerWidget {
-  const _ThemeModeButton();
+class ThemeModeButton extends ConsumerWidget {
+  const ThemeModeButton({super.key});
+
+  static const _entries = <(ThemeMode, IconData, String)>[
+    (ThemeMode.system, Symbols.contrast, 'Systeem'),
+    (ThemeMode.light, Symbols.light_mode, 'Licht'),
+    (ThemeMode.dark, Symbols.dark_mode, 'Donker'),
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -267,38 +273,41 @@ class _ThemeModeButton extends ConsumerWidget {
       ThemeMode.system => Symbols.contrast,
     };
 
-    return PopupMenuButton<ThemeMode>(
-      icon: Icon(icon),
-      tooltip: 'Thema',
-      onSelected: (value) =>
-          ref.read(themeModeProvider.notifier).setMode(value),
-      itemBuilder: (_) => [
-        _themeModeItem(ThemeMode.system, Symbols.contrast, 'Systeem', mode),
-        _themeModeItem(ThemeMode.light, Symbols.light_mode, 'Licht', mode),
-        _themeModeItem(ThemeMode.dark, Symbols.dark_mode, 'Donker', mode),
-      ],
+    // MenuAnchor pinned `bottomEnd`: the menu's top-left lands at
+    // the IconButton's bottom-right corner, dropping the menu below
+    // the button. (Without this, M3's `_MenuDefaultsM3.alignment`
+    // is `topEnd`, which would make the menu overlap the button
+    // vertically.) When the resulting position would overflow the
+    // trailing screen edge, Flutter clamps the menu flush against
+    // it — fixed M3 behavior, no public knob for a gutter.
+    // Per-item 16h padding gives MenuItemButton (TextButton-derived,
+    // hence tight) a comfortable popup-menu rhythm.
+    final menuItemStyle = MenuItemButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
     );
-  }
-
-  PopupMenuItem<ThemeMode> _themeModeItem(
-    ThemeMode value,
-    IconData icon,
-    String label,
-    ThemeMode current,
-  ) {
-    return PopupMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          Icon(icon),
-          const SizedBox(width: 12),
-          Text(label),
-          if (value == current) ...[
-            const Spacer(),
-            const Icon(Symbols.check, size: 16),
-          ],
-        ],
+    return MenuAnchor(
+      style: const MenuStyle(
+        alignment: AlignmentDirectional.bottomEnd,
       ),
+      builder: (context, controller, _) => IconButton(
+        icon: Icon(icon),
+        tooltip: 'Thema',
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+      ),
+      menuChildren: [
+        for (final (value, glyph, label) in _entries)
+          MenuItemButton(
+            style: menuItemStyle,
+            leadingIcon: Icon(glyph),
+            trailingIcon: value == mode
+                ? const Icon(Symbols.check, size: 16)
+                : null,
+            onPressed: () =>
+                ref.read(themeModeProvider.notifier).setMode(value),
+            child: Text(label),
+          ),
+      ],
     );
   }
 }

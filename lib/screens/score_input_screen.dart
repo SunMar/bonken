@@ -387,133 +387,140 @@ class ScoreInputScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 4),
-            ] else
-              PopupMenuButton<String>(
-                onSelected: (value) async {
-                  if (value == 'reorder') {
-                    ref
-                        .read(reorderSnapshotProvider.notifier)
-                        .set(List.of(ref.read(calculatorProvider).history));
-                    ref.read(isReorderModeProvider.notifier).set(true);
-                    return;
-                  }
-                  if (value == 'players') {
-                    ref.read(isEditPlayersModeProvider.notifier).set(true);
-                    return;
-                  } else if (value == 'close') {
-                    if (!context.mounted) return;
-                    ref.read(calculatorProvider.notifier).reset();
-                    unawaited(
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const HomeScreen(),
-                        ),
-                        (_) => false,
-                      ),
-                    );
-                  } else if (value == 'delete') {
-                    final confirm = await showConfirmDialog(
-                      context,
-                      title: 'Spel verwijderen?',
-                      contentText:
-                          'Dit spel wordt permanent verwijderd uit de geschiedenis.',
-                      confirmLabel: 'Verwijderen',
-                      destructive: true,
-                    );
-                    if (confirm != true) return;
-                    if (!context.mounted) return;
-                    // Delete-from-menu undo flow:
-                    //   1. Snapshot the GameSession (buildSession) BEFORE
-                    //      the delete, so the snackbar's undo can re-save
-                    //      it byte-for-byte.
-                    //   2. Capture the ScaffoldMessenger + root
-                    //      ProviderContainer BEFORE any await — both must
-                    //      outlive this widget, which gets disposed by
-                    //      pushAndRemoveUntil below. The container is
-                    //      resolved via ProviderScope.containerOf because
-                    //      ref.read on a disposed ConsumerWidget would
-                    //      no-op silently.
-                    //   3. Delete from history, reset the calculator, then
-                    //      navigate to HomeScreen.
-                    //   4. Show the snackbar AFTER the navigation so it
-                    //      anchors to the freshly-mounted HomeScreen
-                    //      (the messenger is app-level, so the snackbar
-                    //      survives the navigation either way).
-                    final messenger = ScaffoldMessenger.of(context);
-                    final container = ProviderScope.containerOf(
-                      context,
-                      listen: false,
-                    );
-                    final session = ref
-                        .read(calculatorProvider.notifier)
-                        .buildSession();
-                    final sessionId = ref.read(calculatorProvider).sessionId;
-                    await ref
-                        .read(gameHistoryProvider.notifier)
-                        .deleteGame(sessionId);
-                    if (!context.mounted) return;
-                    ref.read(calculatorProvider.notifier).reset();
-                    unawaited(
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const HomeScreen(),
-                        ),
-                        (_) => false,
-                      ),
-                    );
-                    if (session != null) {
-                      showGameDeletedSnackBar(messenger, container, session);
-                    }
-                  }
-                },
-                itemBuilder: (_) {
+            ] else ...[
+              // See `_ThemeModeButton` in `home_screen.dart` for the
+              // MenuAnchor alignment / per-item padding rationale.
+              Builder(
+                builder: (context) {
+                  final menuItemStyle = MenuItemButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  );
                   final canReorder =
                       ref.read(calculatorProvider).history.length >= 2;
-                  return [
-                    const PopupMenuItem(
-                      value: 'players',
-                      child: Row(
-                        children: [
-                          Icon(Symbols.group),
-                          SizedBox(width: 12),
-                          Text('Spelers bewerken'),
-                        ],
-                      ),
+                  return MenuAnchor(
+                    style: const MenuStyle(
+                      alignment: AlignmentDirectional.bottomEnd,
                     ),
-                    PopupMenuItem(
-                      value: 'reorder',
-                      enabled: canReorder,
-                      child: const Row(
-                        children: [
-                          Icon(Symbols.swap_vert),
-                          SizedBox(width: 12),
-                          Text('Ronde volgorde'),
-                        ],
-                      ),
+                    builder: (context, controller, _) => IconButton(
+                      icon: const Icon(Symbols.more_vert),
+                      tooltip: 'Meer',
+                      onPressed: () => controller.isOpen
+                          ? controller.close()
+                          : controller.open(),
                     ),
-                    const PopupMenuItem(
-                      value: 'close',
-                      child: Row(
-                        children: [
-                          Icon(Symbols.stop_circle),
-                          SizedBox(width: 12),
-                          Text('Spel sluiten'),
-                        ],
+                    menuChildren: [
+                      MenuItemButton(
+                        style: menuItemStyle,
+                        leadingIcon: const Icon(Symbols.group),
+                        onPressed: () {
+                          ref
+                              .read(isEditPlayersModeProvider.notifier)
+                              .set(true);
+                        },
+                        child: const Text('Spelers bewerken'),
                       ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Symbols.delete),
-                          SizedBox(width: 12),
-                          Text('Spel verwijderen'),
-                        ],
+                      MenuItemButton(
+                        style: menuItemStyle,
+                        leadingIcon: const Icon(Symbols.swap_vert),
+                        onPressed: canReorder
+                            ? () {
+                                ref
+                                    .read(reorderSnapshotProvider.notifier)
+                                    .set(
+                                      List.of(
+                                        ref.read(calculatorProvider).history,
+                                      ),
+                                    );
+                                ref
+                                    .read(isReorderModeProvider.notifier)
+                                    .set(true);
+                              }
+                            : null,
+                        child: const Text('Ronde volgorde'),
                       ),
-                    ),
-                  ];
+                      MenuItemButton(
+                        style: menuItemStyle,
+                        leadingIcon: const Icon(Symbols.stop_circle),
+                        onPressed: () {
+                          if (!context.mounted) return;
+                          ref.read(calculatorProvider.notifier).reset();
+                          unawaited(
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const HomeScreen(),
+                              ),
+                              (_) => false,
+                            ),
+                          );
+                        },
+                        child: const Text('Spel sluiten'),
+                      ),
+                      MenuItemButton(
+                        style: menuItemStyle,
+                        leadingIcon: const Icon(Symbols.delete),
+                        onPressed: () async {
+                          final confirm = await showConfirmDialog(
+                            context,
+                            title: 'Spel verwijderen?',
+                            contentText:
+                                'Dit spel wordt permanent verwijderd uit de geschiedenis.',
+                            confirmLabel: 'Verwijderen',
+                            destructive: true,
+                          );
+                          if (confirm != true) return;
+                          if (!context.mounted) return;
+                          // Delete-from-menu undo flow:
+                          //   1. Snapshot the GameSession (buildSession) BEFORE
+                          //      the delete, so the snackbar's undo can re-save
+                          //      it byte-for-byte.
+                          //   2. Capture the ScaffoldMessenger + root
+                          //      ProviderContainer BEFORE any await — both must
+                          //      outlive this widget, which gets disposed by
+                          //      pushAndRemoveUntil below. The container is
+                          //      resolved via ProviderScope.containerOf because
+                          //      ref.read on a disposed ConsumerWidget would
+                          //      no-op silently.
+                          //   3. Delete from history, reset the calculator, then
+                          //      navigate to HomeScreen.
+                          //   4. Show the snackbar AFTER the navigation so it
+                          //      anchors to the freshly-mounted HomeScreen
+                          //      (the messenger is app-level, so the snackbar
+                          //      survives the navigation either way).
+                          final messenger = ScaffoldMessenger.of(context);
+                          final container = ProviderScope.containerOf(
+                            context,
+                            listen: false,
+                          );
+                          final session = ref
+                              .read(calculatorProvider.notifier)
+                              .buildSession();
+                          final sessionId = ref
+                              .read(calculatorProvider)
+                              .sessionId;
+                          await ref
+                              .read(gameHistoryProvider.notifier)
+                              .deleteGame(sessionId);
+                          if (!context.mounted) return;
+                          ref.read(calculatorProvider.notifier).reset();
+                          unawaited(
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const HomeScreen(),
+                          ),
+                          (_) => false,
+                        ),
+                      );
+                      if (session != null) {
+                        showGameDeletedSnackBar(messenger, container, session);
+                      }
+                    },
+                    child: const Text('Spel verwijderen'),
+                  ),
+                ],
+                  );
                 },
               ),
+            ],
           ],
         ),
         body: AnimatedSwitcher(
@@ -652,7 +659,7 @@ class _GameTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final isPositive = game.category == GameCategory.positive;
-    final accentColor = scoreColor(isPositive ? 1 : -1, context);
+    final textColor = scoreColor(isPositive ? 1 : -1, context);
 
     final pendingGameId = ref.watch(
       calculatorProvider.select((s) => s.pendingGame?.id),
@@ -685,7 +692,7 @@ class _GameTile extends ConsumerWidget {
           style: TextStyle(
             color: isDisabled
                 ? cs.onSurface.withValues(alpha: 0.38)
-                : accentColor,
+                : textColor,
           ),
         ),
         trailing: isPending
@@ -768,7 +775,7 @@ class _GameInputPhase extends ConsumerWidget {
     // or the chooser selector.
     final notifier = ref.read(calculatorProvider.notifier);
     final isPositive = game.category == GameCategory.positive;
-    final accentColor = scoreColor(isPositive ? 1 : -1, context);
+    final textColor = scoreColor(isPositive ? 1 : -1, context);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -777,7 +784,7 @@ class _GameInputPhase extends ConsumerWidget {
         _GameInputHeader(
           game: game,
           isPositive: isPositive,
-          accentColor: accentColor,
+          textColor: textColor,
         ),
         const SizedBox(height: 20),
 
@@ -917,12 +924,12 @@ class _GameInputHeader extends ConsumerWidget {
   const _GameInputHeader({
     required this.game,
     required this.isPositive,
-    required this.accentColor,
+    required this.textColor,
   });
 
   final MiniGame game;
   final bool isPositive;
-  final Color accentColor;
+  final Color textColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -948,13 +955,6 @@ class _GameInputHeader extends ConsumerWidget {
                   const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Symbols.menu_book),
-                    iconSize: 20,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
                     tooltip: 'Spelregels ${game.name}',
                     onPressed: () {
                       Navigator.of(context).push(
@@ -970,7 +970,7 @@ class _GameInputHeader extends ConsumerWidget {
                 isPositive
                     ? 'Positief  ·  +${game.totalPoints} punten totaal'
                     : 'Negatief  ·  ${game.totalPoints} punten totaal',
-                style: tt.bodyMedium?.copyWith(color: accentColor),
+                style: tt.bodyMedium?.copyWith(color: textColor),
               ),
               const SizedBox(height: 2),
               Text(
@@ -1966,8 +1966,8 @@ class GameAvatar extends StatelessWidget {
         Theme.of(context).extension<GameSuitColors>() ??
         GameSuitColors.standard;
     final isPositive = game.category == GameCategory.positive;
-    final accentColor = scoreColor(isPositive ? 1 : -1, context);
-    final symbolColor = suits.forGameId(game.id) ?? accentColor;
+    final textColor = scoreColor(isPositive ? 1 : -1, context);
+    final symbolColor = suits.forGameId(game.id) ?? textColor;
     return CircleAvatar(
       radius: radius,
       backgroundColor: symbolColor.withValues(alpha: disabled ? 0.06 : 0.12),

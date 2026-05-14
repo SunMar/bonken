@@ -167,6 +167,72 @@ void main() {
       await tester.pump();
       expect(selected, 2);
     });
+
+    testWidgets(
+      'with no selection, no tile is dimmed (Opacity wrapper absent)',
+      (tester) async {
+        await pumpHost(
+          tester,
+          PlayerPicker(
+            playerNames: playerNames,
+            selectedIndex: null,
+            prompt: 'Wie?',
+            onSelected: (_) {},
+          ),
+        );
+        // Only the descendants of the picker matter — Material/InkWell
+        // can introduce their own animation Opacity layers we don't
+        // care about.
+        expect(
+          find.descendant(
+            of: find.byType(PlayerPicker),
+            matching: find.byWidgetPredicate(
+              (w) => w is Opacity && w.opacity == 0.38,
+            ),
+          ),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'with a selection, the other three tiles render at 0.38 opacity '
+      'and remain tappable',
+      (tester) async {
+        int? selected;
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (context, setState) => PlayerPicker(
+              playerNames: playerNames,
+              selectedIndex: selected,
+              prompt: 'Wie?',
+              onSelected: (i) => setState(() => selected = i),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Bob'));
+        await tester.pumpAndSettle();
+        expect(selected, 1);
+
+        // Three of the four tiles get an Opacity(0.38) ancestor.
+        expect(
+          find.descendant(
+            of: find.byType(PlayerPicker),
+            matching: find.byWidgetPredicate(
+              (w) => w is Opacity && w.opacity == 0.38,
+            ),
+          ),
+          findsNWidgets(3),
+        );
+
+        // A dimmed tile is still tappable: tapping Carol switches the
+        // selection from Bob to Carol.
+        await tester.tap(find.text('Carol'));
+        await tester.pumpAndSettle();
+        expect(selected, 2);
+      },
+    );
   });
 
   group('GameInputForm with DualPlayerInputDescriptor', () {
