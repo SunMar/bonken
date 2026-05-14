@@ -91,6 +91,15 @@ flutter:
   assets:
     - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png
+    # The app's own AGPL-3.0 license, surfaced via `showLicensePage()`
+    # so users of the binary can read the licence terms in-app (see
+    # main.dart for the registration).
+    - LICENSE
+    # DejaVu Sans license, surfaced via `showLicensePage()` (see
+    # main.dart). The upstream Bitstream Vera + DejaVu addendum requires
+    # the copyright notices to be reachable wherever the font ships.
+    # `tool/update_fonts.sh` rewrites this path on a DejaVu version bump.
+    - assets/dejavu/2.37/LICENSE
 
   # DejaVu Sans — bundled locally so the card-suit glyphs (♠ ♥ ♦
   # ♣) render identically across platforms (Material's default font

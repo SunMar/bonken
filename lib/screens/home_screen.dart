@@ -91,7 +91,7 @@ class HomeScreen extends ConsumerWidget {
                 const Spacer(),
                 _RulesButton(),
                 _ThemeModeButton(),
-                _AboutButton(),
+                AboutButton(),
               ],
             ),
           ),
@@ -303,88 +303,99 @@ class _ThemeModeButton extends ConsumerWidget {
   }
 }
 
-/// AppBar action: opens an About dialog showing the app version and a
-/// link to the GitHub repository.
-class _AboutButton extends StatelessWidget {
-  const _AboutButton();
+/// AppBar action: opens the stock Material [showAboutDialog] populated
+/// with the app icon, version line and a link to the GitHub repository.
+/// The dialog's built-in "View licenses" footer button pushes the
+/// licence page registered in `lib/main.dart`.
+///
+/// Public so widget tests can pump it directly without going through
+/// the full home-screen tree.
+@visibleForTesting
+class AboutButton extends StatelessWidget {
+  const AboutButton({super.key});
 
-  static const _repoUrl = 'https://github.com/SunMar/bonken';
-  static const _gitCommit = String.fromEnvironment('GIT_COMMIT');
+  // Compile-time constants are exposed so tests can reference the same
+  // repo URL / commit without a separate source of truth.
+  static const repoUrl = 'https://github.com/SunMar/bonken';
+  static const gitCommit = String.fromEnvironment('GIT_COMMIT');
+  static const iconAsset = 'assets/icon/icon_bonken.png';
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Symbols.info),
       tooltip: 'Over Bonken',
-      onPressed: () => _showAboutDialog(context),
-    );
-  }
-
-  Future<void> _showAboutDialog(BuildContext context) async {
-    // The deploy-to-Pages workflow injects GIT_COMMIT and never builds from a
-    // tag, so the PackageInfo version would always be the meaningless 1.0.0
-    // default — show the commit alone in that case.
-    String? versionLine;
-    if (_gitCommit.isEmpty) {
-      if (kDebugMode || kProfileMode) {
-        versionLine = 'Ontwikkelversie';
-      } else {
-        try {
-          final info = await PackageInfo.fromPlatform();
-          versionLine = 'Versie ${info.version} (build ${info.buildNumber})';
-        } catch (_) {
-          versionLine = 'Versie onbekend';
-        }
-      }
-    }
-    if (!context.mounted) return;
-    final cs = Theme.of(context).colorScheme;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Over Bonken'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      onPressed: () async {
+        final versionLine = await resolveAboutVersionLine();
+        if (!context.mounted) return;
+        showAboutDialog(
+          context: context,
+          applicationName: 'Bonken',
+          applicationVersion: versionLine ??
+              (gitCommit.isNotEmpty ? 'Commit $gitCommit' : null),
+          applicationIcon: Image.asset(iconAsset, width: 48, height: 48),
           children: [
-            if (versionLine != null)
-              Text(versionLine, style: Theme.of(ctx).textTheme.bodyMedium),
-            if (_gitCommit.isNotEmpty)
-              Text(
-                'Commit $_gitCommit',
-                style: Theme.of(ctx).textTheme.bodyMedium,
-              ),
-            const SizedBox(height: 12),
-            InkWell(
+            _AboutLink(
+              icon: Symbols.open_in_new,
+              label: repoUrl,
               onTap: () async {
-                final uri = Uri.parse(_repoUrl);
+                final uri = Uri.parse(repoUrl);
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Symbols.open_in_new, size: 16, color: cs.primary),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      _repoUrl,
-                      style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                        color: cs.primary,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Sluiten'),
-          ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+/// Resolves the human-readable version string shown in the About dialog.
+///
+/// Returns `null` when [AboutButton.gitCommit] is set: the deploy-to-Pages
+/// workflow injects `GIT_COMMIT` and never builds from a tag, so the
+/// `PackageInfo` version would always be the meaningless `1.0.0` default
+/// — we fall back to showing the commit alone via `applicationVersion`.
+///
+/// Pure (no [BuildContext], no widget pumping) so it can be unit-tested
+/// directly.
+@visibleForTesting
+Future<String?> resolveAboutVersionLine() async {
+  if (AboutButton.gitCommit.isNotEmpty) return null;
+  if (kDebugMode || kProfileMode) return 'Ontwikkelversie';
+  try {
+    final info = await PackageInfo.fromPlatform();
+    return 'Versie ${info.version} (build ${info.buildNumber})';
+  } catch (_) {
+    return 'Versie onbekend';
+  }
+}
+
+/// Underlined icon+text link used inside the About dialog.
+///
+/// Implemented as a [TextButton.icon] (rather than a bare [InkWell])
+/// so it picks up Material 3's default [MaterialTapTargetSize.padded]
+/// behaviour for free — the visual chrome is small but the tap target
+/// reaches [kMinInteractiveDimension] (48 dp).
+class _AboutLink extends StatelessWidget {
+  const _AboutLink({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(
+        label,
+        style: const TextStyle(decoration: TextDecoration.underline),
       ),
     );
   }

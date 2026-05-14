@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -20,6 +21,15 @@ void main() {
   // Runtime fetching is disabled so the app works fully offline.
   GoogleFonts.config.allowRuntimeFetching = false;
 
+  // Pub packages' LICENSE files are auto-registered with the
+  // [LicenseRegistry], but locally bundled assets and the root app's
+  // own LICENSE are not (Flutter only walks pub dependencies). Register
+  // them explicitly so they surface in `showLicensePage()` — the
+  // Bitstream Vera + DejaVu addendum requires the copyright notices to
+  // be reachable wherever the font is redistributed, and Bonken itself
+  // is AGPL-3.0.
+  registerBundledLicenses();
+
   // Edge-to-edge: draw behind system bars so users without a visible
   // navigation bar get the full screen.  Each Scaffold body wraps its
   // content in a SafeArea to avoid overlap when bars ARE present.
@@ -30,6 +40,25 @@ void main() {
   // Fire-and-forget: ask Google Play whether a newer version is available.
   // No-op on web / iOS / sideloaded builds.  Never blocks startup.
   unawaited(checkForAndroidUpdate());
+}
+
+/// Registers LICENSE files for assets that Flutter does not auto-register
+/// (locally bundled fonts and the root app license).
+///
+/// Exposed for tests so they can verify the entries appear without
+/// running [main].
+@visibleForTesting
+void registerBundledLicenses() {
+  _registerBundledLicense('assets/dejavu/2.37/LICENSE', 'DejaVu Sans');
+}
+
+void _registerBundledLicense(String assetPath, String packageName) {
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(
+      [packageName],
+      await rootBundle.loadString(assetPath),
+    );
+  });
 }
 
 class BonkenApp extends ConsumerWidget {

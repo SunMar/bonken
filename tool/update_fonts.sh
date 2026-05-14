@@ -223,30 +223,57 @@ update_dejavu() {
 
   # Locate DejaVuSans.ttf in the extracted tree (path includes a top-level
   # versioned dir like `dejavu-sans-ttf-2.38/ttf/DejaVuSans.ttf`).
-  local src
-  src="$(find "$tmpdir" -name DejaVuSans.ttf -type f | head -1)"
-  if [[ -z "$src" ]]; then
-    echo "DejaVuSans.ttf not found in the downloaded archive" >&2
+  local ttf_matches
+  mapfile -t ttf_matches < <(find "$tmpdir" -type f -name DejaVuSans.ttf)
+  if (( ${#ttf_matches[@]} != 1 )); then
+    echo "error: expected exactly 1 DejaVuSans.ttf in upstream zip, found ${#ttf_matches[@]}" >&2
+    printf '  %s\n' "${ttf_matches[@]}" >&2
     return 1
   fi
+  local src="${ttf_matches[0]}"
 
-  # Place into the new versioned dir and carry the LICENSE alongside.
+  # Place into the new versioned dir along with the LICENSE shipped
+  # inside the same release zip (so a future upstream amendment to the
+  # license text gets picked up automatically). The upstream zip ships
+  # a single top-level `LICENSE` file; we keep the same name to avoid a
+  # rename step.
   local out_dir="assets/dejavu/$new_version"
   mkdir -p "$out_dir"
   cp "$src" "$out_dir/DejaVuSans.ttf"
-  if [[ -f "assets/dejavu/$old_version/LICENSE-DejaVu.txt" ]]; then
-    cp "assets/dejavu/$old_version/LICENSE-DejaVu.txt" \
-       "$out_dir/LICENSE-DejaVu.txt"
+  local lic_matches
+  mapfile -t lic_matches < <(find "$tmpdir" -type f -name LICENSE)
+  if (( ${#lic_matches[@]} != 1 )); then
+    echo "error: expected exactly 1 LICENSE file in upstream zip, found ${#lic_matches[@]}" >&2
+    printf '  %s\n' "${lic_matches[@]}" >&2
+    return 1
   fi
+  cp "${lic_matches[0]}" "$out_dir/LICENSE"
+  echo "  -> $out_dir/LICENSE  (from upstream zip)"
   echo "  -> $out_dir/DejaVuSans.ttf"
 
-  # Rewrite every assets/dejavu/<old>/ reference in pubspec.yaml.
-  awk -v ov="$old_version" -v nv="$new_version" '
-    {
-      gsub("assets/dejavu/" ov "/", "assets/dejavu/" nv "/")
-      print
-    }
-  ' "$pubspec" > "$pubspec.tmp" && mv "$pubspec.tmp" "$pubspec"
+  # Rewrite every assets/dejavu/<old>/ reference in tracked text files
+  # (pubspec.yaml plus any source that hardcodes the versioned path,
+  # e.g. the LicenseRegistry.addLicense call in lib/main.dart). Auto-
+  # discover via `git grep` so a new caller is picked up without
+  # touching this script. Exclude assets/ to avoid rewriting binary
+  # font files that happen to embed the old path string.
+  local sweep_files=()
+  if command -v git >/dev/null 2>&1; then
+    mapfile -t sweep_files < <(
+      git grep -lE "assets/dejavu/${old_version}/" -- ':(exclude)assets/' \
+        || true
+    )
+  fi
+  local f
+  for f in "${sweep_files[@]}"; do
+    [[ -f "$f" ]] || continue
+    awk -v ov="$old_version" -v nv="$new_version" '
+      {
+        gsub("assets/dejavu/" ov "/", "assets/dejavu/" nv "/")
+        print
+      }
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  done
 
   local old_dir="assets/dejavu/$old_version"
   if [[ -d "$old_dir" ]]; then
