@@ -4,7 +4,9 @@
 #   - install Flutter (version pinned in /.fvmrc at the repo root)
 #   - install Android JDK (when `android: true`)
 #   - run `flutter pub get`
-#   - install rsvg-convert + Roboto fonts (used by tool/generate_icons.sh)
+#   - install rsvg-convert (used by tool/generate_icons.sh; the script
+#     itself sandboxes fontconfig to the repo's bundled fonts, so no
+#     system font packages are needed)
 #   - generate launcher icons
 #
 # Centralising this here means each workflow only has to declare its
@@ -42,7 +44,7 @@ runs:
 
     - name: Install rsvg-convert
       shell: bash
-      run: sudo apt-get update && sudo apt-get install -y librsvg2-bin fonts-roboto
+      run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
 
     - name: Generate launcher icons
       shell: bash

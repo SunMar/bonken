@@ -1,4 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Bonken logo, used as:
+       - Play Store icon
+       - Web favicon / PWA icon
+       - The shared card design that icon_bonken_launcher.svg and
+         icon_bonken_adaptive_fg.svg also use, just inside a larger
+         viewBox so the card gets scaled down by the renderer.
+       The card geometry below MUST stay identical between those three
+       files — only the surrounding viewBox / background differs. -->
   <defs>
     <radialGradient id="bg" cx="50%" cy="40%" r="75%">
       <stop offset="0%" stop-color="#5C6BC0"/>
@@ -16,35 +24,34 @@
     </filter>
   </defs>
 
-  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
 
-  <!-- Card: 640 x 820, centered. Fills more of the canvas than the
-       adaptive variant — fine here because Play Store / web favicon don't
-       crop the image. -->
+  <!-- ===== shared card + suit geometry (keep in sync across icon_bonken*.svg) ===== -->
   <g filter="url(#cardShadow)">
     <rect x="192" y="102" width="640" height="820" rx="64" ry="64" fill="url(#card)"/>
     <rect x="192" y="102" width="640" height="820" rx="64" ry="64"
           fill="none" stroke="#1A237E" stroke-opacity="0.10" stroke-width="4"/>
   </g>
-
-  <!-- Top-left corner pair: spade + heart -->
-  <g font-family="Roboto, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle" font-size="135">
-    <text x="290" y="270" fill="#0D2B4E">♠</text>
-    <text x="425" y="270" fill="#B52424">♥</text>
+  <!-- Suit symbols rendered as <text> using DejaVu Sans
+       (vendored at assets/dejavu/<version>/DejaVuSans.ttf, exposed to
+       rsvg-convert via the bundled fontconfig in
+       tool/generate_icons.sh).  Browser previews need
+       DejaVu Sans installed (default on most Linux);
+       PNG generation is deterministic regardless. -->
+  <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+    <text x="290" y="270" fill="#0D2B4E">&#x2660;</text>
+    <text x="425" y="270" fill="#B52424">&#x2665;</text>
   </g>
-
-  <!-- Bottom-right corner pair: diamond + club -->
-  <g font-family="Roboto, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle" font-size="135">
-    <text x="599" y="855" fill="#CC6600">♦</text>
-    <text x="734" y="855" fill="#3A3A3A">♣</text>
+  <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+    <text x="599" y="855" fill="#CC6600">&#x2666;</text>
+    <text x="734" y="855" fill="#3A3A3A">&#x2663;</text>
   </g>
-
-  <!-- Diagonal "Bonken" wordmark, larger to match the bigger card. -->
   <g transform="rotate(-52 512 512)"
-     font-family="'Roboto Black', Roboto, 'Helvetica Neue', Arial, sans-serif"
-     font-weight="900" font-size="215" text-anchor="middle">
+     font-family="Roboto"
+     font-weight="700" font-size="215" text-anchor="middle">
     <text x="512" y="582">
-      <tspan fill="#0D2B4E">B</tspan><tspan fill="#B52424">o</tspan><tspan fill="#CC6600">n</tspan><tspan fill="#3A3A3A">k</tspan><tspan fill="#0D2B4E">e</tspan><tspan fill="#B52424">n</tspan>
+      <tspan fill="#1A237E">Bonken</tspan>
     </text>
   </g>
+  <!-- ===== /shared card + suit geometry ===== -->
 </svg>

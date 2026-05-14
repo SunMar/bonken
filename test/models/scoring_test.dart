@@ -51,9 +51,9 @@ void main() {
       expect(ids.toSet().length, equals(ids.length));
     });
 
-    test('every game has a non-empty TextSymbol or an IconSymbol', () {
+    test('every game has a non-empty TextSymbol/SuitSymbol or an IconSymbol', () {
       for (final game in allGames) {
-        // Exhaustive switch on the [GameSymbol] sealed class: if a third
+        // Exhaustive switch on the [GameSymbol] sealed class: if a fourth
         // variant is ever added, this test will fail to compile until it
         // is updated, mirroring the runtime safety net in `_GameSymbol`.
         switch (game.symbol) {
@@ -62,6 +62,12 @@ void main() {
               text.isNotEmpty,
               isTrue,
               reason: '${game.id} text symbol must not be empty',
+            );
+          case SuitSymbol(:final text):
+            expect(
+              text.isNotEmpty,
+              isTrue,
+              reason: '${game.id} suit symbol must not be empty',
             );
           case IconSymbol():
             // Icon presence is enforced by the type system.

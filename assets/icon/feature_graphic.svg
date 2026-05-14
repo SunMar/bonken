@@ -24,46 +24,44 @@
   <!-- Icon canvas is 1024x1024.  Place it at 50,50 scaled to 400x400. -->
   <!-- ============================================================== -->
   <g transform="translate(50,50) scale(0.390625)">
+    <!-- ===== shared card + suit geometry (keep in sync across icon_bonken*.svg) ===== -->
     <g filter="url(#cardShadow)">
       <rect x="192" y="102" width="640" height="820" rx="64" ry="64" fill="url(#card)"/>
       <rect x="192" y="102" width="640" height="820" rx="64" ry="64"
             fill="none" stroke="#1A237E" stroke-opacity="0.10" stroke-width="4"/>
     </g>
-    <g font-family="Roboto, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle" font-size="135">
-      <text x="290" y="270" fill="#0D2B4E">♠</text>
-      <text x="425" y="270" fill="#B52424">♥</text>
+    <!-- Suit symbols rendered as <text> using DejaVu Sans
+         (vendored at assets/dejavu/<version>/DejaVuSans.ttf, exposed to
+         rsvg-convert via the bundled fontconfig in
+         tool/generate_icons.sh).  Browser previews need
+         DejaVu Sans installed (default on most Linux);
+         PNG generation is deterministic regardless. -->
+    <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+      <text x="290" y="270" fill="#0D2B4E">&#x2660;</text>
+      <text x="425" y="270" fill="#B52424">&#x2665;</text>
     </g>
-    <g font-family="Roboto, 'Helvetica Neue', Arial, sans-serif" text-anchor="middle" font-size="135">
-      <text x="599" y="855" fill="#CC6600">♦</text>
-      <text x="734" y="855" fill="#3A3A3A">♣</text>
+    <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+      <text x="599" y="855" fill="#CC6600">&#x2666;</text>
+      <text x="734" y="855" fill="#3A3A3A">&#x2663;</text>
     </g>
     <g transform="rotate(-52 512 512)"
-       font-family="'Roboto Black', Roboto, 'Helvetica Neue', Arial, sans-serif"
-       font-weight="900" font-size="215" text-anchor="middle">
+       font-family="Roboto"
+       font-weight="700" font-size="215" text-anchor="middle">
       <text x="512" y="582">
-        <tspan fill="#0D2B4E">B</tspan><tspan fill="#B52424">o</tspan><tspan fill="#CC6600">n</tspan><tspan fill="#3A3A3A">k</tspan><tspan fill="#0D2B4E">e</tspan><tspan fill="#B52424">n</tspan>
+        <tspan fill="#1A237E">Bonken</tspan>
       </text>
     </g>
+    <!-- ===== /shared card + suit geometry ===== -->
   </g>
 
   <!-- ============================================================== -->
-  <!-- Right side: wordmark + tagline                                  -->
+  <!-- Right side: short description                                   -->
   <!-- ============================================================== -->
-  <g font-family="'Roboto Black', Roboto, 'Helvetica Neue', Arial, sans-serif"
-     font-weight="900" text-anchor="start">
-    <text x="500" y="240" font-size="140" fill="#FFFFFF">Bonken</text>
-  </g>
-  <g font-family="Roboto, 'Helvetica Neue', Arial, sans-serif"
-     font-weight="400" text-anchor="start">
-    <text x="502" y="300" font-size="44" fill="#FFFFFF" fill-opacity="0.92">Scorekaart</text>
-  </g>
-
-  <!-- Tagline suits: small accent strip beneath, in the suit palette. -->
-  <g font-family="Roboto, 'Helvetica Neue', Arial, sans-serif"
-     text-anchor="start" font-size="72">
-    <text x="502" y="400" fill="#0D2B4E">♠</text>
-    <text x="582" y="400" fill="#B52424">♥</text>
-    <text x="662" y="400" fill="#CC6600">♦</text>
-    <text x="742" y="400" fill="#3A3A3A">♣</text>
+  <g font-family="Roboto"
+     font-weight="500" text-anchor="start" font-size="46" fill="#FFFFFF">
+    <text x="490" y="175">Een app voor het</text>
+    <text x="490" y="235">bijhouden van</text>
+    <text x="490" y="295">scores bij het</text>
+    <text x="490" y="355">kaartspel Bonken.</text>
   </g>
 </svg>

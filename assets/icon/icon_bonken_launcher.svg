@@ -1,9 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 1280 1280">
-  <!-- Android adaptive icon FOREGROUND.
-       Same card geometry and viewBox as icon_bonken_launcher.svg, but
-       transparent background — the adaptive background drawable
-       provides the gradient. -->
+  <!-- Legacy launcher icon (Android < 8 and any launcher that masks
+       the icon).  Identical card geometry to icon_bonken.svg, just
+       inside a larger viewBox so the card sits at ~64% of the canvas
+       height — inside the 66.67% adaptive-icon safe zone with a
+       small margin so the indigo gradient still frames the card on
+       every edge even on worst-case strict-circle launcher masks. -->
   <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+      <stop offset="0%" stop-color="#5C6BC0"/>
+      <stop offset="100%" stop-color="#283593"/>
+    </radialGradient>
     <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFFFFF"/>
       <stop offset="100%" stop-color="#F2F3F8"/>
@@ -15,6 +21,8 @@
       <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
+
+  <rect x="-128" y="-128" width="1280" height="1280" fill="url(#bg)"/>
 
   <!-- ===== shared card + suit geometry (keep in sync across icon_bonken*.svg) ===== -->
   <g filter="url(#cardShadow)">

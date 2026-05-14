@@ -33,7 +33,7 @@ dependencies:
   # allowRuntimeFetching is disabled so the app works fully offline.
   # Version is pinned (no caret) so `flutter pub upgrade` won't bump it
   # without also re-downloading the matching font hashes.  To upgrade,
-  # run `tool/update_google_fonts.sh` — it bumps this version, the asset
+  # run `tool/update_fonts.sh` — it bumps this version, the asset
   # path below, and replaces the bundled .ttf files in one step.
   google_fonts: 8.1.0
 
@@ -47,9 +47,11 @@ dependencies:
   # Open external URLs (the GitHub link in the About dialog).
   url_launcher: ^6.3.2
 
-  # Default Flutter font set; silences the "missing cupertino_icons" warning
-  # emitted by `flutter build web` even though no CupertinoIcon is used.
-  cupertino_icons: ^1.0.9
+  # Material Symbols (variable-font icon set) — used app-wide as the
+  # canonical icon set in place of Flutter's built-in `Icons`. The
+  # built-in set ships an outdated subset, so the codebase never
+  # references it directly; every icon in the app is a `Symbols.xxx`
+  # from this package.
   material_symbols_icons: ^4.2928.1
 
 dev_dependencies:
@@ -64,7 +66,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/icon/icon_bonken.png"
+  image_path: "assets/icon/icon_bonken_launcher.png"
   min_sdk_android: 21
   adaptive_icon_background: "assets/icon/icon_bonken_adaptive_bg.png"
   adaptive_icon_foreground: "assets/icon/icon_bonken_adaptive_fg.png"
@@ -89,3 +91,15 @@ flutter:
   assets:
     - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png
+
+  # DejaVu Sans — bundled locally so the card-suit glyphs (♠ ♥ ♦
+  # ♣) render identically across platforms (Material's default font
+  # falls back to colored emoji on some Androids) and so the icon SVGs
+  # in assets/icon/ can be rasterized deterministically by
+  # tool/generate_icons.sh from the same .ttf the runtime app uses.
+  # Versioned path mirrors the google_fonts/<version>/ scheme so
+  # tool/update_fonts.sh can manage upgrades atomically.
+  fonts:
+    - family: DejaVu Sans
+      fonts:
+        - asset: assets/dejavu/2.37/DejaVuSans.ttf

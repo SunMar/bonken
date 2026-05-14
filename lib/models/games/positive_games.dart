@@ -1,5 +1,3 @@
-import 'package:flutter/cupertino.dart';
-
 import '../input_descriptor.dart';
 import '../mini_game.dart';
 
@@ -36,41 +34,25 @@ abstract class PositiveGame extends MiniGame {
 /// Klaveren (Clubs) – Clubs is trump.
 class Clubs extends PositiveGame {
   const Clubs()
-    : super(
-        id: 'clubs',
-        name: 'Klaveren',
-        symbol: const IconSymbol(CupertinoIcons.suit_club_fill),
-      );
+    : super(id: 'clubs', name: 'Klaveren', symbol: const SuitSymbol('♣'));
 }
 
 /// Ruiten (Diamonds) – Diamonds is trump.
 class Diamonds extends PositiveGame {
   const Diamonds()
-    : super(
-        id: 'diamonds',
-        name: 'Ruiten',
-        symbol: const IconSymbol(CupertinoIcons.suit_diamond_fill),
-      );
+    : super(id: 'diamonds', name: 'Ruiten', symbol: const SuitSymbol('♦'));
 }
 
 /// Harten (Hearts) – Hearts is trump.
 class Hearts extends PositiveGame {
   const Hearts()
-    : super(
-        id: 'hearts',
-        name: 'Harten',
-        symbol: const IconSymbol(CupertinoIcons.suit_heart_fill),
-      );
+    : super(id: 'hearts', name: 'Harten', symbol: const SuitSymbol('♥'));
 }
 
 /// Schoppen (Spades) – Spades is trump.
 class Spades extends PositiveGame {
   const Spades()
-    : super(
-        id: 'spades',
-        name: 'Schoppen',
-        symbol: const IconSymbol(CupertinoIcons.suit_spade_fill),
-      );
+    : super(id: 'spades', name: 'Schoppen', symbol: const SuitSymbol('♠'));
 }
 
 /// Zonder troef (No Trump) – No trump suit; highest card of led suit wins.

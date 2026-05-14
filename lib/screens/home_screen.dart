@@ -22,6 +22,13 @@ import 'score_input_screen.dart';
 import 'rules_screen.dart';
 import 'new_game_screen.dart';
 
+/// Corner radius (as a fraction of the icon's side length) Android
+/// applies to adaptive launcher icons via the squircle mask. We reuse
+/// it for the rounded-square logo treatment in [HomeScreen] and for
+/// the matching splash icon in `web/index.html` so the in-app logo,
+/// home-screen icon, and splash icon all share the same silhouette.
+const double _kLauncherIconCornerRatio = 0.22;
+
 /// Home screen: logo, past-games list, and "Nieuw spel" button.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -42,11 +49,22 @@ class HomeScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: cs.primaryContainer,
-                  backgroundImage: const AssetImage(
-                    'assets/icon/icon_bonken.png',
+                // Rounded-square "launcher icon" look (matches the rounded
+                // corners Android / iOS apply to the home-screen icon and
+                // the splash icon in web/index.html). See
+                // [_kLauncherIconCornerRatio] for the shared 22% ratio.
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: BorderRadius.circular(
+                      56 * _kLauncherIconCornerRatio,
+                    ),
+                    image: const DecorationImage(
+                      image: AssetImage('assets/icon/icon_bonken.png'),
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
