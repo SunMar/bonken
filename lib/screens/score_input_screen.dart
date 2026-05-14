@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/games/game_catalog.dart';
+import '../models/game_session.dart';
 import '../models/mini_game.dart';
 import '../models/round_record.dart';
 import '../models/score_result.dart';
@@ -21,6 +22,7 @@ import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/drag_handle.dart';
 import '../widgets/game_deleted_snackbar.dart';
+import '../widgets/scoreboard_card.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
@@ -580,7 +582,7 @@ class _GameSelectionPhase extends ConsumerWidget {
         if (!isReordering) ...[
           const _RoundInfoBanner(),
           const SizedBox(height: 8),
-          const _ScoreboardCard(),
+          const _LiveScoreboard(),
           if (isFinished) ...[
             const SizedBox(height: 12),
             // No Center wrapper here: the long label
@@ -988,8 +990,8 @@ class _GameInputHeader extends ConsumerWidget {
 // Scoreboard — cumulative totals per player
 // =============================================================================
 
-class _ScoreboardCard extends ConsumerWidget {
-  const _ScoreboardCard();
+class _LiveScoreboard extends ConsumerWidget {
+  const _LiveScoreboard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -997,7 +999,8 @@ class _ScoreboardCard extends ConsumerWidget {
     if (state.history.isEmpty) return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
-    final isFinished = state.history.length >= 12;
+    final roundsPlayed = state.history.length;
+    final isFinished = roundsPlayed >= GameSession.totalRounds;
 
     // Sum scores per player across all completed rounds.
     final totals = List<int>.filled(playerCount, 0);
@@ -1007,7 +1010,9 @@ class _ScoreboardCard extends ConsumerWidget {
       }
     }
 
-    // Winner indices (highest score, may be shared).
+    // Winner indices (highest score, may be shared). Only highlighted
+    // once the game is finished — mid-game leaders shouldn't claim the
+    // crown yet.
     final best = totals.reduce((a, b) => a > b ? a : b);
     final winners = isFinished
         ? [
@@ -1016,77 +1021,28 @@ class _ScoreboardCard extends ConsumerWidget {
           ]
         : <int>[];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (isFinished) ...[
-                  Icon(
-                    Symbols.emoji_events,
-                    size: 18,
-                    color: cs.primary,
-                    fill: 1,
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Text(
-                  isFinished ? 'Eindstand' : 'Tussenstand',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const Spacer(),
-                if (state.updatedAt != null)
-                  Text(
-                    formatDate(state.updatedAt!),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (int i = 0; i < playerCount; i++)
-                  Expanded(
-                    child: Column(
-                      children: [
-                        if (isFinished && winners.contains(i))
-                          Icon(
-                            Symbols.emoji_events,
-                            size: 14,
-                            color: cs.primary,
-                            fill: 1,
-                          )
-                        else
-                          const SizedBox(height: 14),
-                        Text(
-                          state.playerNames[i],
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          totals[i] > 0 ? '+${totals[i]}' : '${totals[i]}',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: scoreColor(totals[i], context),
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
+    final labelStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: cs.onSurfaceVariant,
+    );
+
+    return ScoreboardCard(
+      roundsPlayed: roundsPlayed,
+      playerNames: state.playerNames,
+      scores: totals,
+      winners: winners,
+      // In-game card: "Tussenstand" / "Eindstand" on the left, date on
+      // the right, no delete action (this is the live game).
+      headerLabel: Text(
+        isFinished ? 'Eindstand' : 'Tussenstand',
+        style: labelStyle,
       ),
+      headerTrailing: state.updatedAt == null
+          ? null
+          : Text(
+              formatDate(state.updatedAt!),
+              style: labelStyle,
+              overflow: TextOverflow.ellipsis,
+            ),
     );
   }
 }

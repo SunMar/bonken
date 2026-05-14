@@ -1,0 +1,184 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import 'package:bonken/models/game_session.dart';
+import 'package:bonken/widgets/scoreboard_card.dart';
+
+import '_helpers.dart';
+
+void main() {
+  group('ScoreboardCard', () {
+    Widget headerLabel(String text) =>
+        Text(text, overflow: TextOverflow.ellipsis);
+
+    testWidgets(
+      'mid-game state: progress glyph, no trophy, no winner highlight',
+      (tester) async {
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 5,
+            playerNames: playerNames,
+            scores: const [10, 30, 20, 0],
+            winners: const [],
+            headerLabel: headerLabel('Tussenstand'),
+          ),
+        );
+
+        // Mid-game: must NOT show the finished glyph or a trophy chip.
+        expect(find.byIcon(Symbols.check_circle), findsNothing);
+        expect(find.byIcon(Symbols.emoji_events), findsNothing);
+        // 5/12 = ~42% → clock_loader_40 (the 30..50% bucket).
+        expect(find.byIcon(Symbols.clock_loader_40), findsOneWidget);
+        // Header label rendered, scores rendered with formatScore signs.
+        expect(find.text('Tussenstand'), findsOneWidget);
+        expect(find.text('+10'), findsOneWidget);
+        expect(find.text('+30'), findsOneWidget);
+        expect(find.text('+20'), findsOneWidget);
+        expect(find.text('0'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'finished single-winner state: filled check + one trophy on the winning chip',
+      (tester) async {
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: GameSession.totalRounds,
+            playerNames: playerNames,
+            scores: const [40, 100, 30, -10],
+            winners: const [1],
+            headerLabel: headerLabel('Eindstand'),
+          ),
+        );
+
+        expect(find.byIcon(Symbols.check_circle), findsOneWidget);
+        // Exactly one trophy — winner index 1 only.
+        expect(find.byIcon(Symbols.emoji_events), findsOneWidget);
+        expect(find.text('Eindstand'), findsOneWidget);
+        expect(find.text('-10'), findsOneWidget);
+      },
+    );
+
+    testWidgets('tied final: two trophies for two winners', (tester) async {
+      await pumpHost(
+        tester,
+        ScoreboardCard(
+          roundsPlayed: GameSession.totalRounds,
+          playerNames: playerNames,
+          scores: const [50, 50, 30, 20],
+          winners: const [0, 1],
+          headerLabel: headerLabel('Eindstand'),
+        ),
+      );
+
+      expect(find.byIcon(Symbols.emoji_events), findsNWidgets(2));
+    });
+
+    testWidgets(
+      'onTap == null: no InkWell wired up; non-null: InkWell present and fires',
+      (tester) async {
+        // Non-tappable variant.
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 2,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            headerLabel: headerLabel('Tussenstand'),
+          ),
+        );
+        expect(find.byType(InkWell), findsNothing);
+
+        // Tappable variant.
+        var taps = 0;
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 2,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            headerLabel: headerLabel('Tussenstand'),
+            onTap: () => taps++,
+          ),
+        );
+        expect(find.byType(InkWell), findsOneWidget);
+        await tester.tap(find.byType(InkWell));
+        expect(taps, 1);
+      },
+    );
+
+    testWidgets(
+      'headerTrailing: rendered when non-null, absent when null',
+      (tester) async {
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 0,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            headerLabel: headerLabel('Tussenstand'),
+          ),
+        );
+        expect(find.byIcon(Symbols.delete), findsNothing);
+
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 0,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            headerLabel: headerLabel('Tussenstand'),
+            headerTrailing: IconButton(
+              icon: const Icon(Symbols.delete),
+              onPressed: () {},
+            ),
+          ),
+        );
+        expect(find.byIcon(Symbols.delete), findsOneWidget);
+      },
+    );
+
+    // Threshold table for the in-progress glyph. Each entry picks one
+    // rounds-played value inside its bucket and asserts the matching
+    // `clock_loader_*` frame renders. The finished state (which uses
+    // `check_circle` instead) is covered by its own test above.
+    const buckets = <(int rounds, IconData glyph)>[
+      (0, Symbols.clock_loader_10), //  0/12 =  0% → <15%
+      (1, Symbols.clock_loader_10), //  1/12 =  8% → <15%
+      (2, Symbols.clock_loader_20), //  2/12 = 17% → <30%
+      (3, Symbols.clock_loader_20), //  3/12 = 25% → <30%
+      (4, Symbols.clock_loader_40), //  4/12 = 33% → <50%
+      (5, Symbols.clock_loader_40), //  5/12 = 42% → <50%
+      (6, Symbols.clock_loader_60), //  6/12 = 50% → <70%
+      (7, Symbols.clock_loader_60), //  7/12 = 58% → <70%
+      (8, Symbols.clock_loader_60), //  8/12 = 67% → <70%
+      (9, Symbols.clock_loader_80), //  9/12 = 75% → <90%
+      (10, Symbols.clock_loader_80), // 10/12 = 83% → <90%
+      (11, Symbols.clock_loader_90), // 11/12 = 92% → ≥90%
+    ];
+    for (final (rounds, glyph) in buckets) {
+      testWidgets('progress glyph: $rounds rounds → $glyph', (tester) async {
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: rounds,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            headerLabel: headerLabel('Tussenstand'),
+          ),
+        );
+        expect(find.byIcon(glyph), findsOneWidget);
+        // Sanity: the finished glyph never appears in mid-game states.
+        expect(find.byIcon(Symbols.check_circle), findsNothing);
+      });
+    }
+  });
+}

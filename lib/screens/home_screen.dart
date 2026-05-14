@@ -18,6 +18,7 @@ import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/primary_action_button.dart';
+import '../widgets/scoreboard_card.dart';
 import 'score_input_screen.dart';
 import 'rules_screen.dart';
 import 'new_game_screen.dart';
@@ -113,17 +114,22 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   );
                 }
-                return ListView.builder(
+                return ListView.separated(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  // +1 for the "Spellen" header.
+                  // +1 for the "Spellen" header at index 0.
                   itemCount: sessions.length + 1,
+                  // separator-i sits between item-i and item-(i+1):
+                  // index 0 = below the header (smaller gap), the rest
+                  // = between cards.
+                  separatorBuilder: (_, index) =>
+                      SizedBox(height: index == 0 ? 8 : 10),
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 8),
+                        padding: const EdgeInsets.only(left: 4),
                         child: Text(
                           'Spellen',
                           style: Theme.of(context).textTheme.titleSmall
@@ -189,22 +195,6 @@ class HomeScreen extends ConsumerWidget {
 // Past-game card
 // =============================================================================
 
-/// Picks the closest `clock_loader_*` glyph for an in-progress game.
-///
-/// Material Symbols ships a six-step loader series whose pie-style fill
-/// reads naturally as "X of N done" — perfect for Bonken's fixed 12-round
-/// arc. The finished state uses a filled `check_circle` (see
-/// [_GameSessionCard]) so the transition completes the same animation.
-IconData _progressIcon(int roundsPlayed) {
-  final pct = (roundsPlayed / GameSession.totalRounds * 100).round();
-  if (pct < 15) return Symbols.clock_loader_10;
-  if (pct < 30) return Symbols.clock_loader_20;
-  if (pct < 50) return Symbols.clock_loader_40;
-  if (pct < 70) return Symbols.clock_loader_60;
-  if (pct < 90) return Symbols.clock_loader_80;
-  return Symbols.clock_loader_90;
-}
-
 class _GameSessionCard extends ConsumerWidget {
   const _GameSessionCard({required this.session, required this.onDelete});
 
@@ -214,6 +204,7 @@ class _GameSessionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     final scores = session.finalScores;
     final winners = session.isFinished ? session.winnerIndices : <int>[];
 
@@ -224,135 +215,41 @@ class _GameSessionCard extends ConsumerWidget {
       ).push(MaterialPageRoute<void>(builder: (_) => const ScoreInputScreen()));
     }
 
-    // Same theme-scoped compact icon-button density as the in-game history
-    // card.  Card-trailing IconButtons (currently just Verwijderen) get the
-    // 32×32 slot / 18dp glyph variant without per-button overrides, and any
-    // future trailing icon (e.g. share, archive) inherits the same size.
-    final theme = Theme.of(context);
+    // Compact density for the trailing Verwijderen IconButton (32×32
+    // slot / 18dp glyph). Any future trailing icon (e.g. share, archive)
+    // inherits the same size without per-button overrides.
     final compactIconTheme = compactIconButtonTheme(
       theme,
       foregroundColor: cs.onSurfaceVariant,
     );
 
+    final labelStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: cs.onSurfaceVariant,
+    );
+
     return Theme(
       data: compactIconTheme,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Date + rounds played + status
-                Row(
-                  children: [
-                    Icon(
-                      session.isFinished
-                          ? Symbols.check_circle
-                          : _progressIcon(session.rounds.length),
-                      // Filled check rhymes with a fully-filled clock_loader,
-                      // turning the in-progress → finished transition into the
-                      // last frame of the same loader animation. Monochrome on
-                      // both states — completion is carried by the glyph, not
-                      // by colour.
-                      fill: session.isFinished ? 1 : 0,
-                      size: 16,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      formatDate(session.updatedAt),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Symbols.delete),
-                      tooltip: 'Verwijderen',
-                      onPressed: onDelete,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // Player scores (4 columns)
-                Row(
-                  children: [
-                    for (int i = 0; i < playerCount; i++)
-                      Expanded(
-                        child: _PlayerScoreChip(
-                          name: session.playerNames[i],
-                          score: scores[i] ?? 0,
-                          isWinner: winners.contains(i),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+      child: ScoreboardCard(
+        // Zero outer margin so the ListView's separator owns all
+        // vertical spacing between cards (avoids the default Card
+        // margin compounding with the separator gap).
+        margin: EdgeInsets.zero,
+        roundsPlayed: session.rounds.length,
+        playerNames: session.playerNames,
+        scores: [for (int i = 0; i < playerCount; i++) scores[i] ?? 0],
+        winners: winners,
+        onTap: onTap,
+        // Past-game card: date on the left, delete action on the right.
+        headerLabel: Text(
+          formatDate(session.updatedAt),
+          style: labelStyle,
+          overflow: TextOverflow.ellipsis,
         ),
-      ),
-    );
-  }
-}
-
-class _PlayerScoreChip extends StatelessWidget {
-  const _PlayerScoreChip({
-    required this.name,
-    required this.score,
-    required this.isWinner,
-  });
-
-  final String name;
-  final int score;
-  final bool isWinner;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: isWinner
-          ? BoxDecoration(
-              color: cs.tertiaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            )
-          : null,
-      child: Column(
-        children: [
-          if (isWinner) ...[
-            Icon(
-              Symbols.emoji_events,
-              size: 14,
-              color: cs.onTertiaryContainer,
-              fill: 1,
-            ),
-            const SizedBox(height: 2),
-          ],
-          Text(
-            name,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: isWinner ? FontWeight.bold : null,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            formatScore(score),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: scoreColor(score, context),
-            ),
-          ),
-        ],
+        headerTrailing: IconButton(
+          icon: const Icon(Symbols.delete),
+          tooltip: 'Verwijderen',
+          onPressed: onDelete,
+        ),
       ),
     );
   }
