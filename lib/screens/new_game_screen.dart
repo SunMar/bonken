@@ -13,7 +13,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
-import 'score_input_screen.dart';
+import 'game_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
 ///
@@ -116,7 +116,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     if (!mounted) return;
     unawaited(
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const ScoreInputScreen()),
+        MaterialPageRoute<void>(builder: (_) => const GameScreen()),
       ),
     );
   }

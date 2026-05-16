@@ -53,10 +53,9 @@
     }
     #loading.hide { opacity: 0; pointer-events: none; }
     /* Round the splash icon's corners so it reads as a "launcher icon"
-       (matches the rounded-square treatment on the in-app home screen
-       and Android / iOS launcher icon masks). 22% is the Android
-       adaptive-icon mask ratio; keep this in sync with
-       `_kLauncherIconCornerRatio` in lib/screens/home_screen.dart. */
+       (matches the rounded-square treatment on the Android / iOS
+       launcher icon masks). 22% is the Android adaptive-icon mask
+       ratio. */
     #loading img {
       border-radius: 22%;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bonken/models/games/positive_games.dart';
-import 'package:bonken/screens/score_input_screen.dart';
+import 'package:bonken/screens/game_screen.dart';
 
 import '_helpers.dart';
 

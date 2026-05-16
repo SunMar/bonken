@@ -14,7 +14,7 @@ import 'services/app_updater.dart';
 import 'state/theme_mode_provider.dart';
 import 'theme/app_theme_extensions.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Fonts are bundled as local assets (assets/google_fonts/<version>/).
@@ -33,9 +33,23 @@ void main() {
   // Edge-to-edge: draw behind system bars so users without a visible
   // navigation bar get the full screen.  Each Scaffold body wraps its
   // content in a SafeArea to avoid overlap when bars ARE present.
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
 
-  runApp(const ProviderScope(child: BonkenApp()));
+  // Pre-load the persisted theme mode before the first frame paints so
+  // the app doesn't flash the system theme on cold start when the user
+  // has chosen a specific light/dark override.
+  final initialThemeMode = await loadPersistedThemeMode();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        themeModeProvider.overrideWith(
+          () => ThemeModeNotifier(initialMode: initialThemeMode),
+        ),
+      ],
+      child: const BonkenApp(),
+    ),
+  );
 
   // Fire-and-forget: ask Google Play whether a newer version is available.
   // No-op on web / iOS / sideloaded builds.  Never blocks startup.
@@ -54,10 +68,9 @@ void registerBundledLicenses() {
 
 void _registerBundledLicense(String assetPath, String packageName) {
   LicenseRegistry.addLicense(() async* {
-    yield LicenseEntryWithLineBreaks(
-      [packageName],
-      await rootBundle.loadString(assetPath),
-    );
+    yield LicenseEntryWithLineBreaks([
+      packageName,
+    ], await rootBundle.loadString(assetPath));
   });
 }
 

@@ -22,10 +22,6 @@ class RulesScreen extends StatelessWidget {
     final isSingleGame = singleGameId != null;
     final singleSection = isSingleGame ? gameSectionFor(singleGameId!) : null;
 
-    final String pageHeading = isSingleGame
-        ? (singleSection?.title ?? 'Spelregels')
-        : 'Spelregels';
-
     final List<Widget> children;
     if (isSingleGame) {
       children = singleSection == null
@@ -36,13 +32,13 @@ class RulesScreen extends StatelessWidget {
     }
 
     return AppScaffold(
-      appBar: AppBar(title: const Text('Bonken')),
+      appBar: AppBar(title: const Text('Spelregels')),
       body: Scrollbar(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
             Text(
-              pageHeading,
+              isSingleGame ? (singleSection?.title ?? 'Spelregels') : 'Bonken',
               style: tt.headlineMedium?.copyWith(
                 color: cs.primary,
                 fontWeight: FontWeight.bold,

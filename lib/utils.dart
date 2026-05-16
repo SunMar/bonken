@@ -5,6 +5,15 @@ import 'theme/app_theme_extensions.dart';
 /// Maximum number of characters allowed in a player name.
 const int kPlayerNameMaxLength = 20;
 
+/// Body text reused by every "discard your edits" confirmation dialog
+/// (round input screen, edit-players screen, …).
+const String kDiscardChangesMessage = 'Je wijzigingen gaan verloren.';
+
+/// Title used both for the "another game is still pending" info dialog
+/// (game screen) and for the "discard the in-progress round" confirm
+/// dialog (round input screen).
+const String kRoundIncompleteTitle = 'Ronde niet afgerond';
+
 String formatDate(DateTime dt) {
   const days = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
   const months = [
@@ -39,9 +48,12 @@ Color scoreColor(int score, BuildContext context) {
   return score > 0 ? scoreColorPositive(context) : scoreColorNegative(context);
 }
 
-Color scoreColorPositive(BuildContext context) => _scoreColors(context).positive;
-Color scoreColorNegative(BuildContext context) => _scoreColors(context).negative;
-Color scoreColorNeutral(BuildContext context) => Theme.of(context).colorScheme.onSurfaceVariant;
+Color scoreColorPositive(BuildContext context) =>
+    _scoreColors(context).positive;
+Color scoreColorNegative(BuildContext context) =>
+    _scoreColors(context).negative;
+Color scoreColorNeutral(BuildContext context) =>
+    Theme.of(context).colorScheme.onSurfaceVariant;
 
 ScoreColors _scoreColors(BuildContext context) {
   final theme = Theme.of(context);
@@ -50,6 +62,26 @@ ScoreColors _scoreColors(BuildContext context) {
           ? ScoreColors.dark
           : ScoreColors.light);
 }
+
+/// Material 3 disabled-content color: `onSurface` at 38% alpha.
+///
+/// `0.38` is the official M3 disabled-content opacity from the spec
+/// (m3.material.io → states → disabled). Use this for text, icons and
+/// other foreground content drawn on top of a surface when their
+/// associated control is disabled. Centralised so the alpha value isn't
+/// sprinkled across screens.
+Color disabledOnSurface(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.38);
+
+/// Shared [MenuItemButton] / [SubmenuButton] style for overflow menus.
+///
+/// Adds 16 px of horizontal padding so the [TextButton]-derived
+/// [MenuItemButton] gets a comfortable popup-menu rhythm instead of its
+/// default tight padding. Both [MenuAnchor]s in the app (HomeScreen and
+/// GameScreen overflow menus) reference this so their item density
+/// stays in sync.
+final ButtonStyle kMenuItemButtonStyle = MenuItemButton.styleFrom(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+);
 
 /// Recomputes [target]'s position after an item is moved from [oldIdx] to
 /// [newIdx] in a list (using the same convention as [ReorderableListView]).

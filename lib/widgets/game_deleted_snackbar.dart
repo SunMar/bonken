@@ -1,15 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/game_session.dart';
 import '../state/game_history_provider.dart';
+import 'timed_snackbar.dart';
 
 /// Shows the "Spel verwijderd" snackbar with an "Ongedaan maken" action that
 /// re-saves the deleted [session] into the history.
 ///
-/// Used from both the HomeScreen card trash icon and the ScoreInputScreen
+/// Used from both the HomeScreen card trash icon and the GameScreen
 /// menu so the undo affordance is consistent across delete entry points.
 ///
 /// Capture the [ScaffoldMessengerState] *before* any awaited delete call so
@@ -25,12 +24,11 @@ void showGameDeletedSnackBar(
   ProviderContainer container,
   GameSession session,
 ) {
-  messenger.hideCurrentSnackBar();
-  const duration = Duration(seconds: 5);
-  final controller = messenger.showSnackBar(
+  showTimedSnackBar(
+    messenger,
     SnackBar(
       content: const Text('Spel verwijderd'),
-      duration: duration,
+      duration: const Duration(seconds: 5),
       // Floating: detached pill with side margins instead of a
       // full-width bar flush to the bottom edge.
       behavior: SnackBarBehavior.floating,
@@ -46,7 +44,4 @@ void showGameDeletedSnackBar(
       ),
     ),
   );
-  // Belt-and-suspenders: SnackBar's built-in auto-dismiss timer doesn't
-  // always fire (esp. on web). Force-close it after the duration.
-  Timer(duration, controller.close);
 }

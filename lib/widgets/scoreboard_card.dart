@@ -194,14 +194,8 @@ class _PlayerScoreChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
+    final inner = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: isWinner
-          ? BoxDecoration(
-              color: cs.tertiaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            )
-          : null,
       child: Column(
         children: [
           // Name row: trophy sits inline before the winner's name
@@ -245,6 +239,14 @@ class _PlayerScoreChip extends StatelessWidget {
         ],
       ),
     );
+
+    if (!isWinner) return inner;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.tertiaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: inner,
+    );
   }
 }
-

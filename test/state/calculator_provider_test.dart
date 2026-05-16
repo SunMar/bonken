@@ -8,6 +8,7 @@ import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/state/calculator_provider.dart';
+import 'package:bonken/state/game_history_provider.dart';
 
 import '../models/_double_matrix_helpers.dart';
 
@@ -273,10 +274,9 @@ void main() {
     });
   });
 
-
   group('Edit-existing-round flow', () {
     test(
-      'restoreRound trims subsequent rounds, then deselectGame re-appends',
+      'restoreRound leaves history intact; deselectGame replaces in place',
       () {
         final c = makeContainer();
         final n = c.read(calculatorProvider.notifier);
@@ -292,7 +292,10 @@ void main() {
         n.restoreRound(clubsRound);
         var s = c.read(calculatorProvider);
         expect(s.isEditingExistingRound, isTrue);
-        expect(s.history.length, 0); // duck round was trimmed too
+        // History is NOT trimmed during edit — later rounds stay put.
+        expect(s.history.length, 2);
+        expect(s.history[1].game.id, 'duck');
+        expect(s.editingRoundIndex, 0);
         expect(s.selectedGame!.id, 'clubs');
 
         // Make a tweak and finish edit.
@@ -301,13 +304,100 @@ void main() {
 
         s = c.read(calculatorProvider);
         expect(s.isEditingExistingRound, isFalse);
-        expect(s.history.length, 2); // both rounds restored
+        expect(s.history.length, 2);
         expect(s.history[0].game.id, 'clubs');
+        expect(s.history[0].input['tricks'], [3, 4, 3, 3]);
+        // The duck round is untouched.
         expect(s.history[1].game.id, 'duck');
+        expect(s.history[1].input['tricks'], [4, 3, 5, 1]);
       },
     );
 
-    test('cancelEditRound restores the snapshot exactly', () {
+    test('editing an older round + cancel keeps every later round intact', () {
+      // Regression for the silent multi-round wipe: previously,
+      // restoreRound trimmed later rounds and cancelEditRound restored from
+      // a snapshot; a stray rollbackLastRound call (reachable via a buggy
+      // isEditingLastRound) destroyed everything past the edited round.
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setDealer(0);
+      n.selectGame(const Clubs());
+      n.updateInput('tricks', [4, 4, 2, 3]);
+      n.deselectGame();
+      n.selectGame(const Duck());
+      n.updateInput('tricks', [4, 3, 5, 1]);
+      n.deselectGame();
+
+      final clubsRound = c.read(calculatorProvider).history.first;
+      n.restoreRound(clubsRound);
+      // Make the input partial (sum != 13) — simulates the buggy save path.
+      n.updateInput('tricks', [1, 1, 1, 1]);
+      expect(c.read(calculatorProvider).isInputValid, isFalse);
+      // canRollbackWithPartial must be false for an older-round edit —
+      // this is the gate that prevents the multi-round wipe.
+      expect(c.read(calculatorProvider).isEditingLastRound, isFalse);
+      expect(c.read(calculatorProvider).canRollbackWithPartial, isFalse);
+
+      n.cancelEditRound();
+      final s = c.read(calculatorProvider);
+      expect(s.history.length, 2);
+      expect(s.history[0].input['tricks'], [4, 4, 2, 3]);
+      expect(s.history[1].input['tricks'], [4, 3, 5, 1]);
+    });
+
+    test(
+      'editing the LAST round + rollbackLastRound only removes that round',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.setDealer(0);
+        n.selectGame(const Clubs());
+        n.updateInput('tricks', [4, 4, 2, 3]);
+        n.deselectGame();
+        n.selectGame(const Duck());
+        n.updateInput('tricks', [4, 3, 5, 1]);
+        n.deselectGame();
+
+        final duckRound = c.read(calculatorProvider).history.last;
+        n.restoreRound(duckRound);
+        expect(c.read(calculatorProvider).isEditingLastRound, isTrue);
+        expect(c.read(calculatorProvider).canRollbackWithPartial, isTrue);
+        n.updateInput('tricks', [0, 0, 0, 0]); // make incomplete
+        n.rollbackLastRound();
+        final s = c.read(calculatorProvider);
+        expect(s.history.length, 1);
+        expect(s.history.first.game.id, 'clubs');
+        // Dealer/round revert to "next round = round 2".
+        expect(s.roundNumber, 2);
+        expect(s.dealerIndex, 1);
+      },
+    );
+
+    test('pending game survives an edit of any round', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.setDealer(0);
+      n.selectGame(const Clubs());
+      n.updateInput('tricks', [4, 4, 2, 3]);
+      n.deselectGame();
+      // Start a pending game that we expect to persist across an edit.
+      n.selectGame(const Duck());
+      n.updateInput('tricks', [3, 0, 0, 0]);
+      n.deselectGame(); // saved as pending
+      expect(c.read(calculatorProvider).hasPendingGame, isTrue);
+
+      n.restoreRound(c.read(calculatorProvider).history.first);
+      // While editing, `hasPendingGame` is false because `result` is populated
+      // by the restored round. The pending field itself must still be intact.
+      expect(c.read(calculatorProvider).pendingGame, isNotNull);
+      n.cancelEditRound();
+      final s = c.read(calculatorProvider);
+      expect(s.hasPendingGame, isTrue);
+      expect(s.pendingGame!.id, 'duck');
+      expect(s.pendingInput['tricks'], [3, 0, 0, 0]);
+    });
+
+    test('cancelEditRound restores the slot to the pre-edit state', () {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
       n.setDealer(0);
@@ -416,6 +506,43 @@ void main() {
       expect(s.pendingGame!.id, 'duck');
       expect(s.pendingInput['tricks'], [3, 0, 0, 0]);
     });
+
+    test('switching sessions flushes the outgoing autosave so last-second '
+        'pending edits are not lost to the 400ms debounce window', () async {
+      final c = makeContainer();
+      await c.read(gameHistoryProvider.future);
+      final n = c.read(calculatorProvider.notifier);
+
+      // Session A: start a partial round and stash it as pending.
+      n.startNewGame(names: ['A', 'B', 'C', 'D'], dealerIndex: 0);
+      final sessionAId = c.read(calculatorProvider).sessionId;
+      n.selectGame(const Duck());
+      n.updateInput('tricks', [3, 0, 0, 0]);
+      n.deselectGame(); // saved as pending; autosave is debounced 400ms.
+
+      // Immediately load a different session — well within the debounce
+      // window — to simulate the user popping back to home and opening
+      // another game. Without the flush this would cancel the pending
+      // timer and the partial round would be silently lost.
+      final now = DateTime.now();
+      final sessionB = GameSession(
+        id: 'session-B',
+        createdAt: now,
+        updatedAt: now,
+        playerNames: const ['W', 'X', 'Y', 'Z'],
+        rounds: const [],
+      );
+      n.loadSession(sessionB);
+
+      // The flush is fire-and-forget; let microtasks drain.
+      await pumpEventQueue();
+
+      final sessions = await c.read(gameHistoryProvider.future);
+      final savedA = sessions.firstWhere((s) => s.id == sessionAId);
+      expect(savedA.pendingRound, isNotNull);
+      expect(savedA.pendingRound!.gameId, 'duck');
+      expect(savedA.pendingRound!.input['tricks'], [3, 0, 0, 0]);
+    });
   });
 
   group('reset', () {
@@ -447,7 +574,6 @@ void main() {
       },
     );
   });
-
 
   group('Edit-existing-round flow — additional coverage', () {
     test(

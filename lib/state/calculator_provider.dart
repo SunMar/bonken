@@ -36,8 +36,7 @@ class CalculatorState {
     this.pendingInput = const {},
     this.pendingDoubles = const DoubleMatrix(),
     this.partialResult,
-    this.isEditingExistingRound = false,
-    this.hadPendingGameBeforeEdit = false,
+    this.editingRoundIndex,
     this.editOriginalInput,
     this.editOriginalDoubles,
     this.editOriginalChooserIndex,
@@ -53,8 +52,9 @@ class CalculatorState {
   /// or [CalculatorNotifier.loadSession] populates it.
   final DateTime? createdAt;
 
-  /// Last time meaningful content was saved (completed round, reorder,
-  /// player/dealer change). Not updated on load or on cancelled edits.
+  /// Last time meaningful content was saved (completed round, player
+  /// reorder, player/dealer name change). Not updated on load or on
+  /// cancelled edits.
   final DateTime? updatedAt;
   final List<String> playerNames;
 
@@ -106,23 +106,27 @@ class CalculatorState {
   /// there means nothing useful to show).
   final ScoreResult? partialResult;
 
+  /// Non-null when the user is re-editing an already-scored round; holds the
+  /// 0-based index into [history] of the round being edited.  When set, the
+  /// slot fields ([selectedGame], [input], [doubles], [chooserIndex],
+  /// [dealerIndex]) reflect the round being edited; [history] is left fully
+  /// intact (no trimming) so the edit can be cancelled or rolled back without
+  /// touching the other rounds.
+  final int? editingRoundIndex;
+
   /// True when the user is re-editing a round that was already scored.
-  final bool isEditingExistingRound;
+  bool get isEditingExistingRound => editingRoundIndex != null;
 
-  /// True when there was already a pending game in progress at the moment the
-  /// user began editing an existing round.  Saving a partial rollback is blocked
-  /// in this case because it would overwrite that pending game.
-  final bool hadPendingGameBeforeEdit;
-
-  /// True when editing and the round being edited is the last one (i.e. it can
-  /// be safely rolled back without gaps in history).
+  /// True when editing and the round being edited is the last one in history
+  /// (i.e. saving an incomplete edit can simply drop it without gaps).
   bool get isEditingLastRound =>
-      isEditingExistingRound && history.length + 1 == roundNumber;
+      editingRoundIndex != null && editingRoundIndex == history.length - 1;
 
-  /// True when editing the last round AND there was no pending game before the
-  /// edit started — meaning the user can save a partial rollback.
-  bool get canRollbackWithPartial =>
-      isEditingLastRound && !hadPendingGameBeforeEdit;
+  /// True when an incomplete save during edit is allowed: only when the round
+  /// being edited is the last one, so the partial-save degrades to "delete
+  /// last round".  Pending games are never affected by an edit in this model,
+  /// so no extra pending-game gate is needed.
+  bool get canRollbackWithPartial => isEditingLastRound;
 
   /// Original input/doubles/chooser captured at the start of an edit, used to
   /// detect whether anything actually changed (see [hasActiveChanges]).
@@ -139,7 +143,7 @@ class CalculatorState {
   /// stored at the start of the edit — so it returns false when nothing changed.
   bool get hasActiveChanges {
     if (selectedGame == null) return false;
-    if (isEditingExistingRound) {
+    if (editingRoundIndex != null) {
       final origInput = editOriginalInput;
       final origDoubles = editOriginalDoubles;
       final origChooser = editOriginalChooserIndex;
@@ -193,12 +197,11 @@ class CalculatorState {
     DoubleMatrix? pendingDoubles,
     ScoreResult? partialResult,
     bool clearPartialResult = false,
-    bool? isEditingExistingRound,
-    bool? hadPendingGameBeforeEdit,
+    int? editingRoundIndex,
     Map<String, dynamic>? editOriginalInput,
     DoubleMatrix? editOriginalDoubles,
     int? editOriginalChooserIndex,
-    bool clearEditOriginals = false,
+    bool clearEditState = false,
   }) {
     return CalculatorState(
       sessionId: sessionId ?? this.sessionId,
@@ -226,17 +229,16 @@ class CalculatorState {
       partialResult: clearPartialResult
           ? null
           : (partialResult ?? this.partialResult),
-      isEditingExistingRound:
-          isEditingExistingRound ?? this.isEditingExistingRound,
-      hadPendingGameBeforeEdit:
-          hadPendingGameBeforeEdit ?? this.hadPendingGameBeforeEdit,
-      editOriginalInput: clearEditOriginals
+      editingRoundIndex: clearEditState
+          ? null
+          : (editingRoundIndex ?? this.editingRoundIndex),
+      editOriginalInput: clearEditState
           ? null
           : (editOriginalInput ?? this.editOriginalInput),
-      editOriginalDoubles: clearEditOriginals
+      editOriginalDoubles: clearEditState
           ? null
           : (editOriginalDoubles ?? this.editOriginalDoubles),
-      editOriginalChooserIndex: clearEditOriginals
+      editOriginalChooserIndex: clearEditState
           ? null
           : (editOriginalChooserIndex ?? this.editOriginalChooserIndex),
     );
@@ -252,9 +254,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     });
     return const CalculatorState();
   }
-
-  /// Snapshot taken just before restoreRound(), used by cancelEditRound().
-  CalculatorState? _editSnapshot;
 
   /// Pending debounced autosave timer. We coalesce bursts of state mutations
   /// (typing in the counts stepper, double-tap on a chip, etc.) into a single
@@ -283,6 +282,29 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     try {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
     } catch (_) {}
+  }
+
+  /// Flushes a pending debounced autosave for the currently loaded session
+  /// when it is about to be replaced by [incomingId]. Without this, the
+  /// `state =` setter inside [loadSession] would cancel the outgoing
+  /// session's autosave timer and reschedule it under the new `sessionId`,
+  /// silently losing edits made in the last [_autosaveDebounce] window.
+  void _flushPendingAutosaveForOutgoingSession({required String incomingId}) {
+    if (_autosaveTimer == null) return;
+    final outgoingId = state.sessionId;
+    if (outgoingId.isEmpty || outgoingId == incomingId) return;
+    _autosaveTimer!.cancel();
+    _autosaveTimer = null;
+    final outgoing = buildSession();
+    if (outgoing == null) return;
+    // Fire-and-forget: callers don't need to await persistence to proceed
+    // with loading the next session into memory.
+    unawaited(
+      ref
+          .read(gameHistoryProvider.notifier)
+          .saveGame(outgoing)
+          .catchError((_) {}),
+    );
   }
 
   void setPlayerName(int index, String name) {
@@ -362,139 +384,160 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     );
   }
 
-  void deselectGame() {
-    final completed = state.result != null;
-    final isEditing = state.isEditingExistingRound;
-    // When finishing an edit, restore dealer/round from the snapshot so we
-    // don't advance past rounds that already exist after the edited one.
-    final nextDealer = (completed && !isEditing)
-        ? (state.dealerIndex + 1) % 4
-        : (isEditing && _editSnapshot != null)
-        ? _editSnapshot!.dealerIndex
-        : state.dealerIndex;
-    final nextRound = (completed && !isEditing)
-        ? state.roundNumber + 1
-        : (isEditing && _editSnapshot != null)
-        ? _editSnapshot!.roundNumber
-        : state.roundNumber;
-    final updatedHistory = completed
-        ? [
-            ...state.history,
-            RoundRecord(
-              roundNumber: state.roundNumber,
-              game: state.selectedGame!,
-              dealerIndex: state.dealerIndex,
-              chooserIndex: state.chooserIndex,
-              input: state.input,
-              doubles: state.doubles,
-              result: state.result!,
-            ),
-            // When finishing an edit, re-append rounds that came *after* the
-            // edited one (they were stripped by restoreRound but are still valid).
-            if (state.isEditingExistingRound && _editSnapshot != null)
-              ..._editSnapshot!.history.where(
-                (r) => r.roundNumber > state.roundNumber,
-              ),
-          ]
-        : state.history;
-
-    // Preserve partial input so the user can resume the same game later.
-    // When finishing an edit of an existing round, restore the pending game
-    // that was active before the edit started (captured in _editSnapshot).
-    final MiniGame? savedPendingGame;
-    final Map<String, dynamic> savedPendingInput;
-    final DoubleMatrix savedPendingDoubles;
-    if (state.isEditingExistingRound && _editSnapshot != null) {
-      savedPendingGame = _editSnapshot!.pendingGame;
-      savedPendingInput = _editSnapshot!.pendingInput;
-      savedPendingDoubles = _editSnapshot!.pendingDoubles;
-    } else if (!completed && state.selectedGame != null) {
-      savedPendingGame = state.selectedGame;
-      savedPendingInput = state.input;
-      savedPendingDoubles = state.doubles;
-    } else {
-      savedPendingGame = null;
-      savedPendingInput = const {};
-      savedPendingDoubles = const DoubleMatrix();
-    }
-
-    state = state.copyWith(
-      clearSelectedGame: true,
+  /// Shared exit path used by [deselectGame], [discardGame], [cancelEditRound]
+  /// and [rollbackLastRound] (and indirectly by [deleteLastRound]).  Clears
+  /// every slot/edit field, then derives `dealerIndex`, `roundNumber` and
+  /// `chooserIndex` from [newHistory] using the standard "next-round"
+  /// formulas, so the caller never has to recompute them by hand.
+  ///
+  /// Callers that need to keep a [pendingGame] in flight (the legitimate
+  /// "save partial as pending" path) should NOT use this helper directly —
+  /// they pass [overridePending] to set new pending fields.  Pending state is
+  /// otherwise preserved across edits and discards.
+  ///
+  /// [historyChanged] controls whether [CalculatorState.updatedAt] is bumped:
+  /// pure cancels/discards leave it alone so they don't churn the autosave.
+  CalculatorState _exitSlot(
+    CalculatorState s, {
+    required List<RoundRecord> newHistory,
+    bool historyChanged = false,
+    _PendingSlot? overridePending,
+  }) {
+    final nextDealer = newHistory.isEmpty
+        ? s.dealerIndex
+        : (newHistory.last.dealerIndex + 1) % 4;
+    final nextRound = newHistory.length + 1;
+    final next = s.copyWith(
+      history: newHistory,
       dealerIndex: nextDealer,
-      // When saving as pending, keep the chooser the user set so it's restored
-      // when resuming. Only reset to the next-dealer default for a fresh round.
-      chooserIndex: savedPendingGame != null
-          ? state.chooserIndex
-          : (nextDealer + 1) % 4,
       roundNumber: nextRound,
-      history: updatedHistory,
-      pendingGame: savedPendingGame,
-      pendingInput: savedPendingInput,
-      pendingDoubles: savedPendingDoubles,
-      clearPending: savedPendingGame == null,
-      clearResult: true,
-      clearPartialResult: true,
+      chooserIndex: overridePending != null
+          ? s.chooserIndex
+          : (nextDealer + 1) % 4,
+      clearSelectedGame: true,
       input: const {},
       doubles: const DoubleMatrix(),
-      isEditingExistingRound: false,
-      clearEditOriginals: true,
-      updatedAt: DateTime.now(),
+      clearResult: true,
+      clearPartialResult: true,
+      clearEditState: true,
+      updatedAt: historyChanged ? DateTime.now() : s.updatedAt,
     );
-    _editSnapshot = null;
+    if (overridePending != null) {
+      return next.copyWith(
+        pendingGame: overridePending.game,
+        pendingInput: overridePending.input,
+        pendingDoubles: overridePending.doubles,
+      );
+    }
+    return next;
+  }
+
+  /// Leaves the input slot.
+  ///
+  /// Four cases, in order:
+  ///   1. Editing an existing round, slot has a valid [CalculatorState.result]:
+  ///      replace `history[editingRoundIndex]` with the new record.
+  ///   2. Editing, slot incomplete: caller should have routed to
+  ///      [rollbackLastRound] (last round) or [cancelEditRound] (older round);
+  ///      this method falls back to cancel for safety.
+  ///   3. New round, result present: append to history, advance dealer/round.
+  ///   4. New round, no result but has a selected game: stash as pending so
+  ///      the user can resume it later.
+  void deselectGame() {
+    final s = state;
+    final editIndex = s.editingRoundIndex;
+
+    if (editIndex != null) {
+      if (s.result == null) {
+        // Defensive: incomplete edit save shouldn't reach here for older
+        // rounds (button is disabled) and for the last round routes to
+        // rollbackLastRound.  Treat as cancel.
+        cancelEditRound();
+        return;
+      }
+      final replacement = RoundRecord(
+        roundNumber: s.history[editIndex].roundNumber,
+        game: s.selectedGame!,
+        dealerIndex: s.dealerIndex,
+        chooserIndex: s.chooserIndex,
+        input: s.input,
+        doubles: s.doubles,
+        result: s.result!,
+      );
+      final newHistory = [
+        ...s.history.sublist(0, editIndex),
+        replacement,
+        ...s.history.sublist(editIndex + 1),
+      ];
+      state = _exitSlot(s, newHistory: newHistory, historyChanged: true);
+      return;
+    }
+
+    if (s.result != null) {
+      // New round, completed: append.
+      final appended = [
+        ...s.history,
+        RoundRecord(
+          roundNumber: s.roundNumber,
+          game: s.selectedGame!,
+          dealerIndex: s.dealerIndex,
+          chooserIndex: s.chooserIndex,
+          input: s.input,
+          doubles: s.doubles,
+          result: s.result!,
+        ),
+      ];
+      state = _exitSlot(s, newHistory: appended, historyChanged: true);
+      return;
+    }
+
+    if (s.selectedGame != null) {
+      // New round, incomplete: stash slot as pending and keep chooser.
+      state = _exitSlot(
+        s,
+        newHistory: s.history,
+        historyChanged: true,
+        overridePending: _PendingSlot(
+          game: s.selectedGame,
+          input: s.input,
+          doubles: s.doubles,
+        ),
+      );
+      return;
+    }
+
+    // Empty slot: just clear (preserves the legacy "clears any stale
+    // pending" behaviour by passing no overridePending and routing through
+    // the default clearing path).
+    state = _exitSlot(s, newHistory: s.history, historyChanged: true);
   }
 
   /// Discards any in-progress input and returns to the game selection phase
   /// without saving pending input.  Used by the Cancel button for new rounds.
   void discardGame() {
-    state = state.copyWith(
-      clearSelectedGame: true,
-      clearResult: true,
-      clearPartialResult: true,
-      clearEditOriginals: true,
-      input: const {},
-      doubles: const DoubleMatrix(),
-    );
+    state = _exitSlot(state, newHistory: state.history);
   }
 
-  /// Rolls back the last round: keeps the already-trimmed history, deselects
-  /// the game, and restores any pending game that existed before the edit.
+  /// Saves an incomplete edit of the last round by simply deleting that round.
+  /// Only valid when [CalculatorState.isEditingLastRound] is true — enforced
+  /// by an assert so any future regression of the gating logic surfaces here.
   void rollbackLastRound() {
-    // Restore the pending game that was active before the edit started.
-    final snap = _editSnapshot;
-    final restoredPendingGame = snap?.pendingGame;
-    final restoredPendingInput =
-        snap?.pendingInput ?? const <String, dynamic>{};
-    final restoredPendingDoubles = snap?.pendingDoubles ?? const DoubleMatrix();
-    state = state.copyWith(
-      clearSelectedGame: true,
-      pendingGame: restoredPendingGame,
-      pendingInput: restoredPendingInput,
-      pendingDoubles: restoredPendingDoubles,
-      clearPending: restoredPendingGame == null,
-      clearResult: true,
-      clearPartialResult: true,
-      clearEditOriginals: true,
-      input: const {},
-      doubles: const DoubleMatrix(),
-      isEditingExistingRound: false,
-      hadPendingGameBeforeEdit: false,
-      updatedAt: DateTime.now(),
+    final s = state;
+    assert(
+      s.isEditingLastRound,
+      'rollbackLastRound called outside last-round edit (editingRoundIndex='
+      '${s.editingRoundIndex}, history.length=${s.history.length})',
     );
-    _editSnapshot = null;
+    if (!s.isEditingLastRound) return;
+    final newHistory = s.history.sublist(0, s.history.length - 1);
+    state = _exitSlot(s, newHistory: newHistory, historyChanged: true);
   }
 
   /// Deletes the last completed round from history, rolling dealer/round back.
   void deleteLastRound() {
     if (state.history.isEmpty) return;
     final newHistory = state.history.sublist(0, state.history.length - 1);
-    final last = state.history.last;
-    state = state.copyWith(
-      history: newHistory,
-      dealerIndex: last.dealerIndex,
-      chooserIndex: (last.dealerIndex + 1) % 4,
-      roundNumber: last.roundNumber,
-      updatedAt: DateTime.now(),
-    );
+    state = _exitSlot(state, newHistory: newHistory, historyChanged: true);
   }
 
   void updateInput(String key, dynamic value) {
@@ -509,41 +552,39 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     _recalculate();
   }
 
-  /// Restore a past round for re-editing.  Removes that round and all
-  /// subsequent rounds from history (they may become invalid after a fix).
+  /// Restores a past round for re-editing.  Loads the round's data into the
+  /// input slot and tags [CalculatorState.editingRoundIndex] with its position
+  /// in [history]; the history list itself is left untouched, and any
+  /// in-flight [pendingGame] is preserved across the edit.
   void restoreRound(RoundRecord record) {
-    _editSnapshot = state;
-    final hadPending = state.hasPendingGame;
-    final trimmedHistory = state.history
-        .where((r) => r.roundNumber < record.roundNumber)
-        .toList();
+    final index = state.history.indexWhere(
+      (r) => r.roundNumber == record.roundNumber,
+    );
+    assert(index >= 0, 'restoreRound: record not found in history');
+    if (index < 0) return;
     state = state.copyWith(
       dealerIndex: record.dealerIndex,
       chooserIndex: record.chooserIndex,
       roundNumber: record.roundNumber,
-      history: trimmedHistory,
       selectedGame: record.game,
       input: record.input,
       doubles: record.doubles,
       result: record.result,
-      clearPending: true,
       clearPartialResult: true,
-      isEditingExistingRound: true,
-      hadPendingGameBeforeEdit: hadPending,
+      editingRoundIndex: index,
       editOriginalInput: Map<String, dynamic>.from(record.input),
       editOriginalDoubles: record.doubles,
       editOriginalChooserIndex: record.chooserIndex,
     );
   }
 
-  /// Cancels an in-progress edit of an existing round, restoring the full
-  /// state (including history) to what it was before the edit began.
+  /// Cancels an in-progress edit of an existing round.  Because [history] was
+  /// never mutated during the edit, this just clears the slot and recomputes
+  /// the next-round dealer / round / chooser from history.  Pending state is
+  /// left untouched.
   void cancelEditRound() {
-    final snapshot = _editSnapshot;
-    if (snapshot != null) {
-      _editSnapshot = null;
-      state = snapshot;
-    }
+    if (state.editingRoundIndex == null) return;
+    state = _exitSlot(state, newHistory: state.history);
   }
 
   /// Recalculates the result whenever the state changes, or clears it if input
@@ -662,7 +703,15 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Restores a previously saved [GameSession] into the current state so the
   /// player can continue or edit it.
+  ///
+  /// If a debounced autosave is still pending for a *different* outgoing
+  /// session, it is flushed synchronously-scheduled before the state swap so
+  /// last-second edits (e.g. a partial round just started before navigating
+  /// back to the home screen) aren't dropped when the timer would otherwise
+  /// be cancelled and rescheduled under the incoming `sessionId`.
   void loadSession(GameSession session) {
+    _flushPendingAutosaveForOutgoingSession(incomingId: session.id);
+
     final history = [
       for (final s in session.rounds)
         RoundRecord(
@@ -722,3 +771,17 @@ final calculatorProvider =
     NotifierProvider<CalculatorNotifier, CalculatorState>(
       CalculatorNotifier.new,
     );
+
+/// Lightweight bundle for [CalculatorNotifier._exitSlot] when the slot's
+/// contents should be promoted into the pending-game fields instead of being
+/// discarded.
+class _PendingSlot {
+  const _PendingSlot({
+    required this.game,
+    required this.input,
+    required this.doubles,
+  });
+  final MiniGame? game;
+  final Map<String, dynamic> input;
+  final DoubleMatrix doubles;
+}
