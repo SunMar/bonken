@@ -273,36 +273,6 @@ void main() {
     });
   });
 
-  group('reorderRounds', () {
-    test('reordering renumbers all rounds 1-based', () {
-      final c = makeContainer();
-      final n = c.read(calculatorProvider.notifier);
-      n.setDealer(0);
-      // Play 3 rounds: clubs, diamonds, hearts.
-      n.selectGame(const Clubs());
-      n.updateInput('tricks', [4, 4, 2, 3]);
-      n.deselectGame();
-      n.selectGame(const Diamonds());
-      n.updateInput('tricks', [3, 4, 4, 2]);
-      n.deselectGame();
-      n.selectGame(const Hearts());
-      n.updateInput('tricks', [2, 3, 4, 4]);
-      n.deselectGame();
-      expect(
-        c.read(calculatorProvider).history.map((r) => r.game.id).toList(),
-        ['clubs', 'diamonds', 'hearts'],
-      );
-      // Move third to first position.
-      n.reorderRounds(2, 0);
-      final s = c.read(calculatorProvider);
-      expect(s.history.map((r) => r.game.id).toList(), [
-        'hearts',
-        'clubs',
-        'diamonds',
-      ]);
-      expect(s.history.map((r) => r.roundNumber).toList(), [1, 2, 3]);
-    });
-  });
 
   group('Edit-existing-round flow', () {
     test(
@@ -478,64 +448,6 @@ void main() {
     );
   });
 
-  group('reorderRounds — additional coverage', () {
-    test('preserves each historical record\'s dealerIndex', () {
-      final c = makeContainer();
-      final n = c.read(calculatorProvider.notifier);
-      n.setDealer(0);
-      n.selectGame(const Clubs());
-      n.updateInput('tricks', [4, 4, 2, 3]);
-      n.deselectGame();
-      n.selectGame(const Diamonds());
-      n.updateInput('tricks', [3, 4, 4, 2]);
-      n.deselectGame();
-      n.selectGame(const Hearts());
-      n.updateInput('tricks', [2, 3, 4, 4]);
-      n.deselectGame();
-
-      final dealersBefore = c
-          .read(calculatorProvider)
-          .history
-          .map((r) => r.dealerIndex)
-          .toList();
-      expect(dealersBefore, [0, 1, 2]);
-      final dealerStateBefore = c.read(calculatorProvider).dealerIndex;
-
-      n.reorderRounds(2, 0);
-
-      final s = c.read(calculatorProvider);
-      // Each round's recorded dealerIndex follows it (no rewriting).
-      expect(s.history.map((r) => r.dealerIndex).toList(), [2, 0, 1]);
-      // The "next round" dealerIndex stored on state is not changed by a
-      // reorder — locks in current behavior.
-      expect(s.dealerIndex, dealerStateBefore);
-    });
-
-    test('no-op when oldIndex == newIndex (history unchanged, no crash)', () {
-      final c = makeContainer();
-      final n = c.read(calculatorProvider.notifier);
-      n.setDealer(0);
-      n.selectGame(const Clubs());
-      n.updateInput('tricks', [4, 4, 2, 3]);
-      n.deselectGame();
-      n.selectGame(const Duck());
-      n.updateInput('tricks', [4, 3, 5, 1]);
-      n.deselectGame();
-
-      final before = c
-          .read(calculatorProvider)
-          .history
-          .map((r) => r.game.id)
-          .toList();
-      n.reorderRounds(1, 1);
-      final after = c
-          .read(calculatorProvider)
-          .history
-          .map((r) => r.game.id)
-          .toList();
-      expect(after, before);
-    });
-  });
 
   group('Edit-existing-round flow — additional coverage', () {
     test(

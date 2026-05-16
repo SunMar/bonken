@@ -20,7 +20,6 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/doubles_picker.dart';
-import '../widgets/drag_handle.dart';
 import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/scoreboard_card.dart';
 import '../widgets/game_input/game_input_form.dart';
@@ -29,30 +28,6 @@ import '../widgets/primary_action_button.dart';
 import '../widgets/score_result_view.dart';
 import 'home_screen.dart';
 import 'rules_screen.dart';
-
-/// Scoped to the ScoreInputScreen lifetime — true while reorder mode is active.
-class _IsReorderModeNotifier extends Notifier<bool> {
-  @override
-  bool build() => false;
-  void set(bool value) => state = value;
-}
-
-final isReorderModeProvider =
-    NotifierProvider.autoDispose<_IsReorderModeNotifier, bool>(
-      _IsReorderModeNotifier.new,
-    );
-
-/// Snapshot of history order taken when entering reorder mode, used for Cancel.
-class _ReorderSnapshotNotifier extends Notifier<List<RoundRecord>> {
-  @override
-  List<RoundRecord> build() => const [];
-  void set(List<RoundRecord> snapshot) => state = snapshot;
-}
-
-final reorderSnapshotProvider =
-    NotifierProvider.autoDispose<_ReorderSnapshotNotifier, List<RoundRecord>>(
-      _ReorderSnapshotNotifier.new,
-    );
 
 /// True while the edit-players page is shown in place of the game list.
 class _IsEditPlayersModeNotifier extends Notifier<bool> {
@@ -146,7 +121,6 @@ class ScoreInputScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final game = ref.watch(calculatorProvider.select((s) => s.selectedGame));
-    final isReordering = ref.watch(isReorderModeProvider);
     final isEditingPlayers = ref.watch(isEditPlayersModeProvider);
     final canSavePlayers = ref.watch(_canSavePlayersProvider);
     final hasPlayersChanges = ref.watch(_hasPlayersChangesProvider);
@@ -295,33 +269,9 @@ class ScoreInputScreen extends ConsumerWidget {
       ref.read(isEditPlayersModeProvider.notifier).set(false);
     }
 
-    Future<void> confirmAndCancelReorder() async {
-      final snapshot = ref.read(reorderSnapshotProvider);
-      final current = ref.read(calculatorProvider).history;
-      final hasChanges =
-          snapshot.length == current.length &&
-          Iterable<int>.generate(
-            snapshot.length,
-          ).any((i) => snapshot[i].game.id != current[i].game.id);
-      if (hasChanges) {
-        if (!context.mounted) return;
-        final confirmed = await _confirmDiscardChanges(
-          context,
-          contentText: 'Je wijzigingen aan de volgorde worden niet opgeslagen.',
-        );
-        if (!confirmed) return;
-      }
-      ref
-          .read(calculatorProvider.notifier)
-          .restoreHistory(ref.read(reorderSnapshotProvider));
-      ref.read(isReorderModeProvider.notifier).set(false);
-    }
-
     Future<void> handleBack() async {
       if (isEditingPlayers) {
         await confirmAndCancelPlayers();
-      } else if (isReordering) {
-        await confirmAndCancelReorder();
       } else if (game != null) {
         await saveOrConfirmBack();
       }
@@ -330,15 +280,15 @@ class ScoreInputScreen extends ConsumerWidget {
     return PopScope(
       // Allow native back when no game is selected (pops to HomeScreen).
       // When a game is selected, intercept back to deselect instead.
-      // While reordering or editing players, intercept back to cancel.
-      canPop: game == null && !isReordering && !isEditingPlayers,
+      // While editing players, intercept back to cancel.
+      canPop: game == null && !isEditingPlayers,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) handleBack();
       },
       child: AppScaffold(
         appBar: AppBar(
           title: const Text('Bonken'),
-          leading: game != null || isReordering || isEditingPlayers
+          leading: game != null || isEditingPlayers
               ? Tooltip(
                   message: 'Verwerpen',
                   child: BackButton(onPressed: handleBack),
@@ -356,17 +306,6 @@ class ScoreInputScreen extends ConsumerWidget {
                           .read(_editPlayersSaveTriggerProvider.notifier)
                           .fire()
                     : null,
-                child: const Text('Opslaan'),
-              ),
-              const SizedBox(width: 4),
-            ] else if (isReordering) ...[
-              TextButton(
-                onPressed: () => confirmAndCancelReorder(),
-                child: const Text('Verwerpen'),
-              ),
-              FilledButton(
-                onPressed: () =>
-                    ref.read(isReorderModeProvider.notifier).set(false),
                 child: const Text('Opslaan'),
               ),
               const SizedBox(width: 4),
@@ -395,8 +334,6 @@ class ScoreInputScreen extends ConsumerWidget {
                   final menuItemStyle = MenuItemButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   );
-                  final canReorder =
-                      ref.read(calculatorProvider).history.length >= 2;
                   return MenuAnchor(
                     style: const MenuStyle(
                       alignment: AlignmentDirectional.bottomEnd,
@@ -418,25 +355,6 @@ class ScoreInputScreen extends ConsumerWidget {
                               .set(true);
                         },
                         child: const Text('Spelers bewerken'),
-                      ),
-                      MenuItemButton(
-                        style: menuItemStyle,
-                        leadingIcon: const Icon(Symbols.swap_vert),
-                        onPressed: canReorder
-                            ? () {
-                                ref
-                                    .read(reorderSnapshotProvider.notifier)
-                                    .set(
-                                      List.of(
-                                        ref.read(calculatorProvider).history,
-                                      ),
-                                    );
-                                ref
-                                    .read(isReorderModeProvider.notifier)
-                                    .set(true);
-                              }
-                            : null,
-                        child: const Text('Ronde volgorde'),
                       ),
                       MenuItemButton(
                         style: menuItemStyle,
@@ -554,7 +472,6 @@ class _GameSelectionPhase extends ConsumerWidget {
     final chooserIndex = ref.watch(
       calculatorProvider.select((s) => s.chooserIndex),
     );
-    final isReordering = ref.watch(isReorderModeProvider);
     final playedIds = history.map((r) => r.game.id).toSet();
 
     final isFinished = history.length >= 12;
@@ -586,20 +503,18 @@ class _GameSelectionPhase extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (!isReordering) ...[
-          const _RoundInfoBanner(),
-          const SizedBox(height: 8),
-          const _LiveScoreboard(),
-          if (isFinished) ...[
-            const SizedBox(height: 12),
-            // No Center wrapper here: the long label
-            // "Nieuw spel met dezelfde spelers" would shrink-wrap to its
-            // intrinsic (overflowing) width.  Letting the button take the
-            // ListView's content width gives the label room to lay out.
-            const _NewGameSamePlayersButton(),
-          ],
+        const _RoundInfoBanner(),
+        const SizedBox(height: 8),
+        const _LiveScoreboard(),
+        if (isFinished) ...[
+          const SizedBox(height: 12),
+          // No Center wrapper here: the long label
+          // "Nieuw spel met dezelfde spelers" would shrink-wrap to its
+          // intrinsic (overflowing) width.  Letting the button take the
+          // ListView's content width gives the label room to lay out.
+          const _NewGameSamePlayersButton(),
         ],
-        if (!isReordering && !isFinished && negativeGames.isNotEmpty) ...[
+        if (!isFinished && negativeGames.isNotEmpty) ...[
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Negatieve spellen',
@@ -609,7 +524,7 @@ class _GameSelectionPhase extends ConsumerWidget {
           for (final game in negativeGames)
             _GameTile(game: game, negCount: negCount, posCount: posCount),
         ],
-        if (!isReordering && !isFinished && positiveGames.isNotEmpty) ...[
+        if (!isFinished && positiveGames.isNotEmpty) ...[
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Positieve spellen',
@@ -1234,75 +1149,6 @@ class _HistoryList extends ConsumerWidget {
 
     final cs = Theme.of(context).colorScheme;
     final notifier = ref.read(calculatorProvider.notifier);
-    final isReordering = ref.watch(isReorderModeProvider);
-
-    // In reorder mode: use a ReorderableListView without edit buttons.
-    if (isReordering) {
-      // history is chronological (round 1 first); show in that order for drag.
-      final rounds = history;
-      return RepaintBoundary(
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Symbols.swap_vert, size: 16, color: cs.primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Ronde volgorde',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleSmall?.copyWith(color: cs.primary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // ReorderableListView needs a fixed height or shrinkWrap.
-                ReorderableListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  buildDefaultDragHandles: false,
-                  itemCount: rounds.length,
-                  onReorder: notifier.reorderRounds,
-                  itemBuilder: (ctx, i) {
-                    final record = rounds[i];
-                    return Material(
-                      key: ValueKey(record.roundNumber),
-                      color: Colors.transparent,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Divider(height: 1),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                DragHandle(index: i),
-                                Expanded(
-                                  child: _RoundRowHeader(
-                                    record: record,
-                                    playerNames: playerNames,
-                                    cs: cs,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
 
     // Normal mode: reversed (most recent first), with edit buttons.
     final lastRoundNumber = history.last.roundNumber;
@@ -1854,8 +1700,7 @@ class _EditPlayersPhaseState extends ConsumerState<_EditPlayersPhase> {
   }
 }
 
-/// Compact "Ronde N — game name / chooser name" row used in both the regular
-/// and reorder modes of [_HistoryList].
+/// Compact "Ronde N — game name / chooser name" row used in [_HistoryList].
 class _RoundRowHeader extends StatelessWidget {
   const _RoundRowHeader({
     required this.record,

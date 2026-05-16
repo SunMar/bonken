@@ -509,25 +509,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     _recalculate();
   }
 
-  /// Replaces history with the given list (used to revert a reorder).
-  void restoreHistory(List<RoundRecord> history) {
-    state = state.copyWith(history: history);
-  }
-
-  /// Reorders history by moving the round at [oldIndex] to [newIndex],
-  /// then renumbers all rounds sequentially (1-based).
-  void reorderRounds(int oldIndex, int newIndex) {
-    final list = List<RoundRecord>.from(state.history);
-    if (oldIndex < newIndex) newIndex -= 1;
-    final item = list.removeAt(oldIndex);
-    list.insert(newIndex, item);
-    final renumbered = [
-      for (int i = 0; i < list.length; i++)
-        list[i].copyWith(roundNumber: i + 1),
-    ];
-    state = state.copyWith(history: renumbered, updatedAt: DateTime.now());
-  }
-
   /// Restore a past round for re-editing.  Removes that round and all
   /// subsequent rounds from history (they may become invalid after a fix).
   void restoreRound(RoundRecord record) {

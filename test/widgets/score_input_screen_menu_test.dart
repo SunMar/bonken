@@ -53,28 +53,14 @@ void main() {
   });
 
   testWidgets(
-    'overflow menu shows all four entries when no game is selected',
+    'overflow menu shows all three entries when no game is selected',
     (tester) async {
       await _pumpScoreInputScreen(tester);
       await _openOverflowMenu(tester);
 
       expect(find.text('Spelers bewerken'), findsOneWidget);
-      expect(find.text('Ronde volgorde'), findsOneWidget);
       expect(find.text('Spel sluiten'), findsOneWidget);
       expect(find.text('Spel verwijderen'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    '"Ronde volgorde" is disabled until at least 2 rounds have been played',
-    (tester) async {
-      await _pumpScoreInputScreen(tester);
-      await _openOverflowMenu(tester);
-
-      final reorderItem = tester.widget<MenuItemButton>(
-        find.widgetWithText(MenuItemButton, 'Ronde volgorde'),
-      );
-      expect(reorderItem.onPressed, isNull);
     },
   );
 
