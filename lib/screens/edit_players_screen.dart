@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/mini_game.dart';
+import '../models/player.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
@@ -41,10 +42,13 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
   // Snapshot of the original controller order, used to detect player reorders
   // by identity (text edits do not affect this).
   late final List<TextEditingController> _originalControllerOrder;
-  late int _dealerIndex;
+  // Snapshot of original trimmed text values for text-change detection.
+  // Needed because _originalControllerOrder holds the same mutable controller
+  // objects as _controllers, so comparing .text would always see the current value.
+  late final List<String> _originalTexts;
+  late int _firstDealerIndex;
   late final bool _gameInProgress;
-  late final List<String> _originalNames;
-  late final int _originalDealerIndex;
+  late final int _originalFirstDealerIndex;
   // Listenable that fires on any controller text change. Combined with
   // `setState`-driven dealer/reorder updates, this is what the outer
   // [ListenableBuilder] subscribes to so [PopScope.canPop] stays in sync
@@ -55,14 +59,14 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
   void initState() {
     super.initState();
     final state = ref.read(calculatorProvider);
-    _dealerIndex = state.dealerIndex;
-    _originalDealerIndex = state.dealerIndex;
+    _firstDealerIndex = state.firstDealerIndex;
+    _originalFirstDealerIndex = state.firstDealerIndex;
     _gameInProgress = state.history.isNotEmpty || state.hasPendingGame;
-    _originalNames = List.unmodifiable(state.playerNames);
     _controllers = [
       for (final name in state.playerNames) TextEditingController(text: name),
     ];
     _originalControllerOrder = List.unmodifiable(_controllers);
+    _originalTexts = [for (final c in _controllers) c.text.trim()];
     _focusNodes = List.generate(playerCount, (_) => FocusNode());
     _formChanges = Listenable.merge(_controllers);
   }
@@ -72,20 +76,20 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
   /// True if the dealer slot now points at a different *person* than it
   /// did when entering this screen. Reordering players in a way that keeps
   /// the same controller (i.e. the same person) at the dealer position is
-  /// not considered a dealer change — even if the numeric [_dealerIndex]
+  /// not considered a dealer change — even if the numeric [_firstDealerIndex]
   /// shifted as a result of the reorder.
   bool get _dealerPlayerChanged =>
-      _controllers[_dealerIndex] !=
-      _originalControllerOrder[_originalDealerIndex];
+      _controllers[_firstDealerIndex] !=
+      _originalControllerOrder[_originalFirstDealerIndex];
 
   /// Derived on demand from the current controller texts and dealer index.
   /// Read inside the outer [ListenableBuilder] so it always reflects the
   /// live form state — no cached bit to keep in sync.
   bool get _hasChanges =>
       _controllers.indexed.any(
-        (e) => e.$2.text.trim() != _originalNames[e.$1],
+        (e) => e.$2.text.trim() != _originalTexts[e.$1],
       ) ||
-      _dealerIndex != _originalDealerIndex;
+      _firstDealerIndex != _originalFirstDealerIndex;
 
   @override
   void dispose() {
@@ -116,8 +120,12 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
       _controllers.insert(target, c);
       final f = _focusNodes.removeAt(oldIndex);
       _focusNodes.insert(target, f);
-      // Keep _dealerIndex pointing at the same person.
-      _dealerIndex = adjustIndexAfterReorder(oldIndex, target, _dealerIndex);
+      // Keep _firstDealerIndex pointing at the same person.
+      _firstDealerIndex = adjustIndexAfterReorder(
+        oldIndex,
+        target,
+        _firstDealerIndex,
+      );
     });
   }
 
@@ -152,10 +160,7 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
       );
       return;
     }
-    // Whether the dealer *person* changed (drives the warning text).
     final dealerChanged = _dealerPlayerChanged;
-    // Whether the dealer's numeric index moved (drives the setDealer call).
-    final dealerIndexChanged = _dealerIndex != _originalDealerIndex;
     final orderChanged = _orderChanged;
     if (_gameInProgress && (dealerChanged || orderChanged)) {
       final confirm = await showConfirmDialog(
@@ -180,13 +185,22 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
       if (confirm != true) return;
       if (!mounted) return;
     }
-    final notifier = ref.read(calculatorProvider.notifier);
-    for (int i = 0; i < playerCount; i++) {
-      notifier.setPlayerName(i, _controllers[i].text.trim());
-    }
-    if (dealerIndexChanged) {
-      notifier.setDealer(_dealerIndex);
-    }
+    // Build the new player list in the post-reorder seat order.
+    // Map each controller back to the original Player object by identity so
+    // UUIDs stay bound to the correct person after a drag-reorder.
+    final origPlayers = ref.read(calculatorProvider).players;
+    final newPlayers = <Player>[
+      for (int i = 0; i < playerCount; i++)
+        () {
+          final origIdx = _originalControllerOrder.indexOf(_controllers[i]);
+          return origPlayers[origIdx].copyWith(
+            name: _controllers[i].text.trim(),
+          );
+        }(),
+    ];
+    ref
+        .read(calculatorProvider.notifier)
+        .setPlayersAndDealer(newPlayers, _firstDealerIndex);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -229,7 +243,7 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
           children: [
             Card(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -279,10 +293,10 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
                       listenable: _formChanges,
                       builder: (context, _) => DealerDropdownField(
                         controllers: _controllers,
-                        value: _dealerIndex,
+                        value: _firstDealerIndex,
                         onChanged: (v) {
                           if (v == null) return;
-                          setState(() => _dealerIndex = v);
+                          setState(() => _firstDealerIndex = v);
                         },
                       ),
                     ),

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/player_name_field.dart';
+
+import '../test_helpers.dart';
 
 /// Wraps [NewGameScreen] in MaterialApp + ProviderScope and pumps it.
 /// Returns the [ProviderContainer] so tests can inspect state.
@@ -47,9 +49,7 @@ Future<void> pickDealer(WidgetTester tester, String name) async {
 }
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  setUpPrefs();
 
   testWidgets('fields stay empty even when provider already holds player names '
       '(regression: loading a past game must not leak into "Nieuw spel")', (
@@ -60,7 +60,15 @@ void main() {
     // Simulate the state after loading/finishing a previous game.
     container
         .read(calculatorProvider.notifier)
-        .startNewGame(names: ['Alice', 'Bob', 'Carol', 'Dave'], dealerIndex: 0);
+        .startNewGame(
+          players: [
+            Player(name: 'Alice'),
+            Player(name: 'Bob'),
+            Player(name: 'Carol'),
+            Player(name: 'Dave'),
+          ],
+          dealerIndex: 0,
+        );
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -153,7 +161,6 @@ void main() {
     final s = container.read(calculatorProvider);
     expect(s.playerNames, ['', '', '', '']);
     expect(s.sessionId, '');
-    expect(s.dealerChosen, isFalse);
   });
 
   /// Reads the visible text inside the dealer DropdownMenu's input field.
@@ -216,7 +223,6 @@ void main() {
       // A game has been committed; the drawn dealer is one of the four
       // players (we don't assert which — Random() is, well, random).
       final s = container.read(calculatorProvider);
-      expect(s.dealerChosen, isTrue);
       expect(s.dealerIndex, inInclusiveRange(0, 3));
       expect(s.sessionId, isNotEmpty);
     },
@@ -239,7 +245,6 @@ void main() {
 
       final s = container.read(calculatorProvider);
       expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
-      expect(s.dealerChosen, isTrue);
       expect(s.dealerIndex, 2);
       expect(s.sessionId, isNotEmpty);
     },
@@ -267,7 +272,6 @@ void main() {
 
       final s = container.read(calculatorProvider);
       expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
-      expect(s.dealerChosen, isTrue);
       expect(s.dealerIndex, inInclusiveRange(0, 3));
       expect(s.sessionId, isNotEmpty);
     },

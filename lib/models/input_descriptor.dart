@@ -1,4 +1,4 @@
-import 'mini_game.dart';
+import 'player.dart';
 
 /// Describes the input fields required by a mini-game so the UI can render
 /// the correct form without knowing concrete game types.
@@ -14,11 +14,14 @@ sealed class InputDescriptor {
   bool isComplete(Map<String, dynamic> input);
 
   /// Initial input map used when a game is freshly selected.
-  Map<String, dynamic> defaults();
+  /// Input values are keyed by player UUID (not seat index).
+  Map<String, dynamic> defaults(List<Player> players);
 }
 
 /// A mini-game where each of the 4 players enters a count (tricks or scoring
 /// cards won). The four values must sum to [total].
+///
+/// Storage format: `{inputKey: {"<playerUUID>": count, ...}}`
 class CountsInputDescriptor extends InputDescriptor {
   const CountsInputDescriptor({
     required this.inputKey,
@@ -37,23 +40,27 @@ class CountsInputDescriptor extends InputDescriptor {
 
   @override
   bool isEmpty(Map<String, dynamic> input) {
-    final counts = (input[inputKey] as List?)?.cast<int>();
-    if (counts == null) return true;
-    return counts.fold<int>(0, (a, b) => a + b) == 0;
+    final map = (input[inputKey] as Map?)?.cast<String, int>();
+    if (map == null) return true;
+    return map.values.fold<int>(0, (a, b) => a + b) == 0;
   }
 
   @override
   bool isComplete(Map<String, dynamic> input) {
-    final counts = (input[inputKey] as List?)?.cast<int>();
-    if (counts == null) return false;
-    return counts.fold<int>(0, (a, b) => a + b) == total;
+    final map = (input[inputKey] as Map?)?.cast<String, int>();
+    if (map == null) return false;
+    return map.values.fold<int>(0, (a, b) => a + b) == total;
   }
 
   @override
-  Map<String, dynamic> defaults() => {inputKey: List.filled(playerCount, 0)};
+  Map<String, dynamic> defaults(List<Player> players) => {
+    inputKey: {for (final p in players) p.id: 0},
+  };
 }
 
 /// A mini-game where a single player is selected (winner or loser).
+///
+/// Storage format: `{inputKey: "<playerUUID>" | null}`
 class SinglePlayerInputDescriptor extends InputDescriptor {
   const SinglePlayerInputDescriptor({
     required this.inputKey,
@@ -71,15 +78,17 @@ class SinglePlayerInputDescriptor extends InputDescriptor {
 
   @override
   bool isComplete(Map<String, dynamic> input) {
-    final v = input[inputKey];
-    return v != null && (v as int) >= 0;
+    final v = input[inputKey] as String?;
+    return v != null && v.isNotEmpty;
   }
 
   @override
-  Map<String, dynamic> defaults() => {inputKey: null};
+  Map<String, dynamic> defaults(List<Player> players) => {inputKey: null};
 }
 
 /// A mini-game with two independent player selections (7e / 13e).
+///
+/// Storage format: `{inputKey1: "<playerUUID>" | null, inputKey2: "<playerUUID>" | null}`
 class DualPlayerInputDescriptor extends InputDescriptor {
   const DualPlayerInputDescriptor({
     required this.inputKey1,
@@ -99,11 +108,14 @@ class DualPlayerInputDescriptor extends InputDescriptor {
 
   @override
   bool isComplete(Map<String, dynamic> input) {
-    final v1 = input[inputKey1];
-    final v2 = input[inputKey2];
-    return v1 != null && (v1 as int) >= 0 && v2 != null && (v2 as int) >= 0;
+    final v1 = input[inputKey1] as String?;
+    final v2 = input[inputKey2] as String?;
+    return v1 != null && v1.isNotEmpty && v2 != null && v2.isNotEmpty;
   }
 
   @override
-  Map<String, dynamic> defaults() => {inputKey1: null, inputKey2: null};
+  Map<String, dynamic> defaults(List<Player> players) => {
+    inputKey1: null,
+    inputKey2: null,
+  };
 }

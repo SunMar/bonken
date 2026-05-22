@@ -9,12 +9,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/edit_players_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/amber_warning_box.dart';
+
+import '../test_helpers.dart';
 
 const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 
@@ -26,7 +28,10 @@ Future<ProviderContainer> _pumpEditPlayers(
   addTearDown(container.dispose);
 
   final notifier = container.read(calculatorProvider.notifier);
-  notifier.startNewGame(names: _names, dealerIndex: 0);
+  notifier.startNewGame(
+    players: [for (final name in _names) Player(name: name)],
+    dealerIndex: 0,
+  );
   if (gameInProgress) {
     // Select a game then deselect to leave it as a pending (incomplete)
     // game, which flips `_gameInProgress` to true inside the screen.
@@ -47,12 +52,8 @@ Future<ProviderContainer> _pumpEditPlayers(
 }
 
 void main() {
-  setUpAll(() {
-    WidgetsFlutterBinding.ensureInitialized();
-  });
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  initializeWidgets();
+  setUpPrefs();
 
   testWidgets(
     'editing a name and tapping "Opslaan" propagates to the provider',

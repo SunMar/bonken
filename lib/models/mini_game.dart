@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'double_matrix.dart';
 import 'input_descriptor.dart';
+import 'player.dart';
 import 'score_result.dart';
 
 /// Number of players in a Bonken game (always 4).
@@ -114,14 +115,32 @@ abstract class MiniGame {
 
   /// Derives a raw integer count for each player from game-specific [input].
   ///
-  /// The list must have exactly 4 entries (index = player index).
+  /// Keys are player UUIDs (matching [players]). Values are counts per player.
   /// For trick-based games this is the number of tricks won.
   /// For card-based games this is the number of scoring cards won.
-  List<int> rawCounts(Map<String, dynamic> input);
+  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players);
 
   /// Describes what input fields this game requires.
   /// The UI uses this to render the correct form without knowing concrete types.
   InputDescriptor get inputDescriptor;
+
+  // ---------------------------------------------------------------------------
+  // Shared helpers for subclasses
+  // ---------------------------------------------------------------------------
+
+  /// Extracts a per-player count map from [input] using the given [key].
+  ///
+  /// Covers the common case where [input[key]] is a `Map<String, int>` keyed
+  /// by player UUID. Players absent from the map default to 0.
+  @protected
+  Map<String, int> countsForKey(
+    String key,
+    Map<String, dynamic> input,
+    List<Player> players,
+  ) {
+    final map = (input[key] as Map).cast<String, int>();
+    return {for (final p in players) p.id: map[p.id] ?? 0};
+  }
 
   // ---------------------------------------------------------------------------
   // Shared scoring engine
@@ -130,25 +149,19 @@ abstract class MiniGame {
   ScoreResult calculateScores({
     required Map<String, dynamic> input,
     required DoubleMatrix doubles,
+    required List<Player> players,
   }) {
-    final counts = rawCounts(input);
-    assert(counts.length == playerCount);
-
-    final effective = List<int>.generate(playerCount, (i) {
-      int e = counts[i];
-      for (int j = 0; j < playerCount; j++) {
-        if (i == j) continue;
-        final m = doubles.multiplierFor(i, j);
-        if (m > 0) e += (counts[i] - counts[j]) * m;
+    final counts = rawCounts(input, players);
+    final effective = <String, int>{};
+    for (final pa in players) {
+      int e = counts[pa.id] ?? 0;
+      for (final pb in players) {
+        if (pa.id == pb.id) continue;
+        final m = doubles.multiplierFor(pa.id, pb.id);
+        if (m > 0) e += ((counts[pa.id] ?? 0) - (counts[pb.id] ?? 0)) * m;
       }
-      return e;
-    });
-
-    return ScoreResult(
-      scores: {
-        for (int i = 0; i < playerCount; i++)
-          i: effective[i] == 0 ? 0 : effective[i] * pointsPerUnit,
-      },
-    );
+      effective[pa.id] = e == 0 ? 0 : e * pointsPerUnit;
+    }
+    return ScoreResult(scores: effective);
   }
 }

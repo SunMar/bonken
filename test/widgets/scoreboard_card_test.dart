@@ -112,38 +112,37 @@ void main() {
       },
     );
 
-    testWidgets(
-      'headerTrailing: rendered when non-null, absent when null',
-      (tester) async {
-        await pumpHost(
-          tester,
-          ScoreboardCard(
-            roundsPlayed: 0,
-            playerNames: playerNames,
-            scores: const [0, 0, 0, 0],
-            winners: const [],
-            headerLabel: headerLabel('Tussenstand'),
-          ),
-        );
-        expect(find.byIcon(Symbols.delete), findsNothing);
+    testWidgets('headerTrailing: rendered when non-null, absent when null', (
+      tester,
+    ) async {
+      await pumpHost(
+        tester,
+        ScoreboardCard(
+          roundsPlayed: 0,
+          playerNames: playerNames,
+          scores: const [0, 0, 0, 0],
+          winners: const [],
+          headerLabel: headerLabel('Tussenstand'),
+        ),
+      );
+      expect(find.byIcon(Symbols.delete), findsNothing);
 
-        await pumpHost(
-          tester,
-          ScoreboardCard(
-            roundsPlayed: 0,
-            playerNames: playerNames,
-            scores: const [0, 0, 0, 0],
-            winners: const [],
-            headerLabel: headerLabel('Tussenstand'),
-            headerTrailing: IconButton(
-              icon: const Icon(Symbols.delete),
-              onPressed: () {},
-            ),
+      await pumpHost(
+        tester,
+        ScoreboardCard(
+          roundsPlayed: 0,
+          playerNames: playerNames,
+          scores: const [0, 0, 0, 0],
+          winners: const [],
+          headerLabel: headerLabel('Tussenstand'),
+          headerTrailing: IconButton(
+            icon: const Icon(Symbols.delete),
+            onPressed: () {},
           ),
-        );
-        expect(find.byIcon(Symbols.delete), findsOneWidget);
-      },
-    );
+        ),
+      );
+      expect(find.byIcon(Symbols.delete), findsOneWidget);
+    });
 
     // Threshold table for the in-progress glyph. Each entry picks one
     // rounds-played value inside its bucket and asserts the matching

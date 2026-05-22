@@ -1,11 +1,23 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/games/game_catalog.dart';
+import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/player.dart';
+import 'package:bonken/models/round_record.dart';
 
 void main() {
+  // Fixed players for all tests. Created once so UUIDs are stable.
+  final pa = Player(name: 'A');
+  final pb = Player(name: 'B');
+  final pc = Player(name: 'C');
+  final pd = Player(name: 'D');
+  final testPlayers = [pa, pb, pc, pd];
+
   GameSession sample({
     String id = 's1',
-    List<RoundSummary>? rounds,
+    List<RoundRecord>? rounds,
     PendingRound? pending,
   }) {
     final now = DateTime(2024, 1, 1, 12, 0);
@@ -13,26 +25,30 @@ void main() {
       id: id,
       createdAt: now,
       updatedAt: now,
-      playerNames: const ['A', 'B', 'C', 'D'],
+      players: testPlayers,
+      firstDealerId: pa.id,
       rounds: rounds ?? const [],
       pendingRound: pending,
     );
   }
 
-  RoundSummary round(int n, Map<int, int> scores) => RoundSummary(
+  // Creates a RoundRecord from a seat-indexed score map, using player UUIDs.
+  RoundRecord round(int n, Map<int, int> indexedScores) => RoundRecord(
     roundNumber: n,
-    gameName: 'Klaveren',
-    gameId: 'clubs',
-    dealerIndex: (n - 1) % 4,
-    chooserIndex: n % 4,
-    scores: scores,
+    game: const Clubs(),
+    chooserId: testPlayers[n % 4].id,
+    scoresByPlayer: {
+      for (int i = 0; i < 4; i++) testPlayers[i].id: indexedScores[i] ?? 0,
+    },
+    input: const {},
+    doubles: const DoubleMatrix(),
   );
 
-  group('finalScores / winnerIndices', () {
+  group('finalScoresByPlayer / winnerIds', () {
     test('Empty session: zero scores, no winners', () {
       final s = sample();
-      expect(s.finalScores, {0: 0, 1: 0, 2: 0, 3: 0});
-      expect(s.winnerIndices, isEmpty);
+      expect(s.finalScoresByPlayer, {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0});
+      expect(s.winnerIds, isEmpty);
     });
 
     test('Cumulates scores across rounds', () {
@@ -42,52 +58,60 @@ void main() {
           round(2, {0: -20, 1: 10, 2: 5, 3: 5}),
         ],
       );
-      expect(s.finalScores, {0: 80, 1: 60, 2: 85, 3: 35});
-      expect(s.winnerIndices, [2]);
+      expect(s.finalScoresByPlayer, {
+        pa.id: 80,
+        pb.id: 60,
+        pc.id: 85,
+        pd.id: 35,
+      });
+      expect(s.winnerIds, [pc.id]);
     });
 
-    test('winnerIndices returns multiple players on tie', () {
+    test('winnerIds returns multiple players on tie', () {
       final s = sample(
         rounds: [
           round(1, {0: 100, 1: 100, 2: 50, 3: 50}),
         ],
       );
-      expect(s.winnerIndices..sort(), [0, 1]);
+      expect(s.winnerIds, unorderedEquals([pa.id, pb.id]));
     });
 
-    test('winnerIndices returns all four when everyone is tied', () {
+    test('winnerIds returns all four when everyone is tied', () {
       final tiedNeg = sample(
         rounds: [
           round(1, {0: -50, 1: -50, 2: -50, 3: -50}),
         ],
       );
-      expect(tiedNeg.winnerIndices..sort(), [0, 1, 2, 3]);
+      expect(tiedNeg.winnerIds, unorderedEquals([pa.id, pb.id, pc.id, pd.id]));
 
       final tiedZero = sample(
         rounds: [
           round(1, {0: 0, 1: 0, 2: 0, 3: 0}),
         ],
       );
-      expect(tiedZero.winnerIndices..sort(), [0, 1, 2, 3]);
+      expect(tiedZero.winnerIds, unorderedEquals([pa.id, pb.id, pc.id, pd.id]));
     });
 
-    test('finalScores ignores pendingRound', () {
+    test('finalScoresByPlayer ignores pendingRound', () {
       final s = sample(
         rounds: [
           round(1, {0: 100, 1: 50, 2: 80, 3: 30}),
         ],
-        pending: const PendingRound(
+        pending: PendingRound(
           gameId: 'duck',
           gameName: 'Bukken',
-          dealerIndex: 1,
-          chooserIndex: 2,
-          input: {
+          chooserId: testPlayers[2].id,
+          input: const {
             'tricks': [10, 1, 1, 1],
           },
         ),
       );
-      // Pending round contributes nothing to finalScores.
-      expect(s.finalScores, {0: 100, 1: 50, 2: 80, 3: 30});
+      expect(s.finalScoresByPlayer, {
+        pa.id: 100,
+        pb.id: 50,
+        pc.id: 80,
+        pd.id: 30,
+      });
     });
   });
 
@@ -115,32 +139,70 @@ void main() {
     });
   });
 
+  group('fromJson fallbacks', () {
+    test('unknown gameId falls back to allGames.first', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'no-such-game',
+            'gameName': 'Gone',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+          },
+        ],
+      };
+      final session = GameSession.fromJson(json);
+      expect(session.rounds[0].game, allGames.first);
+    });
+
+    test('unknown firstDealerId falls back to seat index 0', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': 'not-a-real-uuid',
+        'rounds': <dynamic>[],
+      };
+      final session = GameSession.fromJson(json);
+      // seatIndexOf returns 0 for unknown id → displayedPlayers starts at seat 0
+      expect(session.displayedPlayers[0].id, pa.id);
+    });
+  });
+
   group('JSON roundtrip', () {
     test('GameSession with rounds and pending round survives roundtrip', () {
       final original = sample(
         rounds: [
           round(1, {0: 100, 1: 50, 2: 80, 3: 30}),
-          RoundSummary(
+          RoundRecord(
             roundNumber: 2,
-            gameName: 'Bukken',
-            gameId: 'duck',
-            dealerIndex: 1,
-            chooserIndex: 2,
-            scores: const {0: -40, 1: -30, 2: -50, 3: -10},
+            game: const Duck(),
+            chooserId: testPlayers[2].id,
+            scoresByPlayer: {pa.id: -40, pb.id: -30, pc.id: -50, pd.id: -10},
             input: const {
               'tricks': [4, 3, 5, 1],
             },
-            doublesJson: DoubleMatrix.empty()
-                .withPair(0, 1, DoubleState.doubled, initiator: 0)
-                .toJson(),
+            doubles: DoubleMatrix.empty().withPair(
+              pa.id,
+              pb.id,
+              DoubleState.doubled,
+              initiator: pa.id,
+            ),
           ),
         ],
-        pending: const PendingRound(
+        pending: PendingRound(
           gameId: 'queens',
           gameName: 'Vrouwen',
-          dealerIndex: 2,
-          chooserIndex: 3,
-          input: {
+          chooserId: testPlayers[3].id,
+          input: const {
             'cards': [1, 0, 0, 0],
           },
         ),
@@ -152,11 +214,11 @@ void main() {
       expect(back.id, original.id);
       expect(back.createdAt, original.createdAt);
       expect(back.updatedAt, original.updatedAt);
-      expect(back.playerNames, original.playerNames);
+      expect(back.displayedPlayerNames, original.displayedPlayerNames);
       expect(back.rounds.length, 2);
-      expect(back.rounds[0].scores, original.rounds[0].scores);
+      expect(back.rounds[0].scoresByPlayer, original.rounds[0].scoresByPlayer);
       expect(back.rounds[1].input, original.rounds[1].input);
-      expect(back.rounds[1].doublesJson, isNotNull);
+      expect(back.rounds[1].doubles.hasAnyDouble, isTrue);
       expect(back.pendingRound, isNotNull);
       expect(back.pendingRound!.gameId, 'queens');
       expect(back.pendingRound!.input, {
@@ -169,40 +231,37 @@ void main() {
       expect(s.toJson().containsKey('pendingRound'), isFalse);
     });
 
-    test('RoundSummary roundtrip preserves all fields', () {
+    test('RoundRecord toJson includes all expected fields', () {
       final r = round(5, {0: 10, 1: -10, 2: 0, 3: 0});
-      final back = RoundSummary.fromJson(r.toJson());
-      expect(back.roundNumber, r.roundNumber);
-      expect(back.gameName, r.gameName);
-      expect(back.gameId, r.gameId);
-      expect(back.dealerIndex, r.dealerIndex);
-      expect(back.chooserIndex, r.chooserIndex);
-      expect(back.scores, r.scores);
+      final json = r.toJson();
+      expect(json['roundNumber'], r.roundNumber);
+      expect(json['gameId'], r.game.id);
+      expect(json['gameName'], r.game.name);
+      expect(json['chooserId'], r.chooserId);
+      expect(json['scores'], r.scoresByPlayer);
     });
 
     test('PendingRound roundtrip preserves all fields including doubles', () {
       final p = PendingRound(
         gameId: 'duck',
         gameName: 'Bukken',
-        dealerIndex: 1,
-        chooserIndex: 2,
+        chooserId: testPlayers[2].id,
         input: const {
           'tricks': [3, 4, 0, 0],
         },
         doublesJson: DoubleMatrix.empty()
-            .withPair(0, 1, DoubleState.redoubled, initiator: 1)
+            .withPair(pa.id, pb.id, DoubleState.redoubled, initiator: pb.id)
             .toJson(),
       );
       final back = PendingRound.fromJson(p.toJson());
       expect(back.gameId, p.gameId);
       expect(back.gameName, p.gameName);
-      expect(back.dealerIndex, p.dealerIndex);
-      expect(back.chooserIndex, p.chooserIndex);
+      expect(back.chooserId, p.chooserId);
       expect(back.input, p.input);
       expect(back.doublesJson, isNotNull);
       final m = DoubleMatrix.fromJson(back.doublesJson!);
-      expect(m.stateFor(0, 1), DoubleState.redoubled);
-      expect(m.initiatorFor(0, 1), 1);
+      expect(m.stateFor(pa.id, pb.id), DoubleState.redoubled);
+      expect(m.initiatorFor(pa.id, pb.id), pb.id);
     });
   });
 }

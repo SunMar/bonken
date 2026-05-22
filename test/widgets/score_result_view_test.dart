@@ -14,9 +14,11 @@ void main() {
       await pumpHost(
         tester,
         ScoreResultView(
-          result: const ScoreResult(scores: {0: 80, 1: 80, 2: 40, 3: 60}),
+          result: const ScoreResult(
+            scores: {'alice': 80, 'bob': 80, 'carol': 40, 'dan': 60},
+          ),
           game: const Clubs(),
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
         ),
       );
@@ -31,9 +33,11 @@ void main() {
       await pumpHost(
         tester,
         ScoreResultView(
-          result: const ScoreResult(scores: {0: 100, 1: 50, 2: 80, 3: 30}),
+          result: const ScoreResult(
+            scores: {'alice': 100, 'bob': 50, 'carol': 80, 'dan': 30},
+          ),
           game: const Clubs(),
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
         ),
       );
@@ -44,9 +48,11 @@ void main() {
       await pumpHost(
         tester,
         ScoreResultView(
-          result: const ScoreResult(scores: {0: 100, 1: 100, 2: 50, 3: 10}),
+          result: const ScoreResult(
+            scores: {'alice': 100, 'bob': 100, 'carol': 50, 'dan': 10},
+          ),
           game: const Clubs(),
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
         ),
       );
@@ -57,9 +63,11 @@ void main() {
       await pumpHost(
         tester,
         ScoreResultView(
-          result: const ScoreResult(scores: {0: 100, 1: 50, 2: 80, 3: 30}),
+          result: const ScoreResult(
+            scores: {'alice': 100, 'bob': 50, 'carol': 80, 'dan': 30},
+          ),
           game: const Clubs(),
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
           isPartial: true,
         ),
@@ -71,9 +79,11 @@ void main() {
       await pumpHost(
         tester,
         ScoreResultView(
-          result: const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
+          result: const ScoreResult(
+            scores: {'alice': 0, 'bob': 0, 'carol': 0, 'dan': 0},
+          ),
           game: const Clubs(),
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
           showHeader: false,
         ),
@@ -85,15 +95,27 @@ void main() {
       tester,
     ) async {
       final doubles = DoubleMatrix.empty()
-          .withPair(0, 1, DoubleState.doubled, initiator: 0)
-          .withPair(2, 3, DoubleState.redoubled, initiator: 3);
+          .withPair(
+            playerIds[0],
+            playerIds[1],
+            DoubleState.doubled,
+            initiator: playerIds[0],
+          )
+          .withPair(
+            playerIds[2],
+            playerIds[3],
+            DoubleState.redoubled,
+            initiator: playerIds[3],
+          );
 
       await pumpHost(
         tester,
         ScoreResultView(
-          result: const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
+          result: const ScoreResult(
+            scores: {'alice': 0, 'bob': 0, 'carol': 0, 'dan': 0},
+          ),
           game: const Clubs(),
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
           doubles: doubles,
         ),

@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() {
   testWidgets('App starts without errors', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(child: BonkenApp()),
-    );
+    await tester.pumpWidget(const ProviderScope(child: BonkenApp()));
     expect(find.text('Bonken'), findsWidgets);
   });
 }

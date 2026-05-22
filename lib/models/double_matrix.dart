@@ -13,42 +13,48 @@ enum DoubleState {
 /// Holds the doubling/redoubling state for every pair of players, including
 /// which player initiated the double (the "initiator").
 ///
-/// For a 4-player game the six pairs are: (0,1) (0,2) (0,3) (1,2) (1,3) (2,3).
-/// Pairs are stored with the lower index first so lookup is canonical.
+/// Pairs and initiators are keyed by **player UUID strings** (not seat indices)
+/// so they survive player reordering without going stale.
+///
+/// For a 4-player game the six pairs are all combinations of the four IDs.
+/// Pairs are stored with the lexicographically smaller ID first so lookup
+/// is canonical regardless of argument order.
 ///
 /// The multiplier for a pair:
 ///   none      → 0  (pair is ignored in score settlement)
 ///   doubled   → 1  (pair difference counted once)
 ///   redoubled → 2  (pair difference counted twice)
 ///
-/// The initiator (null when state is none) is the player who made the original
-/// double.  It does not affect the score calculation but is used by the UI to
-/// show direction (e.g. "A dubbelt B") and to correctly label who can redouble.
+/// The initiator (null when state is none) is the player ID who made the
+/// original double. It does not affect the score calculation but is used by
+/// the UI to show direction (e.g. "A dubbelt B") and to correctly label who
+/// can redouble.
 class DoubleMatrix {
   const DoubleMatrix({
-    Map<(int, int), DoubleState> pairs = const {},
-    Map<(int, int), int> initiators = const {},
+    Map<(String, String), DoubleState> pairs = const {},
+    Map<(String, String), String> initiators = const {},
   }) : _pairs = pairs,
        _initiators = initiators;
 
-  final Map<(int, int), DoubleState> _pairs;
+  final Map<(String, String), DoubleState> _pairs;
 
-  /// Maps canonical pair key → the player index who initiated the double.
+  /// Maps canonical pair key → the player UUID who initiated the double.
   /// Only set when the pair's state is [DoubleState.doubled] or
   /// [DoubleState.redoubled].
-  final Map<(int, int), int> _initiators;
+  final Map<(String, String), String> _initiators;
 
-  static (int, int) _key(int a, int b) => a < b ? (a, b) : (b, a);
+  static (String, String) _key(String a, String b) =>
+      a.compareTo(b) <= 0 ? (a, b) : (b, a);
 
-  DoubleState stateFor(int playerA, int playerB) =>
+  DoubleState stateFor(String playerA, String playerB) =>
       _pairs[_key(playerA, playerB)] ?? DoubleState.none;
 
-  /// The player index who initiated the double for this pair, or null if
+  /// The player UUID who initiated the double for this pair, or null if
   /// neither player has doubled the other.
-  int? initiatorFor(int playerA, int playerB) =>
+  String? initiatorFor(String playerA, String playerB) =>
       _initiators[_key(playerA, playerB)];
 
-  int multiplierFor(int playerA, int playerB) =>
+  int multiplierFor(String playerA, String playerB) =>
       switch (stateFor(playerA, playerB)) {
         DoubleState.none => 0,
         DoubleState.doubled => 1,
@@ -58,14 +64,14 @@ class DoubleMatrix {
   /// Set the state for a pair and record who initiated.
   /// Pass [initiator] = null to clear the pair (state → none).
   DoubleMatrix withPair(
-    int playerA,
-    int playerB,
+    String playerA,
+    String playerB,
     DoubleState state, {
-    int? initiator,
+    String? initiator,
   }) {
     final key = _key(playerA, playerB);
-    final updatedPairs = Map<(int, int), DoubleState>.from(_pairs);
-    final updatedInitiators = Map<(int, int), int>.from(_initiators);
+    final updatedPairs = Map<(String, String), DoubleState>.from(_pairs);
+    final updatedInitiators = Map<(String, String), String>.from(_initiators);
 
     if (state == DoubleState.none) {
       updatedPairs.remove(key);
@@ -109,7 +115,8 @@ class DoubleMatrix {
   );
 
   // ---------------------------------------------------------------------------
-  // JSON serialisation — pair keys are encoded as "a,b" strings.
+  // JSON serialisation — pair keys are encoded as "<uuidA>,<uuidB>" strings
+  // where uuidA is the lexicographically smaller of the two.
   // ---------------------------------------------------------------------------
 
   Map<String, dynamic> toJson() => {
@@ -122,9 +129,9 @@ class DoubleMatrix {
   };
 
   factory DoubleMatrix.fromJson(Map<String, dynamic> json) {
-    (int, int) parseKey(String k) {
-      final parts = k.split(',');
-      return (int.parse(parts[0]), int.parse(parts[1]));
+    (String, String) parseKey(String k) {
+      final comma = k.indexOf(',');
+      return (k.substring(0, comma), k.substring(comma + 1));
     }
 
     final pairsRaw = (json['pairs'] as Map<String, dynamic>?) ?? {};
@@ -136,7 +143,7 @@ class DoubleMatrix {
           parseKey(e.key): DoubleState.values.byName(e.value as String),
       },
       initiators: {
-        for (final e in initRaw.entries) parseKey(e.key): e.value as int,
+        for (final e in initRaw.entries) parseKey(e.key): e.value as String,
       },
     );
   }

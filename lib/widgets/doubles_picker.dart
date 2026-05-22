@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
+import '../models/player.dart';
 import '../theme/app_theme_extensions.dart';
 import 'double_state_chip.dart';
+import 'selectable_player_tile.dart';
 
 /// Two-panel doubles picker.
 ///
@@ -12,14 +14,14 @@ import 'double_state_chip.dart';
 ///   none → doubled ("dubbelt") → redoubled ("gaat terug") → none.
 class DoublesPicker extends StatefulWidget {
   const DoublesPicker({
-    required this.playerNames,
+    required this.players,
     required this.chooserIndex,
     required this.doubles,
     required this.onChanged,
     super.key,
   });
 
-  final List<String> playerNames;
+  final List<Player> players;
 
   /// Index of the player who chose this game. The chooser doubles last;
   /// the player to their left goes first.
@@ -35,6 +37,14 @@ class DoublesPicker extends StatefulWidget {
 class _DoublesPickerState extends State<DoublesPicker> {
   int? _selected; // currently selected initiator index
 
+  // ---------- Shorthand helpers to reduce widget.players[i].id noise ----------
+
+  String _id(int i) => widget.players[i].id;
+  DoubleState _stateFor(int a, int b) =>
+      widget.doubles.stateFor(_id(a), _id(b));
+  String? _initiatorFor(int a, int b) =>
+      widget.doubles.initiatorFor(_id(a), _id(b));
+
   List<int> get _doublingOrder {
     final first = (widget.chooserIndex + 1) % playerCount;
     return List.generate(playerCount, (i) => (first + i) % playerCount);
@@ -45,7 +55,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
     int count = 0;
     for (int t = 0; t < playerCount; t++) {
       if (t == player) continue;
-      if (widget.doubles.stateFor(player, t) != DoubleState.none) count++;
+      if (_stateFor(player, t) != DoubleState.none) count++;
     }
     return count;
   }
@@ -57,9 +67,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
   bool _hasRedouble(int player) {
     for (int t = 0; t < playerCount; t++) {
       if (t == player) continue;
-      if (widget.doubles.stateFor(player, t) == DoubleState.redoubled) {
-        return true;
-      }
+      if (_stateFor(player, t) == DoubleState.redoubled) return true;
     }
     return false;
   }
@@ -70,9 +78,9 @@ class _DoublesPickerState extends State<DoublesPicker> {
   /// they are the recorded initiator of a doubled/redoubled pair, or the
   /// pair is `redoubled` (which always implies escalation by [selected]).
   bool _initiatorActed(int selected, int target) {
-    final s = widget.doubles.stateFor(selected, target);
+    final s = _stateFor(selected, target);
     if (s == DoubleState.none) return false;
-    return widget.doubles.initiatorFor(selected, target) == selected ||
+    return _initiatorFor(selected, target) == _id(selected) ||
         s == DoubleState.redoubled;
   }
 
@@ -81,22 +89,22 @@ class _DoublesPickerState extends State<DoublesPicker> {
   ///   * `doubled` (target initiated)       → `redoubled` initiator=target
   ///   * already initiator-acted / redoubled → unchanged
   DoubleMatrix _applyOnePair(DoubleMatrix matrix, int selected, int target) {
-    final state = matrix.stateFor(selected, target);
-    final initiator = matrix.initiatorFor(selected, target);
+    final state = matrix.stateFor(_id(selected), _id(target));
+    final initiator = matrix.initiatorFor(_id(selected), _id(target));
     if (state == DoubleState.none) {
       return matrix.withPair(
-        selected,
-        target,
+        _id(selected),
+        _id(target),
         DoubleState.doubled,
-        initiator: selected,
+        initiator: _id(selected),
       );
     }
-    if (state == DoubleState.doubled && initiator == target) {
+    if (state == DoubleState.doubled && initiator == _id(target)) {
       return matrix.withPair(
-        selected,
-        target,
+        _id(selected),
+        _id(target),
         DoubleState.redoubled,
-        initiator: target,
+        initiator: _id(target),
       );
     }
     return matrix;
@@ -112,19 +120,19 @@ class _DoublesPickerState extends State<DoublesPicker> {
   ///   * `doubled`, initiator==selected     → `none`
   ///   * foreign-initiator `doubled`        → untouched
   DoubleMatrix _demoteOnePair(DoubleMatrix matrix, int selected, int target) {
-    final s = matrix.stateFor(selected, target);
-    final init = matrix.initiatorFor(selected, target);
-    if (s == DoubleState.redoubled && init == target) {
+    final s = matrix.stateFor(_id(selected), _id(target));
+    final init = matrix.initiatorFor(_id(selected), _id(target));
+    if (s == DoubleState.redoubled && init == _id(target)) {
       return matrix.withPair(
-        selected,
-        target,
+        _id(selected),
+        _id(target),
         DoubleState.doubled,
         initiator: init,
       );
     }
     if ((s == DoubleState.doubled || s == DoubleState.redoubled) &&
-        init == selected) {
-      return matrix.withPair(selected, target, DoubleState.none);
+        init == _id(selected)) {
+      return matrix.withPair(_id(selected), _id(target), DoubleState.none);
     }
     return matrix;
   }
@@ -135,28 +143,28 @@ class _DoublesPickerState extends State<DoublesPicker> {
     bool isInitiator, {
     required bool canTargetRedouble,
   }) {
-    final current = widget.doubles.stateFor(selected, target);
-    final currentInitiator = widget.doubles.initiatorFor(selected, target);
+    final current = _stateFor(selected, target);
+    final currentInitiator = _initiatorFor(selected, target);
 
     final DoubleMatrix updated;
     if (isInitiator) {
       // none → doubled → (redoubled if allowed) → none.
       updated = switch (current) {
         DoubleState.none => widget.doubles.withPair(
-          selected,
-          target,
+          _id(selected),
+          _id(target),
           DoubleState.doubled,
-          initiator: selected,
+          initiator: _id(selected),
         ),
         DoubleState.doubled when canTargetRedouble => widget.doubles.withPair(
-          selected,
-          target,
+          _id(selected),
+          _id(target),
           DoubleState.redoubled,
           initiator: currentInitiator,
         ),
         DoubleState.doubled || DoubleState.redoubled => widget.doubles.withPair(
-          selected,
-          target,
+          _id(selected),
+          _id(target),
           DoubleState.none,
         ),
       };
@@ -165,14 +173,14 @@ class _DoublesPickerState extends State<DoublesPicker> {
       updated = switch (current) {
         DoubleState.none => widget.doubles, // shouldn't happen
         DoubleState.doubled => widget.doubles.withPair(
-          selected,
-          target,
+          _id(selected),
+          _id(target),
           DoubleState.redoubled,
           initiator: currentInitiator,
         ),
         DoubleState.redoubled => widget.doubles.withPair(
-          selected,
-          target,
+          _id(selected),
+          _id(target),
           DoubleState.doubled,
           initiator: currentInitiator,
         ),
@@ -219,9 +227,8 @@ class _DoublesPickerState extends State<DoublesPicker> {
     var any = false;
     for (final t in targets) {
       if (t == selected) continue;
-      final s = widget.doubles.stateFor(selected, t);
-      if (s != DoubleState.redoubled) return false;
-      if (widget.doubles.initiatorFor(selected, t) != t) return false;
+      if (_stateFor(selected, t) != DoubleState.redoubled) return false;
+      if (_initiatorFor(selected, t) != _id(t)) return false;
       any = true;
     }
     return any;
@@ -236,8 +243,8 @@ class _DoublesPickerState extends State<DoublesPicker> {
     var matrix = widget.doubles;
     for (final t in targets) {
       if (t == selected) continue;
-      if (matrix.stateFor(selected, t) != DoubleState.none) {
-        matrix = matrix.withPair(selected, t, DoubleState.none);
+      if (matrix.stateFor(_id(selected), _id(t)) != DoubleState.none) {
+        matrix = matrix.withPair(_id(selected), _id(t), DoubleState.none);
       }
     }
     if (matrix != widget.doubles) widget.onChanged(matrix);
@@ -271,14 +278,14 @@ class _DoublesPickerState extends State<DoublesPicker> {
     var matrix = widget.doubles;
     for (final t in targets) {
       if (t == selected) continue;
-      final s = matrix.stateFor(selected, t);
-      final init = matrix.initiatorFor(selected, t);
-      if (s == DoubleState.redoubled && init == t) {
+      final s = matrix.stateFor(_id(selected), _id(t));
+      final init = matrix.initiatorFor(_id(selected), _id(t));
+      if (s == DoubleState.redoubled && init == _id(t)) {
         matrix = matrix.withPair(
-          selected,
-          t,
+          _id(selected),
+          _id(t),
           DoubleState.doubled,
-          initiator: t,
+          initiator: _id(t),
         );
       }
     }
@@ -306,11 +313,10 @@ class _DoublesPickerState extends State<DoublesPicker> {
         : order
               .where((i) {
                 if (i == _selected) return false;
-                final s = widget.doubles.stateFor(_selected!, i);
-                if (s == DoubleState.none) return false;
+                if (_stateFor(_selected!, i) == DoubleState.none) return false;
                 // The pair must have been initiated by the other player; if the
                 // chooser somehow initiated, the bulk "terug" doesn't apply.
-                return widget.doubles.initiatorFor(_selected!, i) == i;
+                return _initiatorFor(_selected!, i) == _id(i);
               })
               .toList(growable: false);
     final chooserTerugMode = selectedIsChooser && chooserDoublers.length >= 2;
@@ -349,7 +355,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
       children: [
         // Turn order hint
         Text(
-          'Volgorde: ${order.map((i) => widget.playerNames[i]).join(' → ')}',
+          'Volgorde: ${order.map((i) => widget.players[i].name).join(' → ')}',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: cs.onSurfaceVariant,
             fontStyle: FontStyle.italic,
@@ -360,7 +366,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
         // --- Initiator list ---
         for (final i in order)
           _InitiatorTile(
-            name: widget.playerNames[i],
+            name: widget.players[i].name,
             involvedCount: _involvedCount(i),
             hasRedouble: _hasRedouble(i),
             isSelected: _selected == i,
@@ -418,7 +424,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
               maintainAnimation: true,
               maintainState: true,
               child: _TargetTile(
-                name: widget.playerNames[t],
+                name: widget.players[t].name,
                 state: DoubleState.none,
                 isInitiator: true,
                 isInteractive: true,
@@ -427,7 +433,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
             )
           else if (_selected == null)
             _TargetTile(
-              name: widget.playerNames[t],
+              name: widget.players[t].name,
               state: DoubleState.none,
               isInitiator: true,
               isInteractive: false,
@@ -436,10 +442,10 @@ class _DoublesPickerState extends State<DoublesPicker> {
           else
             Builder(
               builder: (_) {
-                final st = widget.doubles.stateFor(_selected!, t);
+                final st = _stateFor(_selected!, t);
                 final isInit =
                     st == DoubleState.none ||
-                    widget.doubles.initiatorFor(_selected!, t) == _selected;
+                    _initiatorFor(_selected!, t) == _id(_selected!);
                 // Can only redouble if our turn comes AFTER the initiator's.
                 final canRedouble =
                     !isInit && _turnIndex(_selected!) > _turnIndex(t);
@@ -450,7 +456,7 @@ class _DoublesPickerState extends State<DoublesPicker> {
                 final isInteractive =
                     !isChooserInitiating && (isInit || canRedouble);
                 return _TargetTile(
-                  name: widget.playerNames[t],
+                  name: widget.players[t].name,
                   state: st,
                   isInitiator: isInit,
                   isInteractive: isInteractive,
@@ -496,7 +502,11 @@ class _BulkButton extends StatelessWidget {
     );
     return filled
         ? FilledButton(style: style, onPressed: onPressed, child: Text(label))
-        : OutlinedButton(style: style, onPressed: onPressed, child: Text(label));
+        : OutlinedButton(
+            style: style,
+            onPressed: onPressed,
+            child: Text(label),
+          );
   }
 }
 
@@ -525,67 +535,31 @@ class _InitiatorTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final dc =
         theme.extension<DoubleStateColors>() ??
         (theme.brightness == Brightness.dark
             ? DoubleStateColors.dark
             : DoubleStateColors.light);
 
-    final tile = Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          // M3 ListTile-equivalent rhythm: 16h horizontal padding, with
-          // vertical sized to clear the 48dp touch-target floor on top
-          // of a single line of bodyMedium (~20dp).
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected ? cs.secondaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            // M3 selection convention (FilterChip, NavigationBar indicator):
-            // the filled secondaryContainer IS the affordance; the outline
-            // disappears once selected. Unselected tiles keep the subtle
-            // outlineVariant border so the row stays scannable.
-            border: Border.all(
-              color: isSelected ? Colors.transparent : cs.outlineVariant,
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? cs.onSecondaryContainer : cs.onSurface,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-              if (involvedCount > 0) ...[
-                const SizedBox(width: 8),
-                Badge(
-                  backgroundColor: hasRedouble
-                      ? dc.redoubledBackground
-                      : dc.doubledBackground,
-                  textColor: hasRedouble
-                      ? dc.onRedoubledBackground
-                      : dc.onDoubledBackground,
-                  label: Text('$involvedCount'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    final badge = involvedCount > 0
+        ? Badge(
+            backgroundColor: hasRedouble
+                ? dc.redoubledBackground
+                : dc.doubledBackground,
+            textColor: hasRedouble
+                ? dc.onRedoubledBackground
+                : dc.onDoubledBackground,
+            label: Text('$involvedCount'),
+          )
+        : null;
+
+    return SelectablePlayerTile(
+      name: name,
+      isSelected: isSelected,
+      isDimmed: isDimmed,
+      onTap: onTap,
+      badge: badge,
     );
-    return isDimmed ? Opacity(opacity: 0.38, child: tile) : tile;
   }
 }
 

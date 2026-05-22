@@ -1,32 +1,38 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/player.dart';
+import 'package:bonken/models/round_record.dart';
 import 'package:bonken/state/game_history_provider.dart';
+
+import '../test_helpers.dart';
 
 GameSession session(
   String id,
   DateTime updatedAt, {
   List<String> names = const ['A', 'B', 'C', 'D'],
-  List<RoundSummary> rounds = const [],
-}) => GameSession(
-  id: id,
-  createdAt: updatedAt,
-  updatedAt: updatedAt,
-  playerNames: names,
-  rounds: rounds,
-);
+  List<RoundRecord> rounds = const [],
+}) {
+  final players = [for (final name in names) Player(name: name)];
+  return GameSession(
+    id: id,
+    createdAt: updatedAt,
+    updatedAt: updatedAt,
+    players: players,
+    firstDealerId: players[0].id,
+    rounds: rounds,
+  );
+}
 
 void main() {
-  setUpAll(() {
-    WidgetsFlutterBinding.ensureInitialized();
-  });
-
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  initializeWidgets();
+  setUpPrefs();
 
   group('build / load', () {
     test('returns empty list when storage is empty', () async {
@@ -76,7 +82,7 @@ void main() {
           );
       final list = c.read(gameHistoryProvider).value!;
       expect(list.length, 1);
-      expect(list.first.playerNames, ['X', 'Y', 'Z', 'W']);
+      expect(list.first.displayedPlayerNames, ['X', 'Y', 'Z', 'W']);
     });
 
     test('sorts newest-first by updatedAt', () async {
@@ -112,6 +118,70 @@ void main() {
     });
   });
 
+  group('unsupported storage version', () {
+    // Riverpod 3 schedules a 200ms retry when build() throws. After asserting
+    // the error state, we remove the bad prefs key and drain the timer so
+    // the retry succeeds (returns []) and no pending timers remain at teardown.
+    Future<void> drainRetry(WidgetTester tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('game_history');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'enters AsyncError with UnsupportedStorageVersionException for a future version',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'game_history': '{"version":99,"games":[]}',
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: c, child: const SizedBox()),
+        );
+        c.read(gameHistoryProvider);
+        await tester.pumpAndSettle();
+
+        expect(
+          c.read(gameHistoryProvider).error,
+          isA<UnsupportedStorageVersionException>(),
+        );
+
+        await drainRetry(tester);
+      },
+    );
+
+    testWidgets('clearHistory resets state to empty and removes storage key', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({
+        'game_history': '{"version":99,"games":[]}',
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: c, child: const SizedBox()),
+      );
+      c.read(gameHistoryProvider);
+      await tester.pumpAndSettle();
+      expect(
+        c.read(gameHistoryProvider).error,
+        isA<UnsupportedStorageVersionException>(),
+      );
+
+      await c.read(gameHistoryProvider.notifier).clearHistory();
+
+      expect(c.read(gameHistoryProvider).value, isEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey('game_history'), isFalse);
+
+      // Drain the retry timer (prefs key is gone so build() returns [] cleanly).
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    });
+  });
+
   group('deleteGame', () {
     test('removes the session by id', () async {
       final c = ProviderContainer();
@@ -138,6 +208,469 @@ void main() {
           .saveGame(session('keep', DateTime(2024, 1, 1)));
       await c.read(gameHistoryProvider.notifier).deleteGame('does-not-exist');
       expect(c.read(gameHistoryProvider).value!.length, 1);
+    });
+  });
+
+  group('v1→v2 migration', () {
+    // ---------------------------------------------------------------------------
+    // Helpers for constructing v1 JSON
+    // ---------------------------------------------------------------------------
+
+    /// Builds a v1 game JSON object (the array element format used by
+    /// `bonken_game_history` before the UUID migration).
+    Map<String, dynamic> v1Game({
+      String id = 'sess1',
+      String createdAt = '2024-01-01T00:00:00.000',
+      String updatedAt = '2024-01-01T00:00:00.000',
+      List<String> playerNames = const ['Alice', 'Bob', 'Carol', 'Dan'],
+      List<Map<String, dynamic>> rounds = const [],
+      Map<String, dynamic>? pendingRound,
+    }) {
+      final m = <String, dynamic>{
+        'id': id,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
+        'playerNames': playerNames,
+        'rounds': rounds,
+      };
+      if (pendingRound != null) m['pendingRound'] = pendingRound;
+      return m;
+    }
+
+    /// Encodes a list of v1 game objects as the raw legacy storage string.
+    String v1Storage(List<Map<String, dynamic>> games) => jsonEncode(games);
+
+    // -------------------------------------------------------------------------
+    // Score migration
+    // -------------------------------------------------------------------------
+
+    test(
+      'legacy key: scores are migrated from index-keyed to UUID-keyed',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'duck',
+                  'gameName': 'Bukken',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                  'input': {
+                    'tricks': [4, 3, 5, 1],
+                  },
+                },
+              ],
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        expect(list.length, 1);
+        final session = list.first;
+        expect(session.players.map((p) => p.name), [
+          'Alice',
+          'Bob',
+          'Carol',
+          'Dan',
+        ]);
+
+        final scores = session.rounds[0].scoresByPlayer;
+        expect(scores[session.players[0].id], -40);
+        expect(scores[session.players[1].id], -30);
+        expect(scores[session.players[2].id], -50);
+        expect(scores[session.players[3].id], -10);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // Input migration — CountsInputDescriptor (Duck: tricks list → UUID map)
+    // -------------------------------------------------------------------------
+
+    test(
+      'CountsInputDescriptor input (tricks list) migrated to UUID-keyed map',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'duck',
+                  'gameName': 'Bukken',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                  'input': {
+                    'tricks': [4, 3, 5, 1],
+                  },
+                },
+              ],
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        final input = list.first.rounds[0].input;
+        final players = list.first.players;
+        final tricks = (input['tricks'] as Map).cast<String, int>();
+        expect(tricks[players[0].id], 4);
+        expect(tricks[players[1].id], 3);
+        expect(tricks[players[2].id], 5);
+        expect(tricks[players[3].id], 1);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // Input migration — SinglePlayerInputDescriptor (KingOfHearts: int → UUID)
+    // -------------------------------------------------------------------------
+
+    test(
+      'SinglePlayerInputDescriptor input (winner int) migrated to UUID',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'kingOfHearts',
+                  'gameName': 'Harten Heer',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': 0, '1': 0, '2': -100, '3': 0},
+                  'input': {'winner': 2},
+                },
+              ],
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        final input = list.first.rounds[0].input;
+        final players = list.first.players;
+        expect(input['winner'], players[2].id);
+      },
+    );
+
+    test(
+      'SinglePlayerInputDescriptor input (null winner) stays null',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'kingOfHearts',
+                  'gameName': 'Harten Heer',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': 0, '1': 0, '2': 0, '3': 0},
+                  'input': {'winner': null},
+                },
+              ],
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        expect(list.first.rounds[0].input['winner'], isNull);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // Input migration — DualPlayerInputDescriptor (7th/13th: ints → UUIDs)
+    // -------------------------------------------------------------------------
+
+    test(
+      'DualPlayerInputDescriptor input (trick7/13 ints) migrated to UUIDs',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'seventhAndThirteenth',
+                  'gameName': '7e / 13e',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': -50, '1': 0, '2': -50, '3': 0},
+                  'input': {'trick7winner': 0, 'trick13winner': 2},
+                },
+              ],
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        final input = list.first.rounds[0].input;
+        final players = list.first.players;
+        expect(input['trick7winner'], players[0].id);
+        expect(input['trick13winner'], players[2].id);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // Doubles migration (pair keys "a,b" int indices → UUIDs; initiator int → UUID)
+    // -------------------------------------------------------------------------
+
+    test('doubles pair keys and initiators are migrated to UUIDs', () async {
+      SharedPreferences.setMockInitialValues({
+        'bonken_game_history': v1Storage([
+          v1Game(
+            rounds: [
+              {
+                'roundNumber': 1,
+                'gameId': 'duck',
+                'gameName': 'Bukken',
+                'dealerIndex': 0,
+                'chooserIndex': 1,
+                'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                'input': {
+                  'tricks': [4, 3, 5, 1],
+                },
+                'doublesJson': {
+                  'pairs': {'0,1': 'doubled', '2,3': 'redoubled'},
+                  'initiators': {'0,1': 0, '2,3': 3},
+                },
+              },
+            ],
+          ),
+        ]),
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final list = await c.read(gameHistoryProvider.future);
+
+      final players = list.first.players;
+      final dm = list.first.rounds[0].doubles;
+      // pair 0,1 → doubled
+      expect(dm.stateFor(players[0].id, players[1].id), DoubleState.doubled);
+      expect(dm.initiatorFor(players[0].id, players[1].id), players[0].id);
+      // pair 2,3 → redoubled
+      expect(dm.stateFor(players[2].id, players[3].id), DoubleState.redoubled);
+      expect(dm.initiatorFor(players[2].id, players[3].id), players[3].id);
+    });
+
+    // -------------------------------------------------------------------------
+    // firstDealerId back-computation
+    // -------------------------------------------------------------------------
+
+    test(
+      'firstDealerId derived from last completed round when no pending',
+      () async {
+        // 2 rounds, last dealer = index 1 (Bob):
+        // firstDealerIdx = ((1 - 2 + 1) % 4 + 4) % 4 = 0 → Alice
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'duck',
+                  'gameName': 'Bukken',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                  'input': {
+                    'tricks': [4, 3, 5, 1],
+                  },
+                },
+                {
+                  'roundNumber': 2,
+                  'gameId': 'duck',
+                  'gameName': 'Bukken',
+                  'dealerIndex': 1,
+                  'chooserIndex': 2,
+                  'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                  'input': {
+                    'tricks': [4, 3, 5, 1],
+                  },
+                },
+              ],
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        final session = list.first;
+        // firstDealer = Alice (index 0)
+        expect(session.firstDealerId, session.players[0].id);
+      },
+    );
+
+    test(
+      'firstDealerId derived from pending round dealerIndex when present',
+      () async {
+        // 1 round completed, pending dealerIndex = 2 (Carol):
+        // firstDealerIdx = ((2 - 1) % 4 + 4) % 4 = 1 → Bob
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'duck',
+                  'gameName': 'Bukken',
+                  'dealerIndex': 1,
+                  'chooserIndex': 2,
+                  'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                  'input': {
+                    'tricks': [4, 3, 5, 1],
+                  },
+                },
+              ],
+              pendingRound: {
+                'gameId': 'queens',
+                'gameName': 'Vrouwen',
+                'dealerIndex': 2,
+                'chooserIndex': 3,
+                'input': <String, dynamic>{},
+              },
+            ),
+          ]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        final session = list.first;
+        // firstDealer = Bob (index 1)
+        expect(session.firstDealerId, session.players[1].id);
+      },
+    );
+
+    test(
+      'firstDealerId defaults to index 0 when there are no rounds',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([v1Game()]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        expect(list.first.firstDealerId, list.first.players[0].id);
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // pending round migration
+    // -------------------------------------------------------------------------
+
+    test('pending round chooserId and input are migrated to UUIDs', () async {
+      SharedPreferences.setMockInitialValues({
+        'bonken_game_history': v1Storage([
+          v1Game(
+            pendingRound: {
+              'gameId': 'kingOfHearts',
+              'gameName': 'Harten Heer',
+              'dealerIndex': 0,
+              'chooserIndex': 3,
+              'input': {'winner': 1},
+            },
+          ),
+        ]),
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final list = await c.read(gameHistoryProvider.future);
+
+      final session = list.first;
+      final pending = session.pendingRound!;
+      expect(pending.chooserId, session.players[3].id);
+      expect(pending.input['winner'], session.players[1].id);
+    });
+
+    // -------------------------------------------------------------------------
+    // Storage key management
+    // -------------------------------------------------------------------------
+
+    test(
+      'legacy key is removed and current key is written after migration',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': v1Storage([v1Game()]),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await c.read(gameHistoryProvider.future);
+
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.containsKey('bonken_game_history'), isFalse);
+        expect(prefs.containsKey('game_history'), isTrue);
+
+        // Verify what was written is valid versioned v2 JSON.
+        final written =
+            jsonDecode(prefs.getString('game_history')!)
+                as Map<String, dynamic>;
+        expect(written['version'], 2);
+        expect(written['games'], isA<List<dynamic>>());
+      },
+    );
+
+    // -------------------------------------------------------------------------
+    // Defensive versioned migration (version: 1 in 'game_history' key)
+    // -------------------------------------------------------------------------
+
+    test('version:1 in versioned key is migrated to version:2', () async {
+      SharedPreferences.setMockInitialValues({
+        'game_history': jsonEncode({
+          'version': 1,
+          'games': [
+            v1Game(
+              rounds: [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'duck',
+                  'gameName': 'Bukken',
+                  'dealerIndex': 0,
+                  'chooserIndex': 1,
+                  'scores': {'0': -40, '1': -30, '2': -50, '3': -10},
+                  'input': {
+                    'tricks': [4, 3, 5, 1],
+                  },
+                },
+              ],
+            ),
+          ],
+        }),
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final list = await c.read(gameHistoryProvider.future);
+
+      // Migration ran: sessions loaded correctly.
+      expect(list.length, 1);
+      final session = list.first;
+      expect(session.players.map((p) => p.name), [
+        'Alice',
+        'Bob',
+        'Carol',
+        'Dan',
+      ]);
+
+      // Verify storage was upgraded to version 2.
+      final prefs = await SharedPreferences.getInstance();
+      final written =
+          jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
+      expect(written['version'], 2);
     });
   });
 

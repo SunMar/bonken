@@ -2,6 +2,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../input_descriptor.dart';
 import '../mini_game.dart';
+import '../player.dart';
 
 // =============================================================================
 // Negative game 1 — Harten Heer (King of Hearts)
@@ -10,7 +11,7 @@ import '../mini_game.dart';
 // Only one player can win it, so rawCount is 0 or 1 (boolean as int).
 // Total: -100.
 //
-// Input key: 'winner' → int (player index 0–3 who won the King of Hearts trick)
+// Input key: 'winner' → String? (UUID of the player who won the King of Hearts trick)
 
 class KingOfHearts extends MiniGame {
   const KingOfHearts()
@@ -24,9 +25,9 @@ class KingOfHearts extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final winner = input['winner'] as int;
-    return [for (int i = 0; i < playerCount; i++) i == winner ? 1 : 0];
+  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
+    final winnerId = input['winner'] as String?;
+    return {for (final p in players) p.id: winnerId == p.id ? 1 : 0};
   }
 
   @override
@@ -42,7 +43,7 @@ class KingOfHearts extends MiniGame {
 // Each King or Jack (8 cards total) costs -25 to the player who won that trick.
 // Total: 8 × -25 = -200.
 //
-// Input key: 'cards' → List<int> of length 4 (number of kings+jacks won per player)
+// Input key: 'cards' → Map<String, int> keyed by player UUID (kings+jacks won per player)
 
 class KingsAndJacks extends MiniGame {
   const KingsAndJacks()
@@ -56,11 +57,10 @@ class KingsAndJacks extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final cards = (input['cards'] as List).cast<int>();
-    assert(cards.length == 4);
-    return cards;
-  }
+  Map<String, int> rawCounts(
+    Map<String, dynamic> input,
+    List<Player> players,
+  ) => countsForKey('cards', input, players);
 
   @override
   InputDescriptor get inputDescriptor => const CountsInputDescriptor(
@@ -76,7 +76,7 @@ class KingsAndJacks extends MiniGame {
 // Each Queen (4 cards) costs -45 to the player who won that trick.
 // Total: 4 × -45 = -180.
 //
-// Input key: 'cards' → List<int> of length 4 (number of queens won per player)
+// Input key: 'cards' → Map<String, int> keyed by player UUID (queens won per player)
 
 class Queens extends MiniGame {
   const Queens()
@@ -90,11 +90,10 @@ class Queens extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final cards = (input['cards'] as List).cast<int>();
-    assert(cards.length == 4);
-    return cards;
-  }
+  Map<String, int> rawCounts(
+    Map<String, dynamic> input,
+    List<Player> players,
+  ) => countsForKey('cards', input, players);
 
   @override
   InputDescriptor get inputDescriptor => const CountsInputDescriptor(
@@ -109,7 +108,7 @@ class Queens extends MiniGame {
 // =============================================================================
 // Every trick won costs -10.  13 tricks total → -130.
 //
-// Input key: 'tricks' → List<int> of length 4 (tricks won per player)
+// Input key: 'tricks' → Map<String, int> keyed by player UUID (tricks won per player)
 
 class Duck extends MiniGame {
   const Duck()
@@ -123,11 +122,10 @@ class Duck extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final tricks = (input['tricks'] as List).cast<int>();
-    assert(tricks.length == 4);
-    return tricks;
-  }
+  Map<String, int> rawCounts(
+    Map<String, dynamic> input,
+    List<Player> players,
+  ) => countsForKey('tricks', input, players);
 
   @override
   InputDescriptor get inputDescriptor => const CountsInputDescriptor(
@@ -142,7 +140,7 @@ class Duck extends MiniGame {
 // =============================================================================
 // Every Heart card won in a trick costs -10.  13 hearts → -130.
 //
-// Input key: 'cards' → List<int> of length 4 (heart cards won per player)
+// Input key: 'cards' → Map<String, int> keyed by player UUID (heart cards won per player)
 
 class HeartPoints extends MiniGame {
   const HeartPoints()
@@ -156,11 +154,10 @@ class HeartPoints extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final cards = (input['cards'] as List).cast<int>();
-    assert(cards.length == 4);
-    return cards;
-  }
+  Map<String, int> rawCounts(
+    Map<String, dynamic> input,
+    List<Player> players,
+  ) => countsForKey('cards', input, players);
 
   @override
   InputDescriptor get inputDescriptor => const CountsInputDescriptor(
@@ -181,8 +178,8 @@ class HeartPoints extends MiniGame {
 // each worth -50.
 //
 // Input keys:
-//   'trick7winner'  → int (player index)
-//   'trick13winner' → int (player index)
+//   'trick7winner'  → String? (UUID of the player who won the 7th trick)
+//   'trick13winner' → String? (UUID of the player who won the 13th trick)
 
 class SeventhAndThirteenth extends MiniGame {
   const SeventhAndThirteenth()
@@ -196,13 +193,13 @@ class SeventhAndThirteenth extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final w7 = input['trick7winner'] as int;
-    final w13 = input['trick13winner'] as int;
-    final counts = [0, 0, 0, 0];
-    counts[w7]++;
-    counts[w13]++;
-    return counts;
+  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
+    final w7 = input['trick7winner'] as String?;
+    final w13 = input['trick13winner'] as String?;
+    return {
+      for (final p in players)
+        p.id: (w7 == p.id ? 1 : 0) + (w13 == p.id ? 1 : 0),
+    };
   }
 
   @override
@@ -220,7 +217,7 @@ class SeventhAndThirteenth extends MiniGame {
 // Winning the 13th (final) trick costs -100.
 // Only one player can win it.  Total: -100.
 //
-// Input key: 'winner' → int (player index)
+// Input key: 'winner' → String? (UUID of the player who won the final trick)
 
 class FinalTrick extends MiniGame {
   const FinalTrick()
@@ -234,9 +231,9 @@ class FinalTrick extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final winner = input['winner'] as int;
-    return [for (int i = 0; i < playerCount; i++) i == winner ? 1 : 0];
+  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
+    final winnerId = input['winner'] as String?;
+    return {for (final p in players) p.id: winnerId == p.id ? 1 : 0};
   }
 
   @override
@@ -255,7 +252,7 @@ class FinalTrick extends MiniGame {
 // Dominos has different gameplay (not card-trick based) but the scoring
 // model is identical to FinalTrick: one player gets the penalty.
 //
-// Input key: 'loser' → int (player index who played the last card)
+// Input key: 'loser' → String? (UUID of the player who played the last card)
 
 class Dominoes extends MiniGame {
   const Dominoes()
@@ -269,9 +266,9 @@ class Dominoes extends MiniGame {
       );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final loser = input['loser'] as int;
-    return [for (int i = 0; i < playerCount; i++) i == loser ? 1 : 0];
+  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
+    final loserId = input['loser'] as String?;
+    return {for (final p in players) p.id: loserId == p.id ? 1 : 0};
   }
 
   @override

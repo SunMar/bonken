@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/game_rules.dart';
 import '../models/mini_game.dart';
+import '../models/player.dart';
 import '../models/score_result.dart';
 import '../state/calculator_provider.dart';
 import '../utils.dart';
@@ -138,6 +139,8 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
       if (state.result != null) {
         if (state.hasActiveChanges) {
           if (!context.mounted) return;
+          final dispPlayers = state.displayedPlayers;
+          final dispChooser = state.displayedChooserIndex;
           final confirm = await showConfirmDialog(
             context,
             title: 'Score',
@@ -145,9 +148,9 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
               child: ScoreResultView(
                 result: state.result!,
                 game: state.selectedGame!,
-                playerNames: state.playerNames,
+                players: dispPlayers,
                 doubles: state.doubles,
-                chooserIndex: state.chooserIndex,
+                chooserIndex: dispChooser,
                 showHeader: false,
               ),
             ),
@@ -235,160 +238,163 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
   }
 }
 
-class _RoundInputBody extends ConsumerWidget {
+class _RoundInputBody extends StatelessWidget {
   const _RoundInputBody({required this.game});
 
   final MiniGame game;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // NOTE: this widget intentionally does NOT call `ref.watch(calculatorProvider)`.
-    // Each section below watches only the slice of state it actually needs, so
-    // typing in the input form (which mutates `state.input` 60+ times per
-    // numeric stepper hold) does not rebuild the doubles card, the header,
-    // or the chooser selector.
-    final notifier = ref.read(calculatorProvider.notifier);
+  Widget build(BuildContext context) {
     final isPositive = game.category == GameCategory.positive;
     final textColor = scoreColor(isPositive ? 1 : -1, context);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // --- Game header ---
         _RoundInputHeader(
           game: game,
           isPositive: isPositive,
           textColor: textColor,
         ),
         const SizedBox(height: 20),
-
-        // --- Chooser selector ---
-        Consumer(
-          builder: (context, ref, _) {
-            final (playerNames, chooserIndex, dealerIndex) = ref.watch(
-              calculatorProvider.select(
-                (s) => (s.playerNames, s.chooserIndex, s.dealerIndex),
-              ),
-            );
-            return _ChooserSelector(
-              playerNames: playerNames,
-              chooserIndex: chooserIndex,
-              defaultChooserIndex: (dealerIndex + 1) % 4,
-              onChanged: (i) =>
-                  ref.read(calculatorProvider.notifier).setChooser(i),
-            );
-          },
-        ),
+        _ChooserSelectorCard(game: game),
         ..._gameRulesWarnings(game),
         const SizedBox(height: 12),
-
-        // --- Doubles picker ---
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Dubbels', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 10),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final (playerNames, chooserIndex, doubles) = ref.watch(
-                      calculatorProvider.select(
-                        (s) => (s.playerNames, s.chooserIndex, s.doubles),
-                      ),
-                    );
-                    return DoublesPicker(
-                      playerNames: playerNames,
-                      chooserIndex: chooserIndex,
-                      doubles: doubles,
-                      onChanged: notifier.updateDoubles,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
+        const _DoublesCard(),
         const SizedBox(height: 12),
-
-        // --- Input form ---
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Resultaat',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 10),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final (playerNames, input) = ref.watch(
-                      calculatorProvider.select(
-                        (s) => (s.playerNames, s.input),
-                      ),
-                    );
-                    return GameInputForm(
-                      game: game,
-                      playerNames: playerNames,
-                      input: input,
-                      onInputChanged: notifier.updateInput,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // --- Result (auto-calculated) ---
-        const SizedBox(height: 16),
-        Consumer(
-          builder: (context, ref, _) {
-            final (
-              result,
-              partialResult,
-              doubles,
-              chooserIndex,
-              playerNames,
-            ) = ref.watch(
-              calculatorProvider.select(
-                (s) => (
-                  s.result,
-                  s.partialResult,
-                  s.doubles,
-                  s.chooserIndex,
-                  s.playerNames,
-                ),
-              ),
-            );
-            return result != null
-                ? ScoreResultView(
-                    result: result,
-                    game: game,
-                    playerNames: playerNames,
-                    doubles: doubles,
-                    chooserIndex: chooserIndex,
-                  )
-                : ScoreResultView(
-                    result:
-                        partialResult ??
-                        const ScoreResult(scores: {0: 0, 1: 0, 2: 0, 3: 0}),
-                    game: game,
-                    playerNames: playerNames,
-                    doubles: doubles,
-                    chooserIndex: chooserIndex,
-                    isPartial: true,
-                  );
-          },
-        ),
+        _InputFormCard(game: game),
+        const SizedBox(height: 32),
+        _ScoreResultSection(game: game),
         const SizedBox(height: 24),
       ],
     );
+  }
+}
+
+class _ChooserSelectorCard extends ConsumerWidget {
+  const _ChooserSelectorCard({required this.game});
+
+  final MiniGame game;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (displayedPlayers, chooserId, dealerId) = ref.watch(
+      calculatorProvider.select(
+        (s) => (s.displayedPlayers, s.chooserId, s.dealerId),
+      ),
+    );
+    return _ChooserSelector(
+      playerNames: [for (final p in displayedPlayers) p.name],
+      chooserIndex: seatIndexOf(displayedPlayers, chooserId),
+      defaultChooserIndex:
+          (seatIndexOf(displayedPlayers, dealerId) + 1) % playerCount,
+      onChanged: (dispI) => ref
+          .read(calculatorProvider.notifier)
+          .setChooser(
+            ref
+                .read(calculatorProvider)
+                .players
+                .indexWhere((p) => p.id == displayedPlayers[dispI].id),
+          ),
+    );
+  }
+}
+
+class _DoublesCard extends ConsumerWidget {
+  const _DoublesCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (players, chooserIndex, doubles) = ref.watch(
+      calculatorProvider.select((s) => (s.players, s.chooserIndex, s.doubles)),
+    );
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Dubbels', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 10),
+            DoublesPicker(
+              players: players,
+              chooserIndex: chooserIndex,
+              doubles: doubles,
+              onChanged: ref.read(calculatorProvider.notifier).updateDoubles,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InputFormCard extends ConsumerWidget {
+  const _InputFormCard({required this.game});
+
+  final MiniGame game;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (displayedPlayers, input) = ref.watch(
+      calculatorProvider.select((s) => (s.displayedPlayers, s.input)),
+    );
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Resultaat', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 10),
+            GameInputForm(
+              game: game,
+              players: displayedPlayers,
+              input: input,
+              onInputChanged: ref.read(calculatorProvider.notifier).updateInput,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScoreResultSection extends ConsumerWidget {
+  const _ScoreResultSection({required this.game});
+
+  final MiniGame game;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (result, partialResult, doubles, dispChooser, dispPlayers) = ref
+        .watch(
+          calculatorProvider.select(
+            (s) => (
+              s.result,
+              s.partialResult,
+              s.doubles,
+              s.displayedChooserIndex,
+              s.displayedPlayers,
+            ),
+          ),
+        );
+    return result != null
+        ? ScoreResultView(
+            result: result,
+            game: game,
+            players: dispPlayers,
+            doubles: doubles,
+            chooserIndex: dispChooser,
+          )
+        : ScoreResultView(
+            result: partialResult ?? const ScoreResult(scores: {}),
+            game: game,
+            players: dispPlayers,
+            doubles: doubles,
+            chooserIndex: dispChooser,
+            isPartial: true,
+          );
   }
 }
 

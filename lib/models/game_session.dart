@@ -1,57 +1,7 @@
-/// A simplified record of one completed round, stored inside a [GameSession].
-class RoundSummary {
-  const RoundSummary({
-    required this.roundNumber,
-    required this.gameName,
-    required this.gameId,
-    required this.dealerIndex,
-    required this.chooserIndex,
-    required this.scores,
-    this.input,
-    this.doublesJson,
-  });
-
-  final int roundNumber;
-  final String gameName;
-  final String gameId;
-  final int dealerIndex;
-  final int chooserIndex;
-
-  /// Maps player index (0–3) → score delta for this round.
-  final Map<int, int> scores;
-
-  /// Full game input map, stored so the round can be reopened for re-editing.
-  final Map<String, dynamic>? input;
-
-  /// Serialised [DoubleMatrix], stored alongside input for re-editing.
-  final Map<String, dynamic>? doublesJson;
-
-  Map<String, dynamic> toJson() => {
-    'roundNumber': roundNumber,
-    'gameName': gameName,
-    'gameId': gameId,
-    'dealerIndex': dealerIndex,
-    'chooserIndex': chooserIndex,
-    // JSON keys must be strings.
-    'scores': {for (final e in scores.entries) '${e.key}': e.value},
-    if (input != null) 'input': input,
-    if (doublesJson != null) 'doublesJson': doublesJson,
-  };
-
-  factory RoundSummary.fromJson(Map<String, dynamic> json) => RoundSummary(
-    roundNumber: json['roundNumber'] as int,
-    gameName: json['gameName'] as String,
-    gameId: json['gameId'] as String,
-    dealerIndex: json['dealerIndex'] as int,
-    chooserIndex: json['chooserIndex'] as int,
-    scores: {
-      for (final e in (json['scores'] as Map<String, dynamic>).entries)
-        int.parse(e.key): e.value as int,
-    },
-    input: json['input'] as Map<String, dynamic>?,
-    doublesJson: json['doublesJson'] as Map<String, dynamic>?,
-  );
-}
+import 'double_matrix.dart';
+import 'games/game_catalog.dart';
+import 'player.dart';
+import 'round_record.dart';
 
 /// A mini-game round that was started but not fully scored.
 /// Stored inside [GameSession] so partial input survives app restarts.
@@ -59,24 +9,26 @@ class PendingRound {
   const PendingRound({
     required this.gameId,
     required this.gameName,
-    required this.dealerIndex,
-    required this.chooserIndex,
+    required this.chooserId,
     this.input = const {},
     this.doublesJson,
   });
 
   final String gameId;
   final String gameName;
-  final int dealerIndex;
-  final int chooserIndex;
+
+  /// The player ID of the chooser for this round.
+  ///
+  /// The dealer is derived from [chooserId] via [dealerIndexFor] — not stored.
+  final String chooserId;
+
   final Map<String, dynamic> input;
   final Map<String, dynamic>? doublesJson;
 
   Map<String, dynamic> toJson() => {
     'gameId': gameId,
     'gameName': gameName,
-    'dealerIndex': dealerIndex,
-    'chooserIndex': chooserIndex,
+    'chooserId': chooserId,
     'input': input,
     if (doublesJson != null) 'doublesJson': doublesJson,
   };
@@ -84,8 +36,7 @@ class PendingRound {
   factory PendingRound.fromJson(Map<String, dynamic> json) => PendingRound(
     gameId: json['gameId'] as String,
     gameName: json['gameName'] as String,
-    dealerIndex: json['dealerIndex'] as int,
-    chooserIndex: json['chooserIndex'] as int,
+    chooserId: json['chooserId'] as String,
     input: (json['input'] as Map<String, dynamic>?) ?? const {},
     doublesJson: json['doublesJson'] as Map<String, dynamic>?,
   );
@@ -97,7 +48,8 @@ class GameSession {
     required this.id,
     required this.createdAt,
     required this.updatedAt,
-    required this.playerNames,
+    required this.players,
+    required this.firstDealerId,
     required this.rounds,
     this.pendingRound,
   });
@@ -107,11 +59,20 @@ class GameSession {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  /// The four player names, in seat order.
-  final List<String> playerNames;
+  /// The four players in seat order.
+  final List<Player> players;
+
+  /// The ID of the player who deals round 1.
+  ///
+  /// Used to compute the dealer for the next new round:
+  ///   dealer for round N = players[(firstDealerIdx + N − 1) % 4]
+  ///
+  /// Stored as a game property so it survives restarts even before any round
+  /// has been played.
+  final String firstDealerId;
 
   /// All completed rounds in chronological order.
-  final List<RoundSummary> rounds;
+  final List<RoundRecord> rounds;
 
   /// A round that was started but not fully scored; null when none.
   final PendingRound? pendingRound;
@@ -126,38 +87,51 @@ class GameSession {
   /// True when all [totalRounds] rounds have been played.
   bool get isFinished => rounds.length >= totalRounds;
 
-  /// Cumulative score for each player index.
-  ///
-  /// Computed lazily on first access and cached — the HomeScreen card
-  /// reads this multiple times per build (header + winners + sub-text).
-  late final Map<int, int> finalScores = _computeFinalScores();
+  /// Seat index of the round-1 dealer.
+  late final int firstDealerIndex = seatIndexOf(players, firstDealerId);
 
-  Map<int, int> _computeFinalScores() {
-    final totals = <int, int>{0: 0, 1: 0, 2: 0, 3: 0};
+  /// Players in display order — starting from the round-1 dealer, rotating forward.
+  late final List<Player> displayedPlayers = rotatedFromDealer(
+    players,
+    firstDealerId,
+  );
+
+  /// Player names in display order.
+  late final List<String> displayedPlayerNames = List.unmodifiable([
+    for (final p in displayedPlayers) p.name,
+  ]);
+
+  /// Cumulative score for each player, keyed by player ID.
+  late final Map<String, int> finalScoresByPlayer = () {
+    final totals = <String, int>{for (final p in players) p.id: 0};
     for (final r in rounds) {
-      for (final e in r.scores.entries) {
-        totals[e.key] = (totals[e.key] ?? 0) + e.value;
+      for (final p in players) {
+        totals[p.id] = totals[p.id]! + (r.scoresByPlayer[p.id] ?? 0);
       }
     }
-    return totals;
-  }
+    return Map<String, int>.unmodifiable(totals);
+  }();
 
-  /// Indices of all players sharing the highest final score, or empty if no
-  /// rounds. Lazy + cached for the same reason as [finalScores]: the
-  /// HomeScreen session card reads winners on every build (badge + label +
-  /// sub-text), and the underlying scores never change once the session is
-  /// loaded into memory.
-  late final List<int> winnerIndices = _computeWinnerIndices();
+  /// Cumulative scores in display order.
+  late final List<int> displayedScores = [
+    for (final p in displayedPlayers) finalScoresByPlayer[p.id] ?? 0,
+  ];
 
-  List<int> _computeWinnerIndices() {
-    if (rounds.isEmpty) return const [];
-    final scores = finalScores;
-    final best = scores.values.reduce((a, b) => a > b ? a : b);
-    return scores.entries
-        .where((e) => e.value == best)
-        .map((e) => e.key)
-        .toList();
-  }
+  /// Player IDs of the winner(s) — the player(s) with the highest score.
+  late final List<String> winnerIds = () {
+    if (rounds.isEmpty) return <String>[];
+    final best = finalScoresByPlayer.values.reduce((a, b) => a > b ? a : b);
+    return [
+      for (final e in finalScoresByPlayer.entries)
+        if (e.value == best) e.key,
+    ];
+  }();
+
+  /// Indices of winner(s) within [displayedPlayers] — for use with [ScoreboardCard].
+  late final List<int> displayedWinnerIndices = [
+    for (int i = 0; i < displayedPlayers.length; i++)
+      if (winnerIds.contains(displayedPlayers[i].id)) i,
+  ];
 
   // ---------------------------------------------------------------------------
   // Serialisation
@@ -167,22 +141,44 @@ class GameSession {
     'id': id,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
-    'playerNames': playerNames,
+    'players': [for (final p in players) p.toJson()],
+    'firstDealerId': firstDealerId,
     'rounds': [for (final r in rounds) r.toJson()],
     if (pendingRound != null) 'pendingRound': pendingRound!.toJson(),
   };
 
-  factory GameSession.fromJson(Map<String, dynamic> json) => GameSession(
-    id: json['id'] as String,
-    createdAt: DateTime.parse(json['createdAt'] as String),
-    updatedAt: DateTime.parse(json['updatedAt'] as String),
-    playerNames: List<String>.from(json['playerNames'] as List),
-    rounds: [
-      for (final r in json['rounds'] as List)
-        RoundSummary.fromJson(r as Map<String, dynamic>),
-    ],
-    pendingRound: json['pendingRound'] != null
-        ? PendingRound.fromJson(json['pendingRound'] as Map<String, dynamic>)
-        : null,
+  factory GameSession.fromJson(Map<String, dynamic> json) {
+    final players = [
+      for (final p in json['players'] as List)
+        Player.fromJson(p as Map<String, dynamic>),
+    ];
+    return GameSession(
+      id: json['id'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      players: players,
+      firstDealerId: json['firstDealerId'] as String,
+      rounds: [
+        for (final r in json['rounds'] as List)
+          _roundFromJson(r as Map<String, dynamic>),
+      ],
+      pendingRound: json['pendingRound'] != null
+          ? PendingRound.fromJson(json['pendingRound'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  static RoundRecord _roundFromJson(Map<String, dynamic> json) => RoundRecord(
+    roundNumber: json['roundNumber'] as int,
+    game: allGames.firstWhere(
+      (g) => g.id == json['gameId'] as String,
+      orElse: () => allGames.first,
+    ),
+    chooserId: json['chooserId'] as String,
+    scoresByPlayer: Map<String, int>.from(json['scores'] as Map),
+    input: (json['input'] as Map<String, dynamic>?) ?? const {},
+    doubles: json['doublesJson'] != null
+        ? DoubleMatrix.fromJson(json['doublesJson'] as Map<String, dynamic>)
+        : const DoubleMatrix(),
   );
 }

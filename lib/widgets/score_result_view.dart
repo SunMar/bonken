@@ -3,6 +3,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
+import '../models/player.dart';
 import '../models/score_result.dart';
 import '../utils.dart';
 import 'doubles_chips.dart';
@@ -12,7 +13,7 @@ class ScoreResultView extends StatelessWidget {
   const ScoreResultView({
     required this.result,
     required this.game,
-    required this.playerNames,
+    required this.players,
     required this.chooserIndex,
     this.doubles,
     this.isPartial = false,
@@ -22,7 +23,7 @@ class ScoreResultView extends StatelessWidget {
 
   final ScoreResult result;
   final MiniGame game;
-  final List<String> playerNames;
+  final List<Player> players;
   final DoubleMatrix? doubles;
   final int chooserIndex;
 
@@ -39,9 +40,7 @@ class ScoreResultView extends StatelessWidget {
     final cs = theme.colorScheme;
 
     // Winner(s): highest score among players. Only shown when complete.
-    final scores = [
-      for (int i = 0; i < playerNames.length; i++) result.scores[i] ?? 0,
-    ];
+    final scores = [for (final p in players) result.scores[p.id] ?? 0];
     final best = scores.reduce((a, b) => a > b ? a : b);
     final winners = isPartial
         ? <int>[]
@@ -63,17 +62,17 @@ class ScoreResultView extends StatelessWidget {
                 Text('Score', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
               ],
-              for (int i = 0; i < playerNames.length; i++)
+              for (int i = 0; i < players.length; i++)
                 _ScoreRow(
-                  name: playerNames[i],
-                  score: result.scores[i] ?? 0,
+                  name: players[i].name,
+                  score: result.scores[players[i].id] ?? 0,
                   isWinner: winners.contains(i),
                 ),
               if (doubles?.hasAnyDouble == true) ...[
                 const SizedBox(height: 8),
                 DoublesChips(
                   doubles: doubles!,
-                  names: playerNames,
+                  players: players,
                   chooserIndex: chooserIndex,
                 ),
               ],

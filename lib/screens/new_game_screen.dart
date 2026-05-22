@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/mini_game.dart';
+import '../models/player.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
@@ -94,7 +95,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   }
 
   Future<void> _handleStart() async {
-    final names = [for (final c in _controllers) c.text.trim()];
+    final players = [for (final c in _controllers) Player(name: c.text.trim())];
 
     final dealerWasRandom = _dealerIndex == null;
     final dealerIndex = _dealerIndex ?? Random().nextInt(playerCount);
@@ -102,13 +103,13 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     if (dealerWasRandom) {
       await showDealerAnnouncementDialog(
         context,
-        dealerName: names[dealerIndex],
+        dealerName: players[dealerIndex].name,
       );
       if (!mounted) return;
     }
 
     final notifier = ref.read(calculatorProvider.notifier);
-    notifier.startNewGame(names: names, dealerIndex: dealerIndex);
+    notifier.startNewGame(players: players, dealerIndex: dealerIndex);
     final session = notifier.buildSession();
     if (session != null) {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
@@ -133,7 +134,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     final lowerNames = trimmedNames.map((n) => n.toLowerCase()).toList();
     final canStart =
         trimmedNames.every((n) => n.isNotEmpty) &&
-        lowerNames.toSet().length == 4;
+        lowerNames.toSet().length == playerCount;
 
     return AppScaffold(
       appBar: AppBar(title: const Text('Nieuw spel')),

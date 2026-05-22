@@ -1,28 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/player.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/widgets/game_deleted_snackbar.dart';
 
-GameSession _session(String id) => GameSession(
-  id: id,
-  createdAt: DateTime(2026, 1, 1),
-  updatedAt: DateTime(2026, 1, 1),
-  playerNames: const ['Alice', 'Bob', 'Carol', 'Dan'],
-  rounds: const [],
-);
+import '../test_helpers.dart';
+
+GameSession _session(String id) {
+  final players = [
+    Player(name: 'Alice'),
+    Player(name: 'Bob'),
+    Player(name: 'Carol'),
+    Player(name: 'Dan'),
+  ];
+  return GameSession(
+    id: id,
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+    players: players,
+    firstDealerId: players[0].id,
+    rounds: const [],
+  );
+}
 
 void main() {
-  setUpAll(() {
-    WidgetsFlutterBinding.ensureInitialized();
-  });
-
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  initializeWidgets();
+  setUpPrefs();
 
   group('showGameDeletedSnackBar', () {
     testWidgets('shows "Spel verwijderd" with an "Ongedaan maken" action', (
@@ -41,11 +47,8 @@ void main() {
                   messenger = ScaffoldMessenger.of(ctx);
                   container = ProviderScope.containerOf(ctx, listen: false);
                   return ElevatedButton(
-                    onPressed: () => showGameDeletedSnackBar(
-                      messenger,
-                      container,
-                      session,
-                    ),
+                    onPressed: () =>
+                        showGameDeletedSnackBar(messenger, container, session),
                     child: const Text('open'),
                   );
                 },
@@ -83,11 +86,8 @@ void main() {
                   messenger = ScaffoldMessenger.of(ctx);
                   container = ProviderScope.containerOf(ctx, listen: false);
                   return ElevatedButton(
-                    onPressed: () => showGameDeletedSnackBar(
-                      messenger,
-                      container,
-                      session,
-                    ),
+                    onPressed: () =>
+                        showGameDeletedSnackBar(messenger, container, session),
                     child: const Text('open'),
                   );
                 },
@@ -136,10 +136,7 @@ void main() {
             home: Builder(
               builder: (rootCtx) {
                 messenger = ScaffoldMessenger.of(rootCtx);
-                container = ProviderScope.containerOf(
-                  rootCtx,
-                  listen: false,
-                );
+                container = ProviderScope.containerOf(rootCtx, listen: false);
                 return Scaffold(
                   body: ElevatedButton(
                     onPressed: () {

@@ -1,9 +1,10 @@
 import '../input_descriptor.dart';
 import '../mini_game.dart';
+import '../player.dart';
 
 /// Shared base for all 5 positive trick-taking mini-games.
 ///
-/// Input key: 'tricks' — List of length 4 (tricks per player).
+/// Input key: 'tricks' — Map&lt;String, int&gt; keyed by player UUID (tricks per player).
 /// Total score: 13 tricks × +20 = +260.
 abstract class PositiveGame extends MiniGame {
   const PositiveGame({
@@ -17,11 +18,10 @@ abstract class PositiveGame extends MiniGame {
        );
 
   @override
-  List<int> rawCounts(Map<String, dynamic> input) {
-    final tricks = (input['tricks'] as List).cast<int>();
-    assert(tricks.length == 4);
-    return tricks;
-  }
+  Map<String, int> rawCounts(
+    Map<String, dynamic> input,
+    List<Player> players,
+  ) => countsForKey('tricks', input, players);
 
   @override
   InputDescriptor get inputDescriptor => const CountsInputDescriptor(
@@ -58,5 +58,9 @@ class Spades extends PositiveGame {
 /// Zonder troef (No Trump) – No trump suit; highest card of led suit wins.
 class NoTrump extends PositiveGame {
   const NoTrump()
-    : super(id: 'noTrump', name: 'Zonder troef', symbol: const TextSymbol('SA'));
+    : super(
+        id: 'noTrump',
+        name: 'Zonder troef',
+        symbol: const TextSymbol('SA'),
+      );
 }

@@ -6,21 +6,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/utils.dart';
 
+import '../test_helpers.dart';
+
 const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
+
+List<Player> _makePlayers() => [for (final name in _names) Player(name: name)];
 
 Future<ProviderContainer> _pumpRoundInput(WidgetTester tester) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
 
   final notifier = container.read(calculatorProvider.notifier);
-  notifier.startNewGame(names: _names, dealerIndex: 0);
+  notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
   notifier.selectGame(const Clubs());
   // Drain the autosave debounce so no Timer survives into teardown.
   await tester.pump(const Duration(milliseconds: 500));
@@ -36,12 +40,8 @@ Future<ProviderContainer> _pumpRoundInput(WidgetTester tester) async {
 }
 
 void main() {
-  setUpAll(() {
-    WidgetsFlutterBinding.ensureInitialized();
-  });
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  initializeWidgets();
+  setUpPrefs();
 
   testWidgets(
     'changing the chooser to the default (dealer+1) updates state without a dialog',
@@ -120,24 +120,43 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       final notifier = container.read(calculatorProvider.notifier);
-      notifier.startNewGame(names: _names, dealerIndex: 0);
+      notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
+      final ps = container.read(calculatorProvider).players;
 
       // Round 1 — Clubs, valid input, commit.
       notifier.selectGame(const Clubs());
-      notifier.updateInput('tricks', [4, 4, 2, 3]);
+      notifier.updateInput('tricks', {
+        ps[0].id: 4,
+        ps[1].id: 4,
+        ps[2].id: 2,
+        ps[3].id: 3,
+      });
       notifier.deselectGame();
       // Round 2 — Diamonds, valid input, commit. Now there are two
       // rounds in history, so editing round 1 is editing a non-last
       // round (canRollbackWithPartial is false).
       notifier.selectGame(const Diamonds());
-      notifier.updateInput('tricks', [4, 3, 5, 1]);
+      notifier.updateInput('tricks', {
+        ps[0].id: 4,
+        ps[1].id: 3,
+        ps[2].id: 5,
+        ps[3].id: 1,
+      });
       notifier.deselectGame();
 
       // Restore round 1 for edit, then make its input invalid.
       final round1 = container.read(calculatorProvider).history.first;
       notifier.restoreRound(round1);
-      notifier.updateInput('tricks', [4, 3, 2, 0]); // sum 9 ≠ 13
-      expect(container.read(calculatorProvider).isInputValid, isFalse);
+      notifier.updateInput('tricks', {
+        ps[0].id: 4,
+        ps[1].id: 3,
+        ps[2].id: 2,
+        ps[3].id: 0,
+      }); // sum 9 ≠ 13
+      expect(
+        container.read(calculatorProvider).inputState,
+        isNot(InputState.complete),
+      );
       expect(
         container.read(calculatorProvider).canRollbackWithPartial,
         isFalse,
@@ -180,7 +199,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       final notifier = container.read(calculatorProvider.notifier);
-      notifier.startNewGame(names: _names, dealerIndex: 0);
+      notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
       notifier.selectGame(const Clubs());
       await tester.pump(const Duration(milliseconds: 500));
 

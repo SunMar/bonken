@@ -7,7 +7,8 @@ import 'package:bonken/widgets/app_bar_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../test_helpers.dart';
 
 Future<void> _pumpAboutButton(WidgetTester tester) async {
   await tester.pumpWidget(
@@ -29,9 +30,7 @@ MaterialLocalizations _loc(WidgetTester tester) =>
     MaterialLocalizations.of(tester.element(find.byType(AboutDialog)));
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  setUpPrefs();
 
   testWidgets(
     'AboutIconButton opens AboutDialog with version, repo URL and icon',

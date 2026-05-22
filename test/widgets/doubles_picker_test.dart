@@ -12,7 +12,7 @@ void main() {
       await pumpHost(
         tester,
         DoublesPicker(
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 1, // Bob chose → order: Carol → Dan → Alice → Bob
           doubles: DoubleMatrix.empty(),
           onChanged: (_) {},
@@ -27,7 +27,7 @@ void main() {
       await pumpHost(
         tester,
         DoublesPicker(
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 0,
           doubles: DoubleMatrix.empty(),
           onChanged: (_) {},
@@ -46,7 +46,7 @@ void main() {
       await pumpHost(
         tester,
         DoublesPicker(
-          playerNames: playerNames,
+          players: players,
           chooserIndex: 3, // Dan chose → first to double = Alice
           doubles: DoubleMatrix.empty(),
           onChanged: (m) => captured = m,
@@ -59,8 +59,11 @@ void main() {
       await tester.tap(find.text('Bob').last);
       await tester.pump();
       expect(captured, isNotNull);
-      expect(captured!.stateFor(0, 1), DoubleState.doubled);
-      expect(captured!.initiatorFor(0, 1), 0);
+      expect(
+        captured!.stateFor(playerIds[0], playerIds[1]),
+        DoubleState.doubled,
+      );
+      expect(captured!.initiatorFor(playerIds[0], playerIds[1]), playerIds[0]);
     });
 
     testWidgets(
@@ -76,7 +79,7 @@ void main() {
           StatefulBuilder(
             builder: (ctx, setState) {
               return DoublesPicker(
-                playerNames: playerNames,
+                players: players,
                 chooserIndex: 2,
                 doubles: matrix,
                 onChanged: (m) => setState(() => matrix = m),
@@ -88,14 +91,20 @@ void main() {
         await tester.pump();
         await tester.tap(find.text('Carol').last);
         await tester.pump();
-        expect(matrix.stateFor(2, 3), DoubleState.doubled);
-        expect(matrix.initiatorFor(2, 3), 3);
+        expect(
+          matrix.stateFor(playerIds[2], playerIds[3]),
+          DoubleState.doubled,
+        );
+        expect(matrix.initiatorFor(playerIds[2], playerIds[3]), playerIds[3]);
         await tester.tap(find.text('Carol').last);
         await tester.pump();
-        expect(matrix.stateFor(2, 3), DoubleState.redoubled);
+        expect(
+          matrix.stateFor(playerIds[2], playerIds[3]),
+          DoubleState.redoubled,
+        );
         await tester.tap(find.text('Carol').last);
         await tester.pump();
-        expect(matrix.stateFor(2, 3), DoubleState.none);
+        expect(matrix.stateFor(playerIds[2], playerIds[3]), DoubleState.none);
       },
     );
 
@@ -104,14 +113,29 @@ void main() {
     ) async {
       // chooser=0 (Alice). All 3 others doubled Alice with themselves as initiator.
       DoubleMatrix matrix = DoubleMatrix.empty()
-          .withPair(0, 1, DoubleState.doubled, initiator: 1)
-          .withPair(0, 2, DoubleState.doubled, initiator: 2)
-          .withPair(0, 3, DoubleState.doubled, initiator: 3);
+          .withPair(
+            playerIds[0],
+            playerIds[1],
+            DoubleState.doubled,
+            initiator: playerIds[1],
+          )
+          .withPair(
+            playerIds[0],
+            playerIds[2],
+            DoubleState.doubled,
+            initiator: playerIds[2],
+          )
+          .withPair(
+            playerIds[0],
+            playerIds[3],
+            DoubleState.doubled,
+            initiator: playerIds[3],
+          );
       await pumpHost(
         tester,
         StatefulBuilder(
           builder: (ctx, setState) => DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 0,
             doubles: matrix,
             onChanged: (m) => setState(() => matrix = m),
@@ -126,8 +150,11 @@ void main() {
       await tester.pump();
       // All three pairs become redoubled with original initiators preserved.
       for (final t in [1, 2, 3]) {
-        expect(matrix.stateFor(0, t), DoubleState.redoubled);
-        expect(matrix.initiatorFor(0, t), t);
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[t]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[0], playerIds[t]), playerIds[t]);
       }
     });
 
@@ -137,14 +164,29 @@ void main() {
         // chooser=0 (Alice). (0,1) already redoubled by 1; (0,2) and (0,3) only
         // doubled by 2 and 3.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(0, 1, DoubleState.redoubled, initiator: 1)
-            .withPair(0, 2, DoubleState.doubled, initiator: 2)
-            .withPair(0, 3, DoubleState.doubled, initiator: 3);
+            .withPair(
+              playerIds[0],
+              playerIds[1],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[2],
+              DoubleState.doubled,
+              initiator: playerIds[2],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[3],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 0,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -157,12 +199,21 @@ void main() {
         await tester.tap(find.text('Zaal terug'));
         await tester.pump();
         // (0,1) was redoubled → unchanged; (0,2)/(0,3) escalate to redoubled.
-        expect(matrix.stateFor(0, 1), DoubleState.redoubled);
-        expect(matrix.initiatorFor(0, 1), 1);
-        expect(matrix.stateFor(0, 2), DoubleState.redoubled);
-        expect(matrix.initiatorFor(0, 2), 2);
-        expect(matrix.stateFor(0, 3), DoubleState.redoubled);
-        expect(matrix.initiatorFor(0, 3), 3);
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[1]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[0], playerIds[1]), playerIds[1]);
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[2]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[0], playerIds[2]), playerIds[2]);
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[3]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[0], playerIds[3]), playerIds[3]);
       },
     );
 
@@ -176,7 +227,7 @@ void main() {
         tester,
         StatefulBuilder(
           builder: (ctx, setState) => DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 0,
             doubles: matrix,
             onChanged: (m) => setState(() => matrix = m),
@@ -187,12 +238,12 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Slappe hap'));
       await tester.pump();
-      expect(matrix.stateFor(1, 2), DoubleState.doubled);
-      expect(matrix.initiatorFor(1, 2), 1);
-      expect(matrix.stateFor(1, 3), DoubleState.doubled);
-      expect(matrix.initiatorFor(1, 3), 1);
+      expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.doubled);
+      expect(matrix.initiatorFor(playerIds[1], playerIds[2]), playerIds[1]);
+      expect(matrix.stateFor(playerIds[1], playerIds[3]), DoubleState.doubled);
+      expect(matrix.initiatorFor(playerIds[1], playerIds[3]), playerIds[1]);
       // (0,1) — chooser pair — must remain none.
-      expect(matrix.stateFor(0, 1), DoubleState.none);
+      expect(matrix.stateFor(playerIds[0], playerIds[1]), DoubleState.none);
     });
 
     testWidgets(
@@ -202,7 +253,7 @@ void main() {
         await pumpHost(
           tester,
           DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 0,
             doubles: DoubleMatrix.empty(),
             onChanged: (m) => captured = m,
@@ -233,7 +284,7 @@ void main() {
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 0,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -245,14 +296,11 @@ void main() {
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
         // Now button should be a FilledButton (applied state).
-        expect(
-          find.widgetWithText(FilledButton, 'Slappe hap'),
-          findsOneWidget,
-        );
+        expect(find.widgetWithText(FilledButton, 'Slappe hap'), findsOneWidget);
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
-        expect(matrix.stateFor(1, 2), DoubleState.none);
-        expect(matrix.stateFor(1, 3), DoubleState.none);
+        expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.none);
+        expect(matrix.stateFor(playerIds[1], playerIds[3]), DoubleState.none);
         // And the button is back to outlined.
         expect(
           find.widgetWithText(OutlinedButton, 'Slappe hap'),
@@ -269,13 +317,23 @@ void main() {
         // initiator=Bob, (1,3)=doubled initiator=Bob. Slappe hap stays
         // filled, and re-press clears both pairs to none (input correction).
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 2, DoubleState.redoubled, initiator: 1)
-            .withPair(1, 3, DoubleState.doubled, initiator: 1);
+            .withPair(
+              playerIds[1],
+              playerIds[2],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 0,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -284,14 +342,11 @@ void main() {
         );
         await tester.tap(find.text('Bob').first);
         await tester.pump();
-        expect(
-          find.widgetWithText(FilledButton, 'Slappe hap'),
-          findsOneWidget,
-        );
+        expect(find.widgetWithText(FilledButton, 'Slappe hap'), findsOneWidget);
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
-        expect(matrix.stateFor(1, 2), DoubleState.none);
-        expect(matrix.stateFor(1, 3), DoubleState.none);
+        expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.none);
+        expect(matrix.stateFor(playerIds[1], playerIds[3]), DoubleState.none);
       },
     );
 
@@ -302,13 +357,23 @@ void main() {
         // chooser (1,2) and Alice (1,0). Pressing Slappe hap should
         // deselect the chooser pair and ensure Dan (1,3) is also doubled.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 2, DoubleState.doubled, initiator: 1)
-            .withPair(1, 0, DoubleState.doubled, initiator: 1);
+            .withPair(
+              playerIds[1],
+              playerIds[2],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[0],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 2,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -319,13 +384,16 @@ void main() {
         await tester.pump();
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
-        expect(matrix.stateFor(1, 2), DoubleState.none);
-        expect(matrix.stateFor(1, 0), DoubleState.doubled);
-        expect(matrix.stateFor(1, 3), DoubleState.doubled);
+        expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.none);
         expect(
-          find.widgetWithText(FilledButton, 'Slappe hap'),
-          findsOneWidget,
+          matrix.stateFor(playerIds[1], playerIds[0]),
+          DoubleState.doubled,
         );
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[3]),
+          DoubleState.doubled,
+        );
+        expect(find.widgetWithText(FilledButton, 'Slappe hap'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Zaal'), findsOneWidget);
       },
     );
@@ -336,13 +404,17 @@ void main() {
         // chooser=2, Bob(1) initiator. (1,2) is redoubled (Carol redoubled
         // Bob's double). Pressing Slappe hap should demote (1,2) to doubled
         // (initiator=Carol) and double the others.
-        DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 2, DoubleState.redoubled, initiator: 2);
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[1],
+          playerIds[2],
+          DoubleState.redoubled,
+          initiator: playerIds[2],
+        );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 2,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -353,10 +425,19 @@ void main() {
         await tester.pump();
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
-        expect(matrix.stateFor(1, 2), DoubleState.doubled);
-        expect(matrix.initiatorFor(1, 2), 2);
-        expect(matrix.stateFor(1, 0), DoubleState.doubled);
-        expect(matrix.stateFor(1, 3), DoubleState.doubled);
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[2]),
+          DoubleState.doubled,
+        );
+        expect(matrix.initiatorFor(playerIds[1], playerIds[2]), playerIds[2]);
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[0]),
+          DoubleState.doubled,
+        );
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[3]),
+          DoubleState.doubled,
+        );
       },
     );
 
@@ -369,7 +450,7 @@ void main() {
         tester,
         StatefulBuilder(
           builder: (ctx, setState) => DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 2,
             doubles: matrix,
             onChanged: (m) => setState(() => matrix = m),
@@ -381,15 +462,15 @@ void main() {
       await tester.tap(find.text('Zaal'));
       await tester.pump();
       expect(find.widgetWithText(FilledButton, 'Zaal'), findsOneWidget);
-      expect(matrix.stateFor(1, 0), DoubleState.doubled);
-      expect(matrix.stateFor(1, 2), DoubleState.doubled);
-      expect(matrix.stateFor(1, 3), DoubleState.doubled);
+      expect(matrix.stateFor(playerIds[1], playerIds[0]), DoubleState.doubled);
+      expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.doubled);
+      expect(matrix.stateFor(playerIds[1], playerIds[3]), DoubleState.doubled);
       // Re-press clears all.
       await tester.tap(find.text('Zaal'));
       await tester.pump();
-      expect(matrix.stateFor(1, 0), DoubleState.none);
-      expect(matrix.stateFor(1, 2), DoubleState.none);
-      expect(matrix.stateFor(1, 3), DoubleState.none);
+      expect(matrix.stateFor(playerIds[1], playerIds[0]), DoubleState.none);
+      expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.none);
+      expect(matrix.stateFor(playerIds[1], playerIds[3]), DoubleState.none);
     });
 
     testWidgets(
@@ -401,7 +482,7 @@ void main() {
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 2,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -421,14 +502,17 @@ void main() {
         // Pressing Slappe hap clears just the chooser pair → Slappe hap state.
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
-        expect(matrix.stateFor(1, 2), DoubleState.none);
-        expect(matrix.stateFor(1, 0), DoubleState.doubled);
-        expect(matrix.stateFor(1, 3), DoubleState.doubled);
-        // Now Slappe hap is filled, Zaal is outlined.
+        expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.none);
         expect(
-          find.widgetWithText(FilledButton, 'Slappe hap'),
-          findsOneWidget,
+          matrix.stateFor(playerIds[1], playerIds[0]),
+          DoubleState.doubled,
         );
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[3]),
+          DoubleState.doubled,
+        );
+        // Now Slappe hap is filled, Zaal is outlined.
+        expect(find.widgetWithText(FilledButton, 'Slappe hap'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Zaal'), findsOneWidget);
       },
     );
@@ -438,14 +522,29 @@ void main() {
       (tester) async {
         // chooser=0 (Alice). All 3 others doubled Alice.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(0, 1, DoubleState.doubled, initiator: 1)
-            .withPair(0, 2, DoubleState.doubled, initiator: 2)
-            .withPair(0, 3, DoubleState.doubled, initiator: 3);
+            .withPair(
+              playerIds[0],
+              playerIds[1],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[2],
+              DoubleState.doubled,
+              initiator: playerIds[2],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[3],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 0,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -458,35 +557,43 @@ void main() {
         await tester.tap(find.text('Zaal terug'));
         await tester.pump();
         for (final t in [1, 2, 3]) {
-          expect(matrix.stateFor(0, t), DoubleState.redoubled);
+          expect(
+            matrix.stateFor(playerIds[0], playerIds[t]),
+            DoubleState.redoubled,
+          );
         }
         // Now button should be filled.
-        expect(
-          find.widgetWithText(FilledButton, 'Zaal terug'),
-          findsOneWidget,
-        );
+        expect(find.widgetWithText(FilledButton, 'Zaal terug'), findsOneWidget);
         // Re-press: redoubles demote to doubled, original initiators kept;
         // doubles are NOT cleared.
         await tester.tap(find.text('Zaal terug'));
         await tester.pump();
         for (final t in [1, 2, 3]) {
-          expect(matrix.stateFor(0, t), DoubleState.doubled);
-          expect(matrix.initiatorFor(0, t), t);
+          expect(
+            matrix.stateFor(playerIds[0], playerIds[t]),
+            DoubleState.doubled,
+          );
+          expect(matrix.initiatorFor(playerIds[0], playerIds[t]), playerIds[t]);
         }
       },
     );
+
     testWidgets(
       '"Slappe hap" stays outlined when a target doubled the initiator but no redouble back',
       (tester) async {
         // chooser=0. Bob(1) initiator. Carol(2) doubled Bob — pair is
         // doubled, initiator=Carol. Bob hasn't acted on Carol yet, so
         // Slappe hap should be outlined (not filled).
-        DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 2, DoubleState.doubled, initiator: 2);
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[1],
+          playerIds[2],
+          DoubleState.doubled,
+          initiator: playerIds[2],
+        );
         await pumpHost(
           tester,
           DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 0,
             doubles: matrix,
             onChanged: (_) {},
@@ -508,12 +615,22 @@ void main() {
         // Carol (state=redoubled, initiator=Carol). Bob doubled Dan(3).
         // Slappe hap targets {2,3} both show initiator-action → filled.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 2, DoubleState.redoubled, initiator: 2)
-            .withPair(1, 3, DoubleState.doubled, initiator: 1);
+            .withPair(
+              playerIds[1],
+              playerIds[2],
+              DoubleState.redoubled,
+              initiator: playerIds[2],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            );
         await pumpHost(
           tester,
           DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 0,
             doubles: matrix,
             onChanged: (_) {},
@@ -521,10 +638,7 @@ void main() {
         );
         await tester.tap(find.text('Bob').first);
         await tester.pump();
-        expect(
-          find.widgetWithText(FilledButton, 'Slappe hap'),
-          findsOneWidget,
-        );
+        expect(find.widgetWithText(FilledButton, 'Slappe hap'), findsOneWidget);
       },
     );
 
@@ -536,14 +650,29 @@ void main() {
         // the initiator acted on every pair. Re-press clears everything to
         // none (input correction).
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 0, DoubleState.redoubled, initiator: 1)
-            .withPair(1, 2, DoubleState.doubled, initiator: 1)
-            .withPair(1, 3, DoubleState.redoubled, initiator: 1);
+            .withPair(
+              playerIds[1],
+              playerIds[0],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[2],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[3],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 2,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -556,7 +685,7 @@ void main() {
         await tester.tap(find.text('Zaal'));
         await tester.pump();
         for (final t in [0, 2, 3]) {
-          expect(matrix.stateFor(1, t), DoubleState.none);
+          expect(matrix.stateFor(playerIds[1], playerIds[t]), DoubleState.none);
         }
       },
     );
@@ -566,13 +695,23 @@ void main() {
       (tester) async {
         // chooser=2 (Carol). Alice and Dan doubled Carol; Bob did not.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(2, 0, DoubleState.doubled, initiator: 0)
-            .withPair(2, 3, DoubleState.doubled, initiator: 3);
+            .withPair(
+              playerIds[2],
+              playerIds[0],
+              DoubleState.doubled,
+              initiator: playerIds[0],
+            )
+            .withPair(
+              playerIds[2],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[3],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 2,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -591,12 +730,18 @@ void main() {
         );
         await tester.tap(find.text('Terug op beide'));
         await tester.pump();
-        expect(matrix.stateFor(2, 0), DoubleState.redoubled);
-        expect(matrix.initiatorFor(2, 0), 0);
-        expect(matrix.stateFor(2, 3), DoubleState.redoubled);
-        expect(matrix.initiatorFor(2, 3), 3);
+        expect(
+          matrix.stateFor(playerIds[2], playerIds[0]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[2], playerIds[0]), playerIds[0]);
+        expect(
+          matrix.stateFor(playerIds[2], playerIds[3]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[2], playerIds[3]), playerIds[3]);
         // Bob's pair untouched.
-        expect(matrix.stateFor(2, 1), DoubleState.none);
+        expect(matrix.stateFor(playerIds[2], playerIds[1]), DoubleState.none);
         // Now filled.
         expect(
           find.widgetWithText(FilledButton, 'Terug op beide'),
@@ -605,10 +750,16 @@ void main() {
         // Re-press demotes back to doubled with original initiators.
         await tester.tap(find.text('Terug op beide'));
         await tester.pump();
-        expect(matrix.stateFor(2, 0), DoubleState.doubled);
-        expect(matrix.initiatorFor(2, 0), 0);
-        expect(matrix.stateFor(2, 3), DoubleState.doubled);
-        expect(matrix.initiatorFor(2, 3), 3);
+        expect(
+          matrix.stateFor(playerIds[2], playerIds[0]),
+          DoubleState.doubled,
+        );
+        expect(matrix.initiatorFor(playerIds[2], playerIds[0]), playerIds[0]);
+        expect(
+          matrix.stateFor(playerIds[2], playerIds[3]),
+          DoubleState.doubled,
+        );
+        expect(matrix.initiatorFor(playerIds[2], playerIds[3]), playerIds[3]);
       },
     );
 
@@ -617,12 +768,22 @@ void main() {
       (tester) async {
         // chooser=2. Alice doubled; Dan doubled then Carol redoubled Dan.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(2, 0, DoubleState.doubled, initiator: 0)
-            .withPair(2, 3, DoubleState.redoubled, initiator: 3);
+            .withPair(
+              playerIds[2],
+              playerIds[0],
+              DoubleState.doubled,
+              initiator: playerIds[0],
+            )
+            .withPair(
+              playerIds[2],
+              playerIds[3],
+              DoubleState.redoubled,
+              initiator: playerIds[3],
+            );
         await pumpHost(
           tester,
           DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 2,
             doubles: matrix,
             onChanged: (_) {},
@@ -641,12 +802,16 @@ void main() {
       'chooser doubled by only one player → Zaal button stays disabled',
       (tester) async {
         // chooser=2. Only Alice doubled Carol.
-        DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(2, 0, DoubleState.doubled, initiator: 0);
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[2],
+          playerIds[0],
+          DoubleState.doubled,
+          initiator: playerIds[0],
+        );
         await pumpHost(
           tester,
           DoublesPicker(
-            playerNames: playerNames,
+            players: players,
             chooserIndex: 2,
             doubles: matrix,
             onChanged: (_) {},
@@ -674,14 +839,29 @@ void main() {
         // hap should clear (1,2) entirely (Bob initiated the whole pair),
         // not just demote to doubled.
         DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(1, 0, DoubleState.doubled, initiator: 1)
-            .withPair(1, 2, DoubleState.redoubled, initiator: 1)
-            .withPair(1, 3, DoubleState.doubled, initiator: 1);
+            .withPair(
+              playerIds[1],
+              playerIds[0],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[2],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[1],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[1],
+            );
         await pumpHost(
           tester,
           StatefulBuilder(
             builder: (ctx, setState) => DoublesPicker(
-              playerNames: playerNames,
+              players: players,
               chooserIndex: 2,
               doubles: matrix,
               onChanged: (m) => setState(() => matrix = m),
@@ -692,54 +872,62 @@ void main() {
         await tester.pump();
         await tester.tap(find.text('Slappe hap'));
         await tester.pump();
-        expect(matrix.stateFor(1, 2), DoubleState.none);
-        expect(matrix.stateFor(1, 0), DoubleState.doubled);
-        expect(matrix.stateFor(1, 3), DoubleState.doubled);
-      },
-    );
-
-    testWidgets(
-      'bulk action buttons honour the 48dp touch-target floor that '
-      'matches the surrounding tile rhythm',
-      (tester) async {
-        // chooser=2, Carol initiator with one doubled target → "Zaal"
-        // and "Slappe hap" both rendered. Pick whichever button shows.
-        DoubleMatrix matrix = DoubleMatrix.empty()
-            .withPair(2, 0, DoubleState.doubled, initiator: 0);
-        await pumpHost(
-          tester,
-          DoublesPicker(
-            playerNames: playerNames,
-            chooserIndex: 2,
-            doubles: matrix,
-            onChanged: (_) {},
-          ),
+        expect(matrix.stateFor(playerIds[1], playerIds[2]), DoubleState.none);
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[0]),
+          DoubleState.doubled,
         );
-        await tester.tap(find.text('Carol').first);
-        await tester.pump();
-
-        // Both bulk buttons should clear the 48dp minimum height.
-        for (final label in ['Zaal', 'Slappe hap']) {
-          final size = tester.getSize(find.text(label).hitTestable());
-          // Sanity: text widget itself is the inner child of the button;
-          // measure the button instead.
-          final button = find
-              .ancestor(
-                of: find.text(label),
-                matching: find.byWidgetPredicate(
-                  (w) => w is OutlinedButton || w is FilledButton,
-                ),
-              )
-              .first;
-          final btnSize = tester.getSize(button);
-          expect(
-            btnSize.height,
-            greaterThanOrEqualTo(48),
-            reason: '"$label" button height ${btnSize.height} < 48dp '
-                '(tile rhythm broken); text size was $size',
-          );
-        }
+        expect(
+          matrix.stateFor(playerIds[1], playerIds[3]),
+          DoubleState.doubled,
+        );
       },
     );
+
+    testWidgets('bulk action buttons honour the 48dp touch-target floor that '
+        'matches the surrounding tile rhythm', (tester) async {
+      // chooser=2, Carol initiator with one doubled target → "Zaal"
+      // and "Slappe hap" both rendered. Pick whichever button shows.
+      DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        playerIds[2],
+        playerIds[0],
+        DoubleState.doubled,
+        initiator: playerIds[0],
+      );
+      await pumpHost(
+        tester,
+        DoublesPicker(
+          players: players,
+          chooserIndex: 2,
+          doubles: matrix,
+          onChanged: (_) {},
+        ),
+      );
+      await tester.tap(find.text('Carol').first);
+      await tester.pump();
+
+      // Both bulk buttons should clear the 48dp minimum height.
+      for (final label in ['Zaal', 'Slappe hap']) {
+        final size = tester.getSize(find.text(label).hitTestable());
+        // Sanity: text widget itself is the inner child of the button;
+        // measure the button instead.
+        final button = find
+            .ancestor(
+              of: find.text(label),
+              matching: find.byWidgetPredicate(
+                (w) => w is OutlinedButton || w is FilledButton,
+              ),
+            )
+            .first;
+        final btnSize = tester.getSize(button);
+        expect(
+          btnSize.height,
+          greaterThanOrEqualTo(48),
+          reason:
+              '"$label" button height ${btnSize.height} < 48dp '
+              '(tile rhythm broken); text size was $size',
+        );
+      }
+    });
   });
 }

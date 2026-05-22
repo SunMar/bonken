@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/games/game_catalog.dart';
 import '../models/game_session.dart';
 import '../models/mini_game.dart';
+import '../models/player.dart';
 import '../models/round_record.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
@@ -58,12 +59,10 @@ class _GameSelectionBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(calculatorProvider.select((s) => s.history));
-    final chooserIndex = ref.watch(
-      calculatorProvider.select((s) => s.chooserIndex),
-    );
+    final chooserId = ref.watch(calculatorProvider.select((s) => s.chooserId));
     final playedIds = history.map((r) => r.game.id).toSet();
 
-    final isFinished = history.length >= 12;
+    final isFinished = history.length >= GameSession.totalRounds;
 
     final positiveGames = <MiniGame>[];
     final negativeGames = <MiniGame>[];
@@ -81,7 +80,7 @@ class _GameSelectionBody extends ConsumerWidget {
     var negCount = 0;
     var posCount = 0;
     for (final r in history) {
-      if (r.chooserIndex != chooserIndex) continue;
+      if (r.chooserId != chooserId) continue;
       if (r.game.category == GameCategory.negative) {
         negCount++;
       } else {
@@ -166,7 +165,10 @@ class _GameTile extends ConsumerWidget {
     final textColor = scoreColor(isPositive ? 1 : -1, context);
 
     final pendingGameId = ref.watch(
-      calculatorProvider.select((s) => s.pendingGame?.id),
+      calculatorProvider.select((s) {
+        final p = s.pending;
+        return p is ActivePendingRound ? p.game.id : null;
+      }),
     );
     final isPending = pendingGameId == game.id;
     final isPendingBlocked = pendingGameId != null && !isPending;
@@ -218,7 +220,7 @@ class _GameTile extends ConsumerWidget {
               context,
               title: kRoundIncompleteTitle,
               contentText:
-                  '${state.pendingGame!.name} is nog niet afgerond. '
+                  '${(state.pending as ActivePendingRound).game.name} is nog niet afgerond. '
                   'Maak dat spel eerst af.',
             );
             return;
@@ -257,18 +259,22 @@ class _LiveScoreboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(calculatorProvider);
+    final (history, displayedPlayers, updatedAt) = ref.watch(
+      calculatorProvider.select(
+        (s) => (s.history, s.displayedPlayers, s.updatedAt),
+      ),
+    );
 
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final roundsPlayed = state.history.length;
+    final roundsPlayed = history.length;
     final isFinished = roundsPlayed >= GameSession.totalRounds;
 
-    // Sum scores per player across all completed rounds.
+    // Sum scores per player across all completed rounds, in display order.
     final totals = List<int>.filled(playerCount, 0);
-    for (final record in state.history) {
+    for (final record in history) {
       for (int i = 0; i < playerCount; i++) {
-        totals[i] += record.result.scores[i] ?? 0;
+        totals[i] += record.scoresByPlayer[displayedPlayers[i].id] ?? 0;
       }
     }
 
@@ -297,10 +303,10 @@ class _LiveScoreboard extends ConsumerWidget {
     // Same appearance as the home-screen session card: date on the
     // left, action(s) on the right. The game screen adds an
     // "Spel bewerken" icon next to the delete action.
-    final headerLabel = state.updatedAt == null
+    final headerLabel = updatedAt == null
         ? Text(isFinished ? 'Eindstand' : 'Tussenstand', style: labelStyle)
         : Text(
-            formatDate(state.updatedAt!),
+            formatDate(updatedAt),
             style: labelStyle,
             overflow: TextOverflow.ellipsis,
           );
@@ -309,7 +315,7 @@ class _LiveScoreboard extends ConsumerWidget {
       data: compactIconTheme,
       child: ScoreboardCard(
         roundsPlayed: roundsPlayed,
-        playerNames: state.playerNames,
+        playerNames: [for (final p in displayedPlayers) p.name],
         scores: totals,
         winners: winners,
         headerLabel: headerLabel,
@@ -427,7 +433,8 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
     }
 
     final notifier = ref.read(calculatorProvider.notifier);
-    notifier.startNewGame(names: names, dealerIndex: dealerIndex);
+    final newPlayers = [for (final name in names) Player(name: name)];
+    notifier.startNewGame(players: newPlayers, dealerIndex: dealerIndex);
     final session = notifier.buildSession();
     if (session != null) {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
@@ -449,12 +456,14 @@ class _HistoryList extends ConsumerWidget {
     // Narrow subscription: rebuild only when one of these slices changes,
     // not on every input keystroke / chooser tap / etc. The list of player
     // names is referenced by every row but stays constant during gameplay.
-    final (history, playerNames, hasPendingGame) = ref.watch(
+    final (history, displayedPlayers, hasPendingGame) = ref.watch(
       calculatorProvider.select(
-        (s) => (s.history, s.playerNames, s.hasPendingGame),
+        (s) => (s.history, s.displayedPlayers, s.hasPendingGame),
       ),
     );
     if (history.isEmpty) return const SizedBox.shrink();
+
+    final displayedNames = [for (final p in displayedPlayers) p.name];
 
     final cs = Theme.of(context).colorScheme;
     final notifier = ref.read(calculatorProvider.notifier);
@@ -482,7 +491,8 @@ class _HistoryList extends ConsumerWidget {
                   const Divider(height: 16),
                   _HistoryRow(
                     record: record,
-                    playerNames: playerNames,
+                    playerNames: displayedNames,
+                    players: displayedPlayers,
                     cs: cs,
                     notifier: notifier,
                     showDelete:
@@ -512,6 +522,7 @@ class _HistoryRow extends StatelessWidget {
   const _HistoryRow({
     required this.record,
     required this.playerNames,
+    required this.players,
     required this.cs,
     required this.notifier,
     required this.showDelete,
@@ -519,6 +530,7 @@ class _HistoryRow extends StatelessWidget {
 
   final RoundRecord record;
   final List<String> playerNames;
+  final List<Player> players;
   final ColorScheme cs;
   final CalculatorNotifier notifier;
   final bool showDelete;
@@ -526,6 +538,7 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final safeChooserIdx = seatIndexOf(players, record.chooserId);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -534,12 +547,17 @@ class _HistoryRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _RoundRowHeader(record: record, playerNames: playerNames, cs: cs),
+              _RoundRowHeader(
+                record: record,
+                playerNames: playerNames,
+                cs: cs,
+                chooserIndex: safeChooserIdx,
+              ),
               if (record.doubles.hasAnyDouble)
                 DoublesChips(
                   doubles: record.doubles,
-                  names: playerNames,
-                  chooserIndex: record.chooserIndex,
+                  players: players,
+                  chooserIndex: safeChooserIdx,
                 ),
             ],
           ),
@@ -571,10 +589,10 @@ class _HistoryRow extends StatelessWidget {
                 children: [
                   for (int i = 0; i < playerCount; i++)
                     Text(
-                      formatScore(record.result.scores[i] ?? 0),
+                      formatScore(record.scoresByPlayer[players[i].id] ?? 0),
                       style: tt.bodyMedium?.copyWith(
                         color: scoreColor(
-                          record.result.scores[i] ?? 0,
+                          record.scoresByPlayer[players[i].id] ?? 0,
                           context,
                         ),
                       ),
@@ -641,10 +659,13 @@ class _RoundInfoBanner extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final round = state.roundNumber;
     final dealerName = state.playerNames[state.dealerIndex];
-    final chooserName = state.playerNames[(state.dealerIndex + 1) % 4];
+    final chooserName =
+        state.playerNames[(state.dealerIndex + 1) % playerCount];
 
-    // Hide once all 12 rounds are done.
-    if (state.history.length >= 12) return const SizedBox.shrink();
+    // Hide once all rounds are done.
+    if (state.history.length >= GameSession.totalRounds) {
+      return const SizedBox.shrink();
+    }
 
     return Card(
       color: cs.secondaryContainer,
@@ -659,7 +680,7 @@ class _RoundInfoBanner extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ronde $round van 12',
+                    'Ronde $round van ${GameSession.totalRounds}',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: cs.onSecondaryContainer,
                       fontWeight: FontWeight.bold,
@@ -688,11 +709,13 @@ class _RoundRowHeader extends StatelessWidget {
     required this.record,
     required this.playerNames,
     required this.cs,
+    required this.chooserIndex,
   });
 
   final RoundRecord record;
   final List<String> playerNames;
   final ColorScheme cs;
+  final int chooserIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -705,7 +728,7 @@ class _RoundRowHeader extends StatelessWidget {
           style: tt.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         Text(
-          playerNames[record.chooserIndex],
+          playerNames[chooserIndex],
           style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],

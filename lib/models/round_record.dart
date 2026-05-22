@@ -1,6 +1,5 @@
 import 'double_matrix.dart';
 import 'mini_game.dart';
-import 'score_result.dart';
 
 /// Stores everything about a completed round so it can be shown in history
 /// and restored for editing if needed.
@@ -8,38 +7,31 @@ class RoundRecord {
   const RoundRecord({
     required this.roundNumber,
     required this.game,
-    required this.dealerIndex,
-    required this.chooserIndex,
+    required this.chooserId,
+    required this.scoresByPlayer,
     required this.input,
     required this.doubles,
-    required this.result,
   });
 
   final int roundNumber;
   final MiniGame game;
-  final int dealerIndex;
-  final int chooserIndex;
+
+  /// The stable player ID of the chooser for this round.
+  final String chooserId;
+
+  /// Maps player ID → score delta for this round.
+  final Map<String, int> scoresByPlayer;
+
   final Map<String, dynamic> input;
   final DoubleMatrix doubles;
-  final ScoreResult result;
 
-  RoundRecord copyWith({
-    int? roundNumber,
-    MiniGame? game,
-    int? dealerIndex,
-    int? chooserIndex,
-    Map<String, dynamic>? input,
-    DoubleMatrix? doubles,
-    ScoreResult? result,
-  }) {
-    return RoundRecord(
-      roundNumber: roundNumber ?? this.roundNumber,
-      game: game ?? this.game,
-      dealerIndex: dealerIndex ?? this.dealerIndex,
-      chooserIndex: chooserIndex ?? this.chooserIndex,
-      input: input ?? this.input,
-      doubles: doubles ?? this.doubles,
-      result: result ?? this.result,
-    );
-  }
+  Map<String, dynamic> toJson() => {
+    'roundNumber': roundNumber,
+    'gameName': game.name,
+    'gameId': game.id,
+    'chooserId': chooserId,
+    'scores': scoresByPlayer,
+    'input': input,
+    if (doubles.hasAnyDouble) 'doublesJson': doubles.toJson(),
+  };
 }

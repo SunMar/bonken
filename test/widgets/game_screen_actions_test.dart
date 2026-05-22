@@ -12,14 +12,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/double_matrix.dart';
+import 'package:bonken/models/player.dart';
+import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/edit_players_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+
+import '../test_helpers.dart';
 
 const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 
@@ -29,19 +34,26 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
 
   // Seed a session that already has one completed round so the live
   // scoreboard renders (it hides itself when history is empty).
+  final players = [for (final name in _names) Player(name: name)];
   final session = GameSession(
     id: 'seed-session',
     createdAt: DateTime(2024, 1, 1),
     updatedAt: DateTime(2024, 1, 1),
-    playerNames: _names,
-    rounds: const [
-      RoundSummary(
+    players: players,
+    firstDealerId: players[0].id,
+    rounds: [
+      RoundRecord(
         roundNumber: 1,
-        gameName: 'Domino',
-        gameId: 'dominoes',
-        dealerIndex: 0,
-        chooserIndex: 1,
-        scores: {0: 10, 1: -10, 2: 5, 3: -5},
+        game: const Dominoes(),
+        chooserId: players[1].id,
+        scoresByPlayer: {
+          players[0].id: 10,
+          players[1].id: -10,
+          players[2].id: 5,
+          players[3].id: -5,
+        },
+        input: const {},
+        doubles: const DoubleMatrix(),
       ),
     ],
   );
@@ -62,9 +74,7 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
 }
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  setUpPrefs();
 
   testWidgets('AppBar has Spelregels icon and no overflow / theme icon', (
     tester,

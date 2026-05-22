@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/input_descriptor.dart';
 import '../../models/mini_game.dart';
+import '../../models/player.dart';
 import 'counts_input.dart';
 import 'player_picker.dart';
 
@@ -10,14 +11,14 @@ import 'player_picker.dart';
 class GameInputForm extends StatelessWidget {
   const GameInputForm({
     required this.game,
-    required this.playerNames,
+    required this.players,
     required this.input,
     required this.onInputChanged,
     super.key,
   });
 
   final MiniGame game;
-  final List<String> playerNames;
+  final List<Player> players;
   final Map<String, dynamic> input;
 
   /// Called with the input-map key and new value when the user changes a field.
@@ -25,38 +26,57 @@ class GameInputForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final playerNames = [for (final p in players) p.name];
     return switch (game.inputDescriptor) {
       CountsInputDescriptor d => CountsInput(
         playerNames: playerNames,
-        counts: (input[d.inputKey] as List?)?.cast<int>() ?? List.filled(playerCount, 0),
+        counts: [
+          for (final p in players)
+            (input[d.inputKey] as Map<String, dynamic>?)?[p.id] as int? ?? 0,
+        ],
         total: d.total,
         unitLabel: d.unitLabel,
-        onCountsChanged: (counts) => onInputChanged(d.inputKey, counts),
+        onCountsChanged: (counts) => onInputChanged(d.inputKey, {
+          for (int i = 0; i < players.length; i++) players[i].id: counts[i],
+        }),
       ),
-      SinglePlayerInputDescriptor d => PlayerPicker(
-        playerNames: playerNames,
-        selectedIndex: input[d.inputKey] as int?,
+      SinglePlayerInputDescriptor d => _pickerFor(
+        inputKey: d.inputKey,
         prompt: d.prompt,
-        onSelected: (i) => onInputChanged(d.inputKey, i),
+        playerNames: playerNames,
       ),
       DualPlayerInputDescriptor d => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PlayerPicker(
-            playerNames: playerNames,
-            selectedIndex: input[d.inputKey1] as int?,
+          _pickerFor(
+            inputKey: d.inputKey1,
             prompt: d.prompt1,
-            onSelected: (i) => onInputChanged(d.inputKey1, i),
+            playerNames: playerNames,
           ),
           const SizedBox(height: 16),
-          PlayerPicker(
-            playerNames: playerNames,
-            selectedIndex: input[d.inputKey2] as int?,
+          _pickerFor(
+            inputKey: d.inputKey2,
             prompt: d.prompt2,
-            onSelected: (i) => onInputChanged(d.inputKey2, i),
+            playerNames: playerNames,
           ),
         ],
       ),
     };
+  }
+
+  Widget _pickerFor({
+    required String inputKey,
+    required String prompt,
+    required List<String> playerNames,
+  }) {
+    final uuid = input[inputKey] as String?;
+    final rawIdx = uuid == null ? -1 : players.indexWhere((p) => p.id == uuid);
+    return PlayerPicker(
+      playerNames: playerNames,
+      selectedIndex: rawIdx < 0 ? null : rawIdx,
+      prompt: prompt,
+      onSelected: (i) =>
+          onInputChanged(inputKey, i == null ? null : players[i].id),
+    );
   }
 }

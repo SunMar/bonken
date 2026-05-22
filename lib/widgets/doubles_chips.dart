@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
 import '../models/mini_game.dart' show doublingTurnIndex;
+import '../models/player.dart';
 import '../theme/app_theme_extensions.dart';
 import 'double_state_chip.dart';
 
@@ -15,13 +16,13 @@ import 'double_state_chip.dart';
 class DoublesChips extends StatelessWidget {
   const DoublesChips({
     required this.doubles,
-    required this.names,
+    required this.players,
     required this.chooserIndex,
     super.key,
   });
 
   final DoubleMatrix doubles;
-  final List<String> names;
+  final List<Player> players;
   final int chooserIndex;
 
   @override
@@ -35,12 +36,14 @@ class DoublesChips extends StatelessWidget {
             : DoubleStateColors.light);
 
     // Collect active pairs first so we can sort them.
-    // Tuple: (initiator, other, initiatorTurn, otherTurn)
+    // Tuple: (initiatorIdx, otherIdx, initiatorTurn, otherTurn)
     final active = <(int, int, int, int)>[];
     for (final (a, b) in pairs) {
-      final state = doubles.stateFor(a, b);
+      final state = doubles.stateFor(players[a].id, players[b].id);
       if (state == DoubleState.none) continue;
-      final initiator = doubles.initiatorFor(a, b) ?? a;
+      final initiatorId =
+          doubles.initiatorFor(players[a].id, players[b].id) ?? players[a].id;
+      final initiator = players.indexWhere((p) => p.id == initiatorId);
       final other = initiator == a ? b : a;
       final initiatorTurn = doublingTurnIndex(initiator, chooserIndex);
       final otherTurn = doublingTurnIndex(other, chooserIndex);
@@ -57,19 +60,17 @@ class DoublesChips extends StatelessWidget {
 
     final chips = <Widget>[];
     for (final (initiator, other, _, _) in active) {
-      final state = doubles.stateFor(initiator, other);
+      final state = doubles.stateFor(players[initiator].id, players[other].id);
       final label = state == DoubleState.redoubled
-          ? '${names[initiator]} ×× ${names[other]}'
-          : '${names[initiator]} × ${names[other]}';
+          ? '${players[initiator].name} ×× ${players[other].name}'
+          : '${players[initiator].name} × ${players[other].name}';
       final bg = state == DoubleState.redoubled
           ? dc.redoubledBackground
           : dc.doubledBackground;
       final fg = state == DoubleState.redoubled
           ? dc.onRedoubledBackground
           : dc.onDoubledBackground;
-      chips.add(
-        DoubleStateChip(label: label, background: bg, foreground: fg),
-      );
+      chips.add(DoubleStateChip(label: label, background: bg, foreground: fg));
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();

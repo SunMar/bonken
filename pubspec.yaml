@@ -47,6 +47,9 @@ dependencies:
   # Open external URLs (the GitHub link in the About dialog).
   url_launcher: ^6.3.2
 
+  # UUID generation for stable player identifiers.
+  uuid: ^4.5.3
+
   # Material Symbols (variable-font icon set) — used app-wide as the
   # canonical icon set in place of Flutter's built-in `Icons`. The
   # built-in set ships an outdated subset, so the codebase never

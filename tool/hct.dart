@@ -53,10 +53,12 @@ void _toHct(List<String> args) {
     }
     final argb = int.parse('FF$rgb', radix: 16);
     final h = Hct.fromInt(argb);
-    print('#$rgb  '
-        'H ${h.hue.toStringAsFixed(1).padLeft(5)}  '
-        'C ${h.chroma.toStringAsFixed(1).padLeft(5)}  '
-        'T ${h.tone.toStringAsFixed(1).padLeft(5)}');
+    print(
+      '#$rgb  '
+      'H ${h.hue.toStringAsFixed(1).padLeft(5)}  '
+      'C ${h.chroma.toStringAsFixed(1).padLeft(5)}  '
+      'T ${h.tone.toStringAsFixed(1).padLeft(5)}',
+    );
   }
 }
 
@@ -80,12 +82,16 @@ void _fromHct(List<String> args) {
     }
     final hct = Hct.from(h, c, t);
     final argb = hct.toInt();
-    final hex =
-        (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
+    final hex = (argb & 0xFFFFFF)
+        .toRadixString(16)
+        .padLeft(6, '0')
+        .toUpperCase();
     final rt = Hct.fromInt(argb);
-    print('H $h C $c T $t  ->  #$hex  '
-        '(actual H ${rt.hue.toStringAsFixed(1)} '
-        'C ${rt.chroma.toStringAsFixed(1)} '
-        'T ${rt.tone.toStringAsFixed(1)})');
+    print(
+      'H $h C $c T $t  ->  #$hex  '
+      '(actual H ${rt.hue.toStringAsFixed(1)} '
+      'C ${rt.chroma.toStringAsFixed(1)} '
+      'T ${rt.tone.toStringAsFixed(1)})',
+    );
   }
 }

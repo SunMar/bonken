@@ -7,11 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bonken/screens/rules_screen.dart';
 import 'package:bonken/state/theme_mode_provider.dart';
 import 'package:bonken/widgets/app_bar_widgets.dart';
+
+import '../test_helpers.dart';
 
 Future<ProviderContainer> _pumpActions(WidgetTester tester) async {
   final container = ProviderContainer();
@@ -43,9 +44,7 @@ Future<void> _openThemeMenu(WidgetTester tester) async {
 }
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
+  setUpPrefs();
 
   testWidgets('Spelregels icon (in title) + Thema icon (in actions) render', (
     tester,

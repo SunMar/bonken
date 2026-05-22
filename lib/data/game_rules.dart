@@ -134,9 +134,7 @@ const Section kOpzetSection = Section(
     Para(
       'Over een heel spel is iedereen precies 3 keer deler en 3 keer kiezer.',
     ),
-    Para(
-      'Voor het kiezen van een spelvorm gelden deze beperkingen:',
-    ),
+    Para('Voor het kiezen van een spelvorm gelden deze beperkingen:'),
     BulletList([
       'elke speler mag maximaal 2 negatieve spelvormen kiezen',
       'elke speler mag maximaal 1 positieve spelvorm kiezen',
@@ -447,8 +445,18 @@ const GameSection _dominoesSection = GameSection(
   ],
 );
 
-/// All per-game sections, in the canonical play order matching `allGames`.
+/// All per-game rule sections, matching the display order of [allGames]
+/// (negatives first, then positives).
 final List<GameSection> kGameSections = [
+  // Negative games
+  _kingOfHeartsSection,
+  _kingsAndJacksSection,
+  _queensSection,
+  _duckSection,
+  _heartPointsSection,
+  _seventhAndThirteenthSection,
+  _finalTrickSection,
+  _dominoesSection,
   // Positive games
   _trickGame(
     gameId: 'clubs',
@@ -475,15 +483,6 @@ final List<GameSection> kGameSections = [
     example: 1,
   ),
   _zonderTroefSection,
-  // Negative games
-  _kingOfHeartsSection,
-  _kingsAndJacksSection,
-  _queensSection,
-  _duckSection,
-  _heartPointsSection,
-  _seventhAndThirteenthSection,
-  _finalTrickSection,
-  _dominoesSection,
 ];
 
 /// Lookup helper: returns the [GameSection] for a given `MiniGame.id`,
