@@ -53,26 +53,36 @@ class GameScreen extends ConsumerWidget {
 /// watches calculator state slices that change on every round, while the
 /// surrounding [GameScreen] (AppBar + overflow menu) watches nothing and
 /// stays put.
-class _GameSelectionBody extends ConsumerWidget {
+class _GameSelectionBody extends ConsumerStatefulWidget {
   const _GameSelectionBody();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GameSelectionBody> createState() => _GameSelectionBodyState();
+}
+
+class _GameSelectionBodyState extends ConsumerState<_GameSelectionBody> {
+  // Whether already-played games are revealed (normally hidden) per category.
+  bool _showPlayedNegative = false;
+  bool _showPlayedPositive = false;
+
+  @override
+  Widget build(BuildContext context) {
     final history = ref.watch(calculatorProvider.select((s) => s.history));
     final chooserId = ref.watch(calculatorProvider.select((s) => s.chooserId));
     final playedIds = history.map((r) => r.game.id).toSet();
 
     final isFinished = history.length >= GameSession.totalRounds;
 
-    final positiveGames = <MiniGame>[];
-    final negativeGames = <MiniGame>[];
+    final negativeUnplayed = <MiniGame>[];
+    final negativePlayed = <MiniGame>[];
+    final positiveUnplayed = <MiniGame>[];
+    final positivePlayed = <MiniGame>[];
     for (final g in allGames) {
-      if (playedIds.contains(g.id)) continue;
-      if (g.category == GameCategory.positive) {
-        positiveGames.add(g);
-      } else {
-        negativeGames.add(g);
-      }
+      final played = playedIds.contains(g.id);
+      final list = g.category == GameCategory.positive
+          ? (played ? positivePlayed : positiveUnplayed)
+          : (played ? negativePlayed : negativeUnplayed);
+      list.add(g);
     }
 
     // Quota counts for the current chooser — computed once instead of
@@ -102,25 +112,47 @@ class _GameSelectionBody extends ConsumerWidget {
           // ListView's content width gives the label room to lay out.
           const _NewGameSamePlayersButton(),
         ],
-        if (!isFinished && negativeGames.isNotEmpty) ...[
+        if (!isFinished) ...[
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Negatieve spellen',
             color: scoreColorNegative(context),
+            canToggle: negativePlayed.isNotEmpty,
+            showingPlayed: _showPlayedNegative,
+            onToggle: () =>
+                setState(() => _showPlayedNegative = !_showPlayedNegative),
           ),
           const SizedBox(height: 8),
-          for (final game in negativeGames)
+          for (final game in negativeUnplayed)
             _GameTile(game: game, negCount: negCount, posCount: posCount),
-        ],
-        if (!isFinished && positiveGames.isNotEmpty) ...[
+          if (_showPlayedNegative)
+            for (final game in negativePlayed)
+              _GameTile(
+                game: game,
+                negCount: negCount,
+                posCount: posCount,
+                isPlayed: true,
+              ),
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Positieve spellen',
             color: scoreColorPositive(context),
+            canToggle: positivePlayed.isNotEmpty,
+            showingPlayed: _showPlayedPositive,
+            onToggle: () =>
+                setState(() => _showPlayedPositive = !_showPlayedPositive),
           ),
           const SizedBox(height: 8),
-          for (final game in positiveGames)
+          for (final game in positiveUnplayed)
             _GameTile(game: game, negCount: negCount, posCount: posCount),
+          if (_showPlayedPositive)
+            for (final game in positivePlayed)
+              _GameTile(
+                game: game,
+                negCount: negCount,
+                posCount: posCount,
+                isPlayed: true,
+              ),
         ],
         const SizedBox(height: 20),
         const _HistoryList(),
@@ -131,18 +163,47 @@ class _GameSelectionBody extends ConsumerWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label, required this.color});
+  const _SectionHeader({
+    required this.label,
+    required this.color,
+    required this.canToggle,
+    required this.showingPlayed,
+    required this.onToggle,
+  });
 
   final String label;
   final Color color;
 
+  /// Whether there are played games in this category to reveal. When false the
+  /// toggle button renders disabled.
+  final bool canToggle;
+  final bool showingPlayed;
+  final VoidCallback onToggle;
+
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(color: color, letterSpacing: 0.5),
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(color: color, letterSpacing: 0.5),
+          ),
+        ),
+        IconButton(
+          icon: Icon(
+            showingPlayed ? Symbols.visibility_off : Symbols.visibility,
+          ),
+          iconSize: 20,
+          visualDensity: VisualDensity.compact,
+          tooltip: showingPlayed
+              ? 'Verberg gespeelde spellen'
+              : 'Toon gespeelde spellen',
+          onPressed: canToggle ? onToggle : null,
+        ),
+      ],
     );
   }
 }
@@ -152,11 +213,16 @@ class _GameTile extends ConsumerWidget {
     required this.game,
     required this.negCount,
     required this.posCount,
+    this.isPlayed = false,
   });
 
   final MiniGame game;
   final int negCount;
   final int posCount;
+
+  /// True for an already-played game revealed via the section's show-played
+  /// toggle. Rendered disabled; tapping offers to force-replay it.
+  final bool isPlayed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -177,7 +243,8 @@ class _GameTile extends ConsumerWidget {
         (game.category == GameCategory.negative && negCount >= 2) ||
         (game.category == GameCategory.positive && posCount >= 1);
 
-    final isDisabled = (isPendingBlocked || isQuotaDisabled) && !isPending;
+    final isDisabled =
+        isPlayed || ((isPendingBlocked || isQuotaDisabled) && !isPending);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
@@ -190,6 +257,8 @@ class _GameTile extends ConsumerWidget {
         subtitle: Text(
           isPending
               ? 'Niet afgerond  ·  tik om verder te gaan'
+              : isPlayed
+              ? 'Spel al gespeeld'
               : isPositive
               ? 'Positief  ·  +${game.totalPoints} punten totaal'
               : 'Negatief  ·  ${game.totalPoints} punten totaal',
@@ -225,8 +294,19 @@ class _GameTile extends ConsumerWidget {
             );
             return;
           }
-          // Quota-disabled games show a warning with an override option.
-          if (isQuotaDisabled) {
+          // Already-played games (revealed via the toggle) offer a replay.
+          if (isPlayed) {
+            final proceed = await showConfirmDialog(
+              context,
+              title: 'Spel al gespeeld',
+              contentText:
+                  '${game.name} is al gespeeld. Toch nog een keer spelen?',
+              confirmLabel: 'Toch spelen',
+            );
+            if (!context.mounted) return;
+            if (proceed != true) return;
+          } else if (isQuotaDisabled) {
+            // Quota-disabled games show a warning with an override option.
             final chooserName = state.playerNames[state.chooserIndex];
             final proceed = await showConfirmDialog(
               context,

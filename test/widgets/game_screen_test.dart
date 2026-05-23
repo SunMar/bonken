@@ -20,6 +20,7 @@ import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/game_screen.dart';
+import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
 
@@ -179,4 +180,81 @@ void main() {
 
     expect(find.text('Ronde niet afgerond'), findsOneWidget);
   });
+
+  testWidgets(
+    'show-played toggle is disabled for a category with nothing played',
+    (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      await _pump(tester, session: _session(players: players));
+
+      final toggles = find.widgetWithIcon(IconButton, Symbols.visibility);
+      expect(toggles, findsNWidgets(2)); // one per section
+      // Nothing played in either category → both disabled.
+      expect(tester.widget<IconButton>(toggles.first).onPressed, isNull);
+      expect(tester.widget<IconButton>(toggles.last).onPressed, isNull);
+    },
+  );
+
+  testWidgets(
+    'playing a negative enables its toggle and reveals the played tile',
+    (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      final session = _session(
+        players: players,
+        rounds: [_round(1, const Duck(), players[1].id, players)],
+      );
+      await _pump(tester, session: session);
+
+      // Negative toggle enabled (Duck played); positive toggle still disabled.
+      final negToggle = find
+          .widgetWithIcon(IconButton, Symbols.visibility)
+          .first;
+      final posToggle = find
+          .widgetWithIcon(IconButton, Symbols.visibility)
+          .last;
+      expect(tester.widget<IconButton>(negToggle).onPressed, isNotNull);
+      expect(tester.widget<IconButton>(posToggle).onPressed, isNull);
+
+      // Played Duck is hidden by default, revealed after toggling.
+      expect(find.text('Bukken'), findsNothing);
+      await tester.tap(negToggle);
+      await tester.pumpAndSettle();
+      expect(find.text('Bukken'), findsOneWidget);
+      expect(find.text('Spel al gespeeld'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'tapping a revealed played game offers force-replay → navigates',
+    (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      final session = _session(
+        players: players,
+        rounds: [_round(1, const Duck(), players[1].id, players)],
+      );
+      final container = await _pump(tester, session: session);
+
+      await tester.tap(
+        find.widgetWithIcon(IconButton, Symbols.visibility).first,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Bukken'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bukken'));
+      await tester.pumpAndSettle();
+
+      // Force-replay confirm dialog.
+      expect(find.text('Toch spelen'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Toch spelen'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoundInputScreen), findsOneWidget);
+      expect(container.read(calculatorProvider).selectedGame?.id, 'duck');
+
+      // Drain the autosave debounce scheduled by selectGame.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+    },
+  );
 }
