@@ -246,31 +246,236 @@ void main() {
       expect(matrix.stateFor(playerIds[0], playerIds[1]), DoubleState.none);
     });
 
+    testWidgets('chooser initiating shows the override dialog; cancel = no-op, '
+        '"Slappe hap" disabled', (tester) async {
+      DoubleMatrix? captured;
+      await pumpHost(
+        tester,
+        DoublesPicker(
+          players: players,
+          chooserIndex: 0,
+          doubles: DoubleMatrix.empty(),
+          onChanged: (m) => captured = m,
+        ),
+      );
+      // Select chooser as initiator.
+      await tester.tap(find.text('Alice').first);
+      await tester.pump();
+      // Tap a target (Bob) with no double yet → disabled-looking but
+      // tappable: opens the override dialog instead of doubling silently.
+      await tester.tap(find.text('Bob').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Kiezer mag niet dubbelen'), findsOneWidget);
+      // Cancelling leaves the matrix untouched.
+      await tester.tap(find.text('Annuleren'));
+      await tester.pumpAndSettle();
+      expect(captured, isNull);
+      // "Slappe hap" button is still disabled for the chooser.
+      final slappe = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Slappe hap'),
+      );
+      expect(slappe.onPressed, isNull);
+    });
+
     testWidgets(
-      'chooser cannot initiate doubles: tap is no-op, "Slappe hap" disabled',
+      'chooser initiating can be forced via "Toch dubbelen"; re-tap clears it',
       (tester) async {
-        DoubleMatrix? captured;
+        DoubleMatrix matrix = DoubleMatrix.empty();
         await pumpHost(
           tester,
-          DoublesPicker(
-            players: players,
-            chooserIndex: 0,
-            doubles: DoubleMatrix.empty(),
-            onChanged: (m) => captured = m,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 0, // Alice is the chooser.
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
           ),
         );
-        // Select chooser as initiator.
         await tester.tap(find.text('Alice').first);
         await tester.pump();
-        // Tap a target (Bob) that has no double yet → must not fire onChanged.
         await tester.tap(find.text('Bob').last);
-        await tester.pump();
-        expect(captured, isNull);
-        // "Slappe hap" button is disabled.
-        final slappe = tester.widget<OutlinedButton>(
-          find.widgetWithText(OutlinedButton, 'Slappe hap'),
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Toch dubbelen'));
+        await tester.pumpAndSettle();
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[1]),
+          DoubleState.doubled,
         );
-        expect(slappe.onPressed, isNull);
+        expect(matrix.initiatorFor(playerIds[0], playerIds[1]), playerIds[0]);
+        // Re-tapping the forced tile clears it — an undo needs no prompt.
+        await tester.tap(find.text('Bob').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Kiezer mag niet dubbelen'), findsNothing);
+        expect(matrix.stateFor(playerIds[0], playerIds[1]), DoubleState.none);
+      },
+    );
+
+    testWidgets(
+      'redouble after your turn passed: forced via "Toch teruggaan"',
+      (tester) async {
+        // chooserIndex 3 → order Alice→Bob→Carol→Dan. Alice (turn 0) was
+        // doubled by Bob (turn 1), so Alice's turn to go back has passed.
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[0],
+          playerIds[1],
+          DoubleState.doubled,
+          initiator: playerIds[1],
+        );
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 3,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Alice').first);
+        await tester.pump();
+        await tester.tap(find.text('Bob').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Beurt voorbij'), findsOneWidget);
+        await tester.tap(find.text('Toch teruggaan'));
+        await tester.pumpAndSettle();
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[1]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[0], playerIds[1]), playerIds[1]);
+      },
+    );
+
+    testWidgets('redouble after turn passed: cancel leaves it unchanged', (
+      tester,
+    ) async {
+      DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        playerIds[0],
+        playerIds[1],
+        DoubleState.doubled,
+        initiator: playerIds[1],
+      );
+      await pumpHost(
+        tester,
+        StatefulBuilder(
+          builder: (ctx, setState) => DoublesPicker(
+            players: players,
+            chooserIndex: 3,
+            doubles: matrix,
+            onChanged: (m) => setState(() => matrix = m),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Alice').first);
+      await tester.pump();
+      await tester.tap(find.text('Bob').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Annuleren'));
+      await tester.pumpAndSettle();
+      expect(matrix.stateFor(playerIds[0], playerIds[1]), DoubleState.doubled);
+    });
+
+    testWidgets(
+      'forced (turn-passed) redouble can be undone without a prompt',
+      (tester) async {
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[0],
+          playerIds[1],
+          DoubleState.redoubled,
+          initiator: playerIds[1],
+        );
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 3,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Alice').first);
+        await tester.pump();
+        await tester.tap(find.text('Bob').last);
+        await tester.pumpAndSettle();
+        // Undo toggles straight back to doubled, no dialog.
+        expect(find.text('Beurt voorbij'), findsNothing);
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[1]),
+          DoubleState.doubled,
+        );
+      },
+    );
+
+    testWidgets(
+      'redouble while your turn has NOT passed: toggles directly, no dialog',
+      (tester) async {
+        // chooserIndex 3 → order Alice→Bob→Carol→Dan. Alice (turn 0) doubled
+        // Bob (turn 1); Bob's turn comes later, so Bob may still go back.
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[0],
+          playerIds[1],
+          DoubleState.doubled,
+          initiator: playerIds[0],
+        );
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 3,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Bob').first); // Bob goes back on Alice
+        await tester.pump();
+        await tester.tap(find.text('Alice').last);
+        await tester.pumpAndSettle();
+        // Allowed redouble: no force dialog, initiator preserved.
+        expect(find.text('Beurt voorbij'), findsNothing);
+        expect(
+          matrix.stateFor(playerIds[0], playerIds[1]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[0], playerIds[1]), playerIds[0]);
+      },
+    );
+
+    testWidgets(
+      'chooser undo of a forced double clears a redouble-on-top too',
+      (tester) async {
+        // chooser=0 (Alice) initiated a double on Bob (only possible via the
+        // force override); Bob then redoubled. Undoing from the chooser side
+        // clears the whole pair.
+        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+          playerIds[0],
+          playerIds[1],
+          DoubleState.redoubled,
+          initiator: playerIds[0],
+        );
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 0,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Alice').first); // the chooser
+        await tester.pump();
+        await tester.tap(find.text('Bob').last);
+        await tester.pumpAndSettle();
+        // Undo, not a new force → no dialog, and the pair is fully cleared.
+        expect(find.text('Kiezer mag niet dubbelen'), findsNothing);
+        expect(matrix.stateFor(playerIds[0], playerIds[1]), DoubleState.none);
       },
     );
 

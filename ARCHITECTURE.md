@@ -101,6 +101,18 @@ most of the structure exists to serve one of these.
   body in `SafeArea` for edge-to-edge mode). Enforced by a test —
   [`test/architecture_test.dart`](test/architecture_test.dart).
 
+- **Guide with the rules, don't hard-enforce them.** The app *surfaces* the
+  game's rules (amber `Note` callouts, disabled-looking affordances) but lets
+  players override them — *what happens at the physical table is authoritative,
+  not what the app thinks is legal*. Concretely: the per-chooser game quota is a
+  **soft** disable with a "Toch doorgaan" dialog (`game_screen.dart`); the two
+  doubling rules the picker would otherwise block — a redouble whose turn has
+  passed, and the chooser initiating a double — are shown disabled but
+  **force-able** via a confirm dialog (`doubles_picker.dart`); rule prose is data
+  shown verbatim, not branching logic (§6). Code only **hard**-enforces what
+  keeps data well-formed (e.g. a canonical `DoubleMatrix`, Σ scores ==
+  `totalPoints`), never table etiquette.
+
 ---
 
 ## 3. Architecture at a glance
@@ -373,8 +385,8 @@ emits it via `onChanged` → `updateDoubles`:
 |---|---|
 | Turn order: left-of-chooser first, chooser last | `doublingTurnIndex` / `DoublesPicker._doublingOrder` (start `(chooserIndex+1)%4`); drives panel ordering *and* redouble eligibility |
 | Per-pair state machine | `_cycle`: initiator side `none→doubled→redoubled→none`; target side toggles `doubled↔redoubled` |
-| Redouble only while your turn hasn't passed | `_turnIndex` comparison gating `canRedouble` / `canTargetRedouble` |
-| Chooser may not initiate (only "go back") | `isChooserInitiating` guard disables the chooser's initiating tiles |
+| Redouble only while your turn hasn't passed | `_turnIndex` gates `canRedouble`; once passed the tile is shown disabled but **force-able** via a confirm dialog (`_confirmForce`) — guide-don't-enforce (§2) |
+| Chooser may not initiate (only "go back") | `isChooserInitiating` guard; the tile is shown disabled but **force-able** via a confirm dialog (`_confirmForce`) — guide-don't-enforce (§2) |
 | Bulk *Zaal* / *Slappe hap* / chooser "Terug" | `_applyBulk` / `_toSlappeHap` / `_undoZaalTerug` over computed `zaalTargets` / `slappeHapTargets` |
 | Domino Ace/2 precondition | **Not** enforced — surfaced as an amber `Note` only |
 

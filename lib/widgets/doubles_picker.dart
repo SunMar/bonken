@@ -4,6 +4,7 @@ import '../models/double_matrix.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../theme/app_theme_extensions.dart';
+import 'dialogs.dart';
 import 'double_state_chip.dart';
 import 'selectable_player_tile.dart';
 
@@ -188,6 +189,110 @@ class _DoublesPickerState extends State<DoublesPicker> {
     }
 
     widget.onChanged(updated);
+  }
+
+  // ---------- Forced (rule-overriding) actions ----------
+  //
+  // The app guides the doubling rules but doesn't hard-enforce them — what
+  // happens at the table wins (see ARCHITECTURE.md §2). Two tiles that the
+  // rules would block stay visible-but-dimmed and, on tap, offer to force the
+  // action through a confirm dialog. Undoing a forced action is a correction,
+  // so it toggles back without a prompt.
+
+  /// Tap handler for a redouble whose turn has already passed (the selected
+  /// player was doubled by someone later in the order).
+  void _handleTurnPassedTap(int selected, int target) {
+    // Undoing a forced go-back is a correction — no prompt.
+    if (_stateFor(selected, target) == DoubleState.redoubled) {
+      _cycle(selected, target, false, canTargetRedouble: false);
+      return;
+    }
+    final actor = widget.players[selected];
+    final other = widget.players[target];
+    _confirmForce(
+      title: 'Beurt voorbij',
+      message:
+          'De beurt van ${actor.name} is al voorbij. ${actor.name} kan '
+          'daardoor niet meer teruggaan op ${other.name}.',
+      confirmLabel: 'Toch teruggaan',
+      onConfirm: () =>
+          _cycle(selected, target, false, canTargetRedouble: false),
+    );
+  }
+
+  /// Tap handler for the chooser initiating a double (normally not allowed —
+  /// the chooser may only go back on someone who doubled them).
+  void _handleChooserInitiateTap(int selected, int target) {
+    // Undoing a forced chooser double is a correction — no prompt. If the
+    // target had since redoubled on top, clearing the chooser's double clears
+    // the whole pair (the redouble depends on it; mirrors _demoteOnePair).
+    if (_stateFor(selected, target) != DoubleState.none) {
+      _cycle(selected, target, true, canTargetRedouble: false);
+      return;
+    }
+    final actor = widget.players[selected];
+    _confirmForce(
+      title: 'Kiezer mag niet dubbelen',
+      message:
+          '${actor.name} mag als kiezer niet zelf dubbelen (alleen teruggaan).',
+      confirmLabel: 'Toch dubbelen',
+      onConfirm: () => _cycle(selected, target, true, canTargetRedouble: false),
+    );
+  }
+
+  /// Confirms a rule-overriding action and runs [onConfirm] if the user agrees.
+  Future<void> _confirmForce({
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required VoidCallback onConfirm,
+  }) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: title,
+      contentText: message,
+      confirmLabel: confirmLabel,
+    );
+    if (confirmed == true) onConfirm();
+  }
+
+  /// Builds the target tile for [t] given the currently-selected initiator
+  /// (`_selected!`). Interactive tiles toggle directly; the two rule-blocked
+  /// cases (chooser initiating / redouble after your turn passed) stay dimmed
+  /// but tappable and route through a confirm dialog (ARCHITECTURE.md §2).
+  Widget _targetTile(int t) {
+    final selected = _selected!;
+    final st = _stateFor(selected, t);
+    final isInit =
+        st == DoubleState.none || _initiatorFor(selected, t) == _id(selected);
+    // Can only redouble if our turn comes AFTER the initiator's.
+    final canRedouble = !isInit && _turnIndex(selected) > _turnIndex(t);
+    // The chooser is not allowed to initiate doubles — they may only redouble
+    // (Terug) someone who doubled them.
+    final isChooserInitiating = selected == widget.chooserIndex && isInit;
+    final interactive = !isChooserInitiating && (isInit || canRedouble);
+
+    final VoidCallback onTap;
+    if (interactive) {
+      onTap = () => _cycle(
+        selected,
+        t,
+        isInit,
+        canTargetRedouble: _turnIndex(t) > _turnIndex(selected),
+      );
+    } else if (isChooserInitiating) {
+      onTap = () => _handleChooserInitiateTap(selected, t);
+    } else {
+      onTap = () => _handleTurnPassedTap(selected, t);
+    }
+
+    return _TargetTile(
+      name: widget.players[t].name,
+      state: st,
+      isInitiator: isInit,
+      dimmed: !interactive,
+      onTap: onTap,
+    );
   }
 
   /// Apply a bulk action: the selected initiator declares double against each
@@ -427,8 +532,8 @@ class _DoublesPickerState extends State<DoublesPicker> {
                 name: widget.players[t].name,
                 state: DoubleState.none,
                 isInitiator: true,
-                isInteractive: true,
-                onTap: () {},
+                dimmed: false,
+                onTap: null,
               ),
             )
           else if (_selected == null)
@@ -436,44 +541,11 @@ class _DoublesPickerState extends State<DoublesPicker> {
               name: widget.players[t].name,
               state: DoubleState.none,
               isInitiator: true,
-              isInteractive: false,
-              onTap: () {},
+              dimmed: true,
+              onTap: null,
             )
           else
-            Builder(
-              builder: (_) {
-                final st = _stateFor(_selected!, t);
-                final isInit =
-                    st == DoubleState.none ||
-                    _initiatorFor(_selected!, t) == _id(_selected!);
-                // Can only redouble if our turn comes AFTER the initiator's.
-                final canRedouble =
-                    !isInit && _turnIndex(_selected!) > _turnIndex(t);
-                // The chooser is not allowed to initiate doubles — they may
-                // only redouble (Terug) someone who doubled them.
-                final isChooserInitiating =
-                    _selected == widget.chooserIndex && isInit;
-                final isInteractive =
-                    !isChooserInitiating && (isInit || canRedouble);
-                return _TargetTile(
-                  name: widget.players[t].name,
-                  state: st,
-                  isInitiator: isInit,
-                  isInteractive: isInteractive,
-                  onTap: () {
-                    if (isInteractive) {
-                      _cycle(
-                        _selected!,
-                        t,
-                        isInit,
-                        canTargetRedouble:
-                            _turnIndex(t) > _turnIndex(_selected!),
-                      );
-                    }
-                  },
-                );
-              },
-            ),
+            _targetTile(t),
       ],
     );
   }
@@ -570,7 +642,7 @@ class _TargetTile extends StatelessWidget {
     required this.name,
     required this.state,
     required this.isInitiator,
-    required this.isInteractive,
+    required this.dimmed,
     required this.onTap,
   });
 
@@ -582,11 +654,14 @@ class _TargetTile extends StatelessWidget {
   /// player was doubled BY this target player.
   final bool isInitiator;
 
-  /// False when the selected player was doubled by this target but their own
-  /// turn in the declaring order has already passed, so redoubling is not
-  /// allowed.
-  final bool isInteractive;
-  final VoidCallback onTap;
+  /// Renders the tile at 38% opacity to signal the action is normally not
+  /// allowed (turn passed, or chooser initiating). A dimmed tile may still be
+  /// tappable when [onTap] is non-null — tapping then offers to force it.
+  final bool dimmed;
+
+  /// Tap handler, or null when the tile is inert (placeholder / no initiator
+  /// selected).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -658,7 +733,7 @@ class _TargetTile extends StatelessWidget {
     final tile = Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
-        onTap: isInteractive ? onTap : null,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
@@ -673,6 +748,6 @@ class _TargetTile extends StatelessWidget {
         ),
       ),
     );
-    return isInteractive ? tile : Opacity(opacity: 0.38, child: tile);
+    return dimmed ? Opacity(opacity: 0.38, child: tile) : tile;
   }
 }
