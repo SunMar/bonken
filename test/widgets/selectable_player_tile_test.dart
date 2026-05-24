@@ -1,0 +1,94 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:bonken/widgets/selectable_player_tile.dart';
+
+import '_helpers.dart';
+
+void main() {
+  group('SelectablePlayerTile semantics', () {
+    testWidgets('unselected tile: button role, not selected', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpHost(
+        tester,
+        SelectablePlayerTile(
+          name: 'Alice',
+          isSelected: false,
+          isDimmed: false,
+          onTap: () {},
+        ),
+      );
+      // MergeSemantics fuses the button flag, selected state, and the text label
+      // into one node — find.bySemanticsLabel exercises this merged tree, not
+      // just the widget hierarchy.
+      final semantics = tester.getSemantics(find.bySemanticsLabel('Alice'));
+      expect(
+        semantics,
+        matchesSemantics(
+          isButton: true,
+          isFocusable: true,
+          // hasSelectedState is set whenever Semantics(selected:) is used,
+          // even when isSelected is false — it signals that this widget
+          // participates in the selection model.
+          hasSelectedState: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('selected tile: button role, is selected', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpHost(
+        tester,
+        SelectablePlayerTile(
+          name: 'Alice',
+          isSelected: true,
+          isDimmed: false,
+          onTap: () {},
+        ),
+      );
+      final semantics = tester.getSemantics(find.bySemanticsLabel('Alice'));
+      expect(
+        semantics,
+        matchesSemantics(
+          isButton: true,
+          isSelected: true,
+          isFocusable: true,
+          hasSelectedState: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'dimmed tile: still button role, not selected — opacity is visual only',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpHost(
+          tester,
+          SelectablePlayerTile(
+            name: 'Alice',
+            isSelected: false,
+            isDimmed: true,
+            onTap: () {},
+          ),
+        );
+        final semantics = tester.getSemantics(find.bySemanticsLabel('Alice'));
+        expect(
+          semantics,
+          matchesSemantics(
+            isButton: true,
+            isFocusable: true,
+            hasSelectedState: true,
+            hasTapAction: true,
+            hasFocusAction: true,
+          ),
+        );
+        handle.dispose();
+      },
+    );
+  });
+}

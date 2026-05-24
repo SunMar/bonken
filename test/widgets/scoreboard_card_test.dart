@@ -77,6 +77,48 @@ void main() {
       expect(find.byIcon(Symbols.emoji_events), findsNWidgets(2));
     });
 
+    testWidgets('tappable card exposes button role and semantic label', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpHost(
+        tester,
+        ScoreboardCard(
+          roundsPlayed: 2,
+          playerNames: playerNames,
+          scores: const [0, 0, 0, 0],
+          winners: const [],
+          headerLabel: headerLabel('Tussenstand'),
+          onTap: () {},
+          tapSemanticLabel: 'Open spel',
+        ),
+      );
+      // The InkWell inside ScoreboardCard internally uses FocusableActionDetector
+      // which creates a MergeSemantics boundary. The outer
+      // Semantics(button: true, label: tapSemanticLabel) annotation is
+      // inherited into this boundary node. Finding MergeSemantics descending
+      // from ScoreboardCard gives us that merged node reliably — exercises the
+      // a11y API (not just the widget hierarchy) by asserting on the merged
+      // semantics data.
+      final semantics = tester.getSemantics(
+        find.descendant(
+          of: find.byType(ScoreboardCard),
+          matching: find.byType(MergeSemantics),
+        ),
+      );
+      expect(
+        semantics,
+        matchesSemantics(
+          isButton: true,
+          isFocusable: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+          label: 'Open spel',
+        ),
+      );
+      handle.dispose();
+    });
+
     testWidgets(
       'onTap == null: no InkWell wired up; non-null: InkWell present and fires',
       (tester) async {

@@ -214,10 +214,9 @@ class _GameSessionCard extends ConsumerWidget {
       ).push(MaterialPageRoute<void>(builder: (_) => const GameScreen()));
     }
 
-    // Compact density for the trailing Verwijderen IconButton (32×32
-    // slot / 18dp glyph). Any future trailing icon (e.g. share, archive)
-    // inherits the same size without per-button overrides.
-    final compactIconTheme = compactIconButtonTheme(
+    // Muted tint for the trailing Verwijderen IconButton (standard 48dp
+    // tap target). Any future trailing icon inherits the same tint.
+    final mutedIconTheme = mutedIconButtonTheme(
       theme,
       foregroundColor: cs.onSurfaceVariant,
     );
@@ -226,9 +225,17 @@ class _GameSessionCard extends ConsumerWidget {
       color: cs.onSurfaceVariant,
     );
 
+    final names = session.displayedPlayerNames.join(', ');
+    final date = formatDate(session.updatedAt);
+    final tapLabel = session.isFinished
+        ? 'Afgerond spel met $names — $date'
+        : 'Lopend spel met $names — ronde ${session.rounds.length + 1} '
+              'van ${GameSession.totalRounds} — $date';
+
     return Theme(
-      data: compactIconTheme,
+      data: mutedIconTheme,
       child: ScoreboardCard(
+        tapSemanticLabel: tapLabel,
         // Zero outer margin so the ListView's separator owns all
         // vertical spacing between cards (avoids the default Card
         // margin compounding with the separator gap).

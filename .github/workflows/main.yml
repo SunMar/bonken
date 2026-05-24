@@ -1,4 +1,6 @@
-name: Deploy to GitHub Pages
+# Push-to-main pipeline: verify (format → analyze → test), then build the web
+# bundle and deploy it to GitHub Pages.
+name: main
 
 on:
   push:
@@ -21,6 +23,8 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-build
+
+      - uses: ./.github/actions/verify
 
       - name: Build web
         run: |

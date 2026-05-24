@@ -196,8 +196,6 @@ class _SectionHeader extends StatelessWidget {
           icon: Icon(
             showingPlayed ? Symbols.visibility_off : Symbols.visibility,
           ),
-          iconSize: 20,
-          visualDensity: VisualDensity.compact,
           tooltip: showingPlayed
               ? 'Verberg gespeelde spellen'
               : 'Toon gespeelde spellen',
@@ -246,7 +244,27 @@ class _GameTile extends ConsumerWidget {
     final isDisabled =
         isPlayed || ((isPendingBlocked || isQuotaDisabled) && !isPending);
 
-    return Card(
+    // A dimmed-but-tappable tile is an override — announce why via a hint
+    // (the ListTile already exposes the button role + game-name label).
+    String? a11yHint;
+    if (isPlayed) {
+      a11yHint = 'Al gespeeld; activeer om opnieuw te spelen';
+    } else if (isQuotaDisabled && !isPending) {
+      a11yHint = 'Limiet bereikt; activeer om toch te kiezen';
+    }
+
+    final String subtitleText;
+    if (isPending) {
+      subtitleText = 'Niet afgerond  ·  tik om verder te gaan';
+    } else if (isPlayed) {
+      subtitleText = 'Spel al gespeeld';
+    } else if (isPositive) {
+      subtitleText = 'Positief  ·  +${game.totalPoints} punten totaal';
+    } else {
+      subtitleText = 'Negatief  ·  ${game.totalPoints} punten totaal';
+    }
+
+    final tile = Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         leading: GameAvatar(game: game, radius: 22, disabled: isDisabled),
@@ -255,13 +273,7 @@ class _GameTile extends ConsumerWidget {
           style: TextStyle(color: isDisabled ? disabledOnSurface(cs) : null),
         ),
         subtitle: Text(
-          isPending
-              ? 'Niet afgerond  ·  tik om verder te gaan'
-              : isPlayed
-              ? 'Spel al gespeeld'
-              : isPositive
-              ? 'Positief  ·  +${game.totalPoints} punten totaal'
-              : 'Negatief  ·  ${game.totalPoints} punten totaal',
+          subtitleText,
           style: TextStyle(
             color: isDisabled ? disabledOnSurface(cs) : textColor,
           ),
@@ -327,6 +339,9 @@ class _GameTile extends ConsumerWidget {
         },
       ),
     );
+    return MergeSemantics(
+      child: Semantics(button: true, hint: a11yHint, child: tile),
+    );
   }
 }
 
@@ -369,9 +384,9 @@ class _LiveScoreboard extends ConsumerWidget {
           ]
         : <int>[];
 
-    // Compact density for the trailing IconButtons, matching the
-    // history-card and home session-card surfaces.
-    final compactIconTheme = compactIconButtonTheme(
+    // Muted tint for the trailing IconButtons, matching the home
+    // session-card surface (standard 48dp tap targets).
+    final mutedIconTheme = mutedIconButtonTheme(
       theme,
       foregroundColor: cs.onSurfaceVariant,
     );
@@ -392,7 +407,7 @@ class _LiveScoreboard extends ConsumerWidget {
           );
 
     return Theme(
-      data: compactIconTheme,
+      data: mutedIconTheme,
       child: ScoreboardCard(
         roundsPlayed: roundsPlayed,
         playerNames: [for (final p in displayedPlayers) p.name],
@@ -551,38 +566,28 @@ class _HistoryList extends ConsumerWidget {
     // Normal mode: reversed (most recent first), with edit buttons.
     final lastRoundNumber = history.last.roundNumber;
     final theme = Theme.of(context);
-    // Theme-scoped compact density for everything in this card.  The history
-    // card is a "data-dense list" surface (Material's term), so trailing
-    // IconButtons inherit Material 3's `small` size variant (~32dp slot,
-    // 18dp glyph) instead of the default 48dp touch target.  Individual
-    // IconButtons below stay free of size/density overrides.
-    final compactIconTheme = compactIconButtonTheme(theme);
     return RepaintBoundary(
-      child: Theme(
-        data: compactIconTheme,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Gespeelde rondes', style: theme.textTheme.titleSmall),
-                for (final record in history.reversed) ...[
-                  const Divider(height: 16),
-                  _HistoryRow(
-                    record: record,
-                    playerNames: displayedNames,
-                    players: displayedPlayers,
-                    cs: cs,
-                    notifier: notifier,
-                    showDelete:
-                        record.roundNumber == lastRoundNumber &&
-                        !hasPendingGame,
-                  ),
-                ],
-                const SizedBox(height: 8),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Gespeelde rondes', style: theme.textTheme.titleSmall),
+              for (final record in history.reversed) ...[
+                const Divider(height: 16),
+                _HistoryRow(
+                  record: record,
+                  playerNames: displayedNames,
+                  players: displayedPlayers,
+                  cs: cs,
+                  notifier: notifier,
+                  showDelete:
+                      record.roundNumber == lastRoundNumber && !hasPendingGame,
+                ),
               ],
-            ),
+              const SizedBox(height: 8),
+            ],
           ),
         ),
       ),
@@ -685,8 +690,7 @@ class _HistoryRow extends StatelessWidget {
         const SizedBox(width: 8),
         // Edit + (optional) delete buttons.  Only the most recent round
         // gets a delete button; non-last rows just show edit and the row
-        // collapses to its natural height.  Size/density come from the
-        // compact IconButtonTheme installed on the surrounding card.
+        // collapses to its natural height.  Buttons are standard 48dp targets.
         Column(
           children: [
             IconButton(
@@ -753,7 +757,7 @@ class _RoundInfoBanner extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            Icon(Symbols.info, size: 18, color: cs.onSecondaryContainer),
+            Icon(Symbols.info, size: 24, color: cs.onSecondaryContainer),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

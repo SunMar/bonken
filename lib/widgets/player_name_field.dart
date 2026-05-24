@@ -74,14 +74,19 @@ class PlayerNameField extends StatelessWidget {
                 itemCount: visible.length,
                 itemBuilder: (context, idx) {
                   final option = visible[idx];
-                  return InkWell(
-                    onTap: () => onSelected(option),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
+                  return MergeSemantics(
+                    child: Semantics(
+                      button: true,
+                      child: InkWell(
+                        onTap: () => onSelected(option),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Text(option),
+                        ),
                       ),
-                      child: Text(option),
                     ),
                   );
                 },

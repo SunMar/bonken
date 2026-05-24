@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +8,17 @@ import 'package:bonken/models/score_result.dart';
 import 'package:bonken/widgets/score_result_view.dart';
 
 import '_helpers.dart';
+
+// _ScoreRow always renders the trophy Icon (inside an Opacity) so that the
+// row layout stays stable regardless of winner state. Opacity.opacity == 1.0
+// means the icon is visually present; 0.0 means invisible placeholder.
+Finder _visibleTrophy() => find.byWidgetPredicate(
+  (w) =>
+      w is Opacity &&
+      w.opacity == 1.0 &&
+      w.child is Icon &&
+      (w.child as Icon).icon == Symbols.emoji_events,
+);
 
 void main() {
   group('ScoreResultView', () {
@@ -41,7 +53,7 @@ void main() {
           chooserIndex: 0,
         ),
       );
-      expect(find.byIcon(Symbols.emoji_events), findsOneWidget);
+      expect(_visibleTrophy(), findsOneWidget);
     });
 
     testWidgets('marks all tied winners with trophy icons', (tester) async {
@@ -56,7 +68,7 @@ void main() {
           chooserIndex: 0,
         ),
       );
-      expect(find.byIcon(Symbols.emoji_events), findsNWidgets(2));
+      expect(_visibleTrophy(), findsNWidgets(2));
     });
 
     testWidgets('does NOT mark a winner when isPartial', (tester) async {
@@ -72,7 +84,26 @@ void main() {
           isPartial: true,
         ),
       );
-      expect(find.byIcon(Symbols.emoji_events), findsNothing);
+      expect(_visibleTrophy(), findsNothing);
+      // Partial state must be signalled semantically for screen readers.
+      expect(find.text('Voorlopige score'), findsOneWidget);
+      expect(find.text('Score'), findsNothing);
+    });
+
+    testWidgets('header reads "Score" when not partial', (tester) async {
+      await pumpHost(
+        tester,
+        ScoreResultView(
+          result: const ScoreResult(
+            scores: {'alice': 0, 'bob': 0, 'carol': 0, 'dan': 0},
+          ),
+          game: const Clubs(),
+          players: players,
+          chooserIndex: 0,
+        ),
+      );
+      expect(find.text('Score'), findsOneWidget);
+      expect(find.text('Voorlopige score'), findsNothing);
     });
 
     testWidgets('hides Score header when showHeader is false', (tester) async {

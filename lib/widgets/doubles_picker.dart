@@ -748,6 +748,19 @@ class _TargetTile extends StatelessWidget {
         ),
       ),
     );
-    return dimmed ? Opacity(opacity: 0.38, child: tile) : tile;
+    // A dimmed-but-tappable tile is a rule override (turn passed / chooser
+    // initiating): announce it as an enabled button with a hint, even though
+    // it looks disabled. Truly inert tiles (onTap == null) read as disabled.
+    final forceable = dimmed && onTap != null;
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        hint: forceable
+            ? 'Normaal niet toegestaan; activeer om te forceren'
+            : null,
+        child: dimmed ? Opacity(opacity: 0.38, child: tile) : tile,
+      ),
+    );
   }
 }

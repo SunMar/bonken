@@ -9,7 +9,7 @@
             "request": "launch",
             "type": "dart",
             "deviceId": "web-server",
-            "args": ["--web-port", "3000"]
+            "toolArgs": ["--web-port", "3000"]
         },
         {
             "name": "bonken (profile mode)",
@@ -17,7 +17,7 @@
             "type": "dart",
             "flutterMode": "profile",
             "deviceId": "web-server",
-            "args": ["--web-port", "3010"]
+            "toolArgs": ["--web-port", "3010"]
         },
         {
             "name": "bonken (release mode)",
@@ -25,7 +25,7 @@
             "type": "dart",
             "flutterMode": "release",
             "deviceId": "web-server",
-            "args": ["--web-port", "3020"]
+            "toolArgs": ["--web-port", "3020"]
         }
     ]
 }

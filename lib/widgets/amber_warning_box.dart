@@ -26,6 +26,56 @@ class AmberWarningBox extends StatelessWidget {
             ? WarningColors.dark
             : WarningColors.light);
     final tt = theme.textTheme;
+    // GitHub Alert style: icon + title on the first line, body text below.
+    // Without a label the icon sits inline before the body text.
+    final Widget content;
+    if (label != null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Label already signals the warning type — icon stays silent.
+              Icon(Symbols.warning_amber, size: 20, color: warning.icon),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label!,
+                  style: tt.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: warning.foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(text, style: tt.bodyMedium?.copyWith(color: warning.foreground)),
+        ],
+      );
+    } else {
+      content = Row(
+        // Center so the icon aligns with the mid-point of multi-line text.
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // No label — icon alone conveys "warning" to screen readers.
+          Icon(
+            Symbols.warning_amber,
+            size: 20,
+            color: warning.icon,
+            semanticLabel: 'Waarschuwing',
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: tt.bodyMedium?.copyWith(color: warning.foreground),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: warning.background,
@@ -33,37 +83,7 @@ class AmberWarningBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(Symbols.warning_amber, size: 20, color: warning.icon),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (label != null) ...[
-                  Text(
-                    label!,
-                    style: tt.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: warning.foreground,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                ],
-                Text(
-                  text,
-                  style: tt.bodyMedium?.copyWith(color: warning.foreground),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      child: content,
     );
   }
 }

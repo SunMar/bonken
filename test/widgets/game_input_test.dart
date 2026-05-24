@@ -128,6 +128,60 @@ void main() {
         expect(btn.onPressed, isNull);
       }
     });
+
+    testWidgets('ghost-text spacer: string is "12", font is Roboto — '
+        'changes to either break the stable-width guarantee', (tester) async {
+      // WHY "12" IN ROBOTO:
+      // Each _PlayerCountRow renders an invisible Text("12") behind the live
+      // count so the stepper column stays a stable width as the count changes
+      // (e.g. 9→10). The ghost string must be the WIDEST reachable count in
+      // the body font.
+      //
+      // Per-player counts range 0–13. In Roboto digit glyph widths are NOT
+      // proportional to numeric value:
+      //   '2' > '0' = '3' >> '1'   (pixels; '1' is much narrower)
+      // 2-digit combinations therefore rank:
+      //   "12" (1+2) > "10" = "13" (1+0 = 1+3) > "11" (1+1)
+      // → "12" is the widest string in the reachable 0–13 set, which lets
+      //   the column be as tight as possible without ever causing overflow
+      //   or causing adjacent stepper buttons to shift position.
+      //
+      // If the ghost string ever changes, verify the new value is still the
+      // widest reachable count. If the font changes, re-measure digit widths.
+      //
+      // ExcludeSemantics makes the a11y intent explicit and protects against
+      // a hypothetical future alwaysIncludeSemantics: true on the Opacity.
+      await pumpHost(
+        tester,
+        CountsInput(
+          playerNames: playerNames,
+          counts: const [0, 0, 0, 0],
+          total: 13,
+          unitLabel: 'slagen',
+          onCountsChanged: (_) {},
+        ),
+      );
+
+      // Exactly one invisible ghost Text per player row, wrapped in
+      // ExcludeSemantics (outer) so the layout spacer is never announced by
+      // screen readers.
+      final ghostFinder = find.byWidgetPredicate(
+        (w) =>
+            w is ExcludeSemantics &&
+            w.child is Opacity &&
+            (w.child as Opacity).opacity == 0.0 &&
+            (w.child as Opacity).child is Text &&
+            ((w.child as Opacity).child as Text).data == '12',
+      );
+      expect(ghostFinder, findsNWidgets(playerNames.length));
+
+      final excludeSem = tester.widget<ExcludeSemantics>(ghostFinder.first);
+      final ghostOpacity = excludeSem.child! as Opacity;
+      final ghostText = ghostOpacity.child! as Text;
+      expect(ghostText.data, '12');
+      // Font must stay Roboto; the "12 is widest" claim is metric-specific.
+      expect(ghostText.style?.fontFamily, 'Roboto');
+    });
   });
 
   group('PlayerPicker', () {

@@ -51,21 +51,21 @@ class CountsInput extends StatelessWidget {
     final remaining = total - sum;
     final isComplete = sum == total;
 
-    // Theme-scoped compact density for the per-row stepper buttons.
-    // Each player row has three IconButtons (-, +, all-remaining); rather
-    // than repeating density/padding overrides on each, the `_PlayerCountRow`
-    // children inherit a small-variant IconButtonTheme installed here.
-    final compactStepperTheme = theme.copyWith(
+    // Per-row stepper buttons (-, +, all-remaining). Keep the standard 48dp
+    // tap target (a11y `androidTapTargetGuideline`) but zero internal padding
+    // so the icons sit as tight as the 48dp minimum allows — installed once
+    // here instead of per-button.
+    final stepperTheme = theme.copyWith(
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
+          minimumSize: const Size(48, 48),
         ),
       ),
     );
 
     return Theme(
-      data: compactStepperTheme,
+      data: stepperTheme,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -133,15 +133,38 @@ class _PlayerCountRow extends StatelessWidget {
             onPressed: canDecrement ? onDecrement : null,
             tooltip: 'Minder',
           ),
-          SizedBox(
-            width: 36,
-            child: Text(
-              '$count',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
+          // Ghost-text Stack: an invisible string that renders at the widest
+          // possible width sets the column size; the actual count overlays it.
+          // This prevents the adjacent buttons from shifting when the count
+          // changes (e.g. 9→10) or when the system font scale changes.
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              ExcludeSemantics(
+                child: Opacity(
+                  opacity: 0,
+                  // '12' is the widest of the reachable values 10–13 in Roboto:
+                  //   '2' > '0' = '3' >> '1' (measured in pixels).
+                  // So '12' (1+2) > '10'='13' (1+0 = 1+3) > '11' (1+1).
+                  // Also handles the 9→10 digit-count jump.
+                  // Revisit if a game ever adds a per-player total > 13 or if
+                  // the body font changes.
+                  child: Text(
+                    '12',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
           IconButton(
             icon: const Icon(Symbols.add_circle),

@@ -37,6 +37,9 @@ calls. Write explicit types; let `dart format` add the trailing commas.
 - **Σ scores == `totalPoints`** per game (engine invariant, asserted).
 - **Seat math only in `lib/models/game_mechanics.dart`** (`dealerIndexFor`).
 - **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`).
+- **Accessible by default** ([ARCHITECTURE.md §2](ARCHITECTURE.md)): interactive
+  tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout
+  spacers use `ExcludeSemantics`. `test/a11y_test.dart` gates four guidelines.
 - **UI strings Dutch, code identifiers English.**
 - **Bump `_currentVersion` + add a migration** when changing stored JSON.
 

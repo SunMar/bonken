@@ -43,6 +43,7 @@ class ScoreboardCard extends StatelessWidget {
     required this.headerLabel,
     this.headerTrailing,
     this.onTap,
+    this.tapSemanticLabel,
     this.margin,
   });
 
@@ -72,6 +73,11 @@ class ScoreboardCard extends StatelessWidget {
   /// If non-null, the card becomes tappable (with an [InkWell] ripple).
   /// When null, the card is purely informational.
   final VoidCallback? onTap;
+
+  /// Accessible label for the whole card when [onTap] is set (announced as a
+  /// button). Callers that set [onTap] should provide this so screen readers
+  /// identify the card; ignored when [onTap] is null.
+  final String? tapSemanticLabel;
 
   /// Outer card margin. Defaults to the standard `Card` margin (i.e.
   /// whatever `CardTheme.margin` resolves to — `EdgeInsets.all(4)` on
@@ -105,8 +111,9 @@ class ScoreboardCard extends StatelessWidget {
                 // both states — completion is carried by the glyph, not
                 // by colour.
                 fill: isFinished ? 1 : 0,
-                size: 16,
+                size: 24,
                 color: cs.onSurfaceVariant,
+                semanticLabel: isFinished ? 'Afgerond spel' : 'Lopend spel',
               ),
               const SizedBox(width: 6),
               // Expanded (not Flexible) so the label absorbs the free
@@ -149,10 +156,21 @@ class ScoreboardCard extends StatelessWidget {
       margin: margin,
       child: onTap == null
           ? content
-          : InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: content,
+          // Annotate the InkWell's tap node with a button role + label so the
+          // card is announced as one openable control (the inner score chips
+          // and the trailing delete button stay individually reachable).
+          : MergeSemantics(
+              child: Semantics(
+                button: true,
+                label: tapSemanticLabel,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: onTap,
+                  // The tapSemanticLabel already describes the card for screen
+                  // readers; exclude content so it is not double-announced.
+                  child: ExcludeSemantics(child: content),
+                ),
+              ),
             ),
     );
   }
@@ -212,6 +230,7 @@ class _PlayerScoreChip extends StatelessWidget {
                   size: 14,
                   color: cs.onTertiaryContainer,
                   fill: 1,
+                  semanticLabel: 'Winnaar',
                 ),
                 const SizedBox(width: 4),
               ],

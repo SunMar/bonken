@@ -59,7 +59,10 @@ class ScoreResultView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (showHeader) ...[
-                Text('Score', style: theme.textTheme.titleSmall),
+                Text(
+                  isPartial ? 'Voorlopige score' : 'Score',
+                  style: theme.textTheme.titleSmall,
+                ),
                 const SizedBox(height: 8),
               ],
               for (int i = 0; i < players.length; i++)
@@ -107,11 +110,19 @@ class _ScoreRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          if (isWinner) ...[
-            Icon(Symbols.emoji_events, size: 16, color: cs.primary, fill: 1),
-            const SizedBox(width: 4),
-          ] else
-            const SizedBox(width: 20),
+          Opacity(
+            opacity: isWinner ? 1.0 : 0.0,
+            child: Icon(
+              Symbols.emoji_events,
+              size: 16,
+              color: cs.primary,
+              fill: 1,
+              // null → Flutter's Icon uses ExcludeSemantics, so the invisible
+              // placeholder is inert to screen readers.
+              semanticLabel: isWinner ? 'Winnaar' : null,
+            ),
+          ),
+          const SizedBox(width: 4),
           Expanded(child: Text(name, style: theme.textTheme.bodyLarge)),
           Text(
             label,

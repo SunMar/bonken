@@ -113,6 +113,17 @@ most of the structure exists to serve one of these.
   keeps data well-formed (e.g. a canonical `DoubleMatrix`, Σ scores ==
   `totalPoints`), never table etiquette.
 
+- **Accessible by default.** Decorative `Icon`s carry no `semanticLabel`, so
+  they stay out of the a11y tree; every interactive control exposes a button
+  role + label — icon buttons via `tooltip`, custom `InkWell` tiles via an
+  explicit `Semantics` (with `MergeSemantics` so each reads as one control).
+  Dimmed-but-tappable overrides (doubles force tiles, played/quota game tiles)
+  announce as *enabled* buttons with a hint, since the dimming is purely
+  visual. Tap targets are kept at the standard ≥48dp. `test/a11y_test.dart`
+  pumps every screen with semantics on and gates `textContrastGuideline`,
+  `labeledTapTargetGuideline`, and `android`/`iOSTapTargetGuideline` via the
+  normal `flutter test` run (no separate CI step).
+
 ---
 
 ## 3. Architecture at a glance
@@ -583,9 +594,12 @@ delegates are registered.
   Handles resume (tap), delete + undo snackbar, and the unsupported-version
   screen.
 - **`NewGameScreen`** — local working state only; commits via `startNewGame`.
-- **`GameScreen`** — the in-game hub. `_GameSelectionBody` lists available games
-  (filtering out played ones, applying the per-chooser quota disabling +
-  pending-round blocking), with `_LiveScoreboard`, a round-history list, and
+- **`GameScreen`** — the in-game hub. `_GameSelectionBody` separates unplayed
+  and played games per category (negative / positive); played games are hidden by
+  default and can be revealed via a per-category toggle in `_SectionHeader` —
+  when visible they render disabled ("Spel al gespeeld") and offer force-replay
+  on tap. Per-chooser quota disabling and pending-round blocking remain as soft
+  disables. Also contains `_LiveScoreboard`, a round-history list, and
   edit-players / delete-game actions.
 - **`RoundInputScreen`** — composed of focused `ConsumerWidget` cards
   (`_ChooserSelectorCard`, `_DoublesCard`, `_InputFormCard`,
@@ -630,7 +644,9 @@ Run with `flutter test`. Layout mirrors `lib/`:
 - **`test/widgets/`** — one file per screen/widget.
 - **Guards:** `architecture_test.dart` fails the build if any screen uses raw
   `Scaffold` instead of `AppScaffold`; `license_assets_test.dart` verifies the
-  bundled-license registration from `main.dart`.
+  bundled-license registration from `main.dart`; `a11y_test.dart` pumps every
+  screen and gates `textContrastGuideline`, `labeledTapTargetGuideline`, and
+  `android`/`iOSTapTargetGuideline` (see §2 for the full a11y posture).
 
 **Shared helpers** ([`test/test_helpers.dart`](test/test_helpers.dart)):
 `setUpPrefs()` resets mock `SharedPreferences` per test; `initializeWidgets()`

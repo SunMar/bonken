@@ -131,6 +131,7 @@ void main() {
   testWidgets(
     'quota: chooser with 2 negatives → tile disabled, tap shows override dialog',
     (tester) async {
+      final handle = tester.ensureSemantics();
       final players = [for (final n in _names) Player(name: n)];
       // firstDealer = players[0] + 2 completed rounds ⇒ current chooser is
       // players[3]. Attribute both negatives to players[3] so their negative
@@ -147,10 +148,39 @@ void main() {
 
       await tester.ensureVisible(find.text('Vrouwen')); // Queens (negative)
       await tester.pumpAndSettle();
+
+      // Quota-disabled tile must expose its override hint via the semantics
+      // tree so screen readers can explain why the tile is dimmed.
+      // MergeSemantics fuses our Semantics(button, hint) wrapper with the
+      // inner ListTile (which contributes isFocusable, hasEnabledState,
+      // isEnabled, hasSelectedState from its own semantics annotations).
+      final quotaSemantics = tester.getSemantics(
+        find
+            .ancestor(
+              of: find.widgetWithText(ListTile, 'Vrouwen'),
+              matching: find.byType(MergeSemantics),
+            )
+            .last,
+      );
+      expect(
+        quotaSemantics,
+        matchesSemantics(
+          isButton: true,
+          isFocusable: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasSelectedState: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+          hint: 'Limiet bereikt; activeer om toch te kiezen',
+        ),
+      );
+
       await tester.tap(find.text('Vrouwen'));
       await tester.pumpAndSettle();
 
       expect(find.text('Limiet overschreden'), findsOneWidget);
+      handle.dispose();
     },
   );
 
@@ -198,6 +228,7 @@ void main() {
   testWidgets(
     'playing a negative enables its toggle and reveals the played tile',
     (tester) async {
+      final handle = tester.ensureSemantics();
       final players = [for (final n in _names) Player(name: n)];
       final session = _session(
         players: players,
@@ -221,6 +252,34 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Bukken'), findsOneWidget);
       expect(find.text('Spel al gespeeld'), findsOneWidget);
+
+      // The revealed played-tile must expose its override hint via the
+      // semantics tree so screen readers can explain the replay affordance.
+      // MergeSemantics fuses our Semantics(button, hint) wrapper with the
+      // inner ListTile (which contributes isFocusable, hasEnabledState,
+      // isEnabled, hasSelectedState from its own semantics annotations).
+      final playedSemantics = tester.getSemantics(
+        find
+            .ancestor(
+              of: find.widgetWithText(ListTile, 'Bukken'),
+              matching: find.byType(MergeSemantics),
+            )
+            .last,
+      );
+      expect(
+        playedSemantics,
+        matchesSemantics(
+          isButton: true,
+          isFocusable: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasSelectedState: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+          hint: 'Al gespeeld; activeer om opnieuw te spelen',
+        ),
+      );
+      handle.dispose();
     },
   );
 

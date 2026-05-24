@@ -81,10 +81,9 @@ class RulesIconButton extends StatelessWidget {
 /// surface — keeps the spacing, icon density and tap-target rules
 /// consistent.
 ///
-/// The trailing icon is rendered with zero padding and a compact
-/// visual density so it does not inflate the AppBar height or push the
-/// title text off its baseline. The full 48dp tap target is preserved
-/// by Material's default [MaterialTapTargetSize.padded] behaviour.
+/// The trailing icon is rendered with zero padding so it sits tight
+/// against the title without pushing the text off its baseline, while
+/// keeping the standard 48dp tap target (no density shrink) for a11y.
 class TitleWithRules extends StatelessWidget {
   const TitleWithRules({
     super.key,
@@ -119,7 +118,6 @@ class TitleWithRules extends StatelessWidget {
           data: const IconButtonThemeData(
             style: ButtonStyle(
               padding: WidgetStatePropertyAll(EdgeInsets.zero),
-              visualDensity: VisualDensity.compact,
             ),
           ),
           child: RulesIconButton(singleGameId: singleGameId, tooltip: tooltip),

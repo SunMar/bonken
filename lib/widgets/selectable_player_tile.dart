@@ -69,6 +69,14 @@ class SelectablePlayerTile extends StatelessWidget {
         ),
       ),
     );
-    return isDimmed ? Opacity(opacity: 0.38, child: tile) : tile;
+    // Announce as a single selectable button (merges the name + optional
+    // badge count); dimming is purely visual and stays tappable.
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        child: isDimmed ? Opacity(opacity: 0.38, child: tile) : tile,
+      ),
+    );
   }
 }
