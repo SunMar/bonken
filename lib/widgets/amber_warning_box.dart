@@ -20,11 +20,7 @@ class AmberWarningBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final warning =
-        theme.extension<WarningColors>() ??
-        (theme.brightness == Brightness.dark
-            ? WarningColors.dark
-            : WarningColors.light);
+    final warning = WarningColors.of(context);
     final tt = theme.textTheme;
     // GitHub Alert style: icon + title on the first line, body text below.
     // Without a label the icon sits inline before the body text.

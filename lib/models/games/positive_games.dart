@@ -1,12 +1,9 @@
-import '../input_descriptor.dart';
 import '../mini_game.dart';
-import '../player.dart';
 
-/// Shared base for all 5 positive trick-taking mini-games.
-///
-/// Input key: 'tricks' — Map&lt;String, int&gt; keyed by player UUID (tricks per player).
-/// Total score: 13 tricks × +20 = +260.
-abstract class PositiveGame extends MiniGame {
+/// Shared base for all 5 positive trick-taking mini-games: 13 tricks summing to
+/// +260 (13 × +20). All counts behaviour (input key, descriptor, scoring,
+/// storage round-trip) comes from [CountsMiniGame].
+abstract class PositiveGame extends CountsMiniGame {
   const PositiveGame({
     required super.id,
     required super.name,
@@ -15,20 +12,9 @@ abstract class PositiveGame extends MiniGame {
          category: GameCategory.positive,
          pointsPerUnit: 20,
          totalPoints: 260,
+         total: 13,
+         unitLabel: 'slagen',
        );
-
-  @override
-  Map<String, int> rawCounts(
-    Map<String, dynamic> input,
-    List<Player> players,
-  ) => countsForKey('tricks', input, players);
-
-  @override
-  InputDescriptor get inputDescriptor => const CountsInputDescriptor(
-    inputKey: 'tricks',
-    total: 13,
-    unitLabel: 'slagen',
-  );
 }
 
 /// Klaveren (Clubs) – Clubs is trump.

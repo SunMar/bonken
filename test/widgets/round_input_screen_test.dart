@@ -125,7 +125,7 @@ void main() {
 
       // Round 1 — Clubs, valid input, commit.
       notifier.selectGame(const Clubs());
-      notifier.updateInput('tricks', {
+      notifier.updateInput('counts', {
         ps[0].id: 4,
         ps[1].id: 4,
         ps[2].id: 2,
@@ -136,7 +136,7 @@ void main() {
       // rounds in history, so editing round 1 is editing a non-last
       // round (canRollbackWithPartial is false).
       notifier.selectGame(const Diamonds());
-      notifier.updateInput('tricks', {
+      notifier.updateInput('counts', {
         ps[0].id: 4,
         ps[1].id: 3,
         ps[2].id: 5,
@@ -147,7 +147,7 @@ void main() {
       // Restore round 1 for edit, then make its input invalid.
       final round1 = container.read(calculatorProvider).history.first;
       notifier.restoreRound(round1);
-      notifier.updateInput('tricks', {
+      notifier.updateInput('counts', {
         ps[0].id: 4,
         ps[1].id: 3,
         ps[2].id: 2,

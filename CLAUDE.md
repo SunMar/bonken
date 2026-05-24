@@ -41,6 +41,6 @@ calls. Write explicit types; let `dart format` add the trailing commas.
   tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout
   spacers use `ExcludeSemantics`. `test/a11y_test.dart` gates four guidelines.
 - **UI strings Dutch, code identifiers English.**
-- **Bump `_currentVersion` + add a migration** when changing stored JSON.
+- **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored JSON (frozen, sequenced steps).
 
 Full invariant list + the "why": [ARCHITECTURE.md §13](ARCHITECTURE.md).

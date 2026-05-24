@@ -28,12 +28,7 @@ class DoublesChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const pairs = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
-    final theme = Theme.of(context);
-    final dc =
-        theme.extension<DoubleStateColors>() ??
-        (theme.brightness == Brightness.dark
-            ? DoubleStateColors.dark
-            : DoubleStateColors.light);
+    final dc = DoubleStateColors.of(context);
 
     // Collect active pairs first so we can sort them.
     // Tuple: (initiatorIdx, otherIdx, initiatorTurn, otherTurn)
@@ -64,13 +59,13 @@ class DoublesChips extends StatelessWidget {
       final label = state == DoubleState.redoubled
           ? '${players[initiator].name} ×× ${players[other].name}'
           : '${players[initiator].name} × ${players[other].name}';
-      final bg = state == DoubleState.redoubled
-          ? dc.redoubledBackground
-          : dc.doubledBackground;
-      final fg = state == DoubleState.redoubled
-          ? dc.onRedoubledBackground
-          : dc.onDoubledBackground;
-      chips.add(DoubleStateChip(label: label, background: bg, foreground: fg));
+      chips.add(
+        DoubleStateChip(
+          label: label,
+          background: dc.backgroundFor(state)!,
+          foreground: dc.foregroundFor(state)!,
+        ),
+      );
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();

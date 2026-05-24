@@ -726,9 +726,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     }
 
     return GameSession(
-      id: state.sessionId.isEmpty
-          ? '${now.microsecondsSinceEpoch}'
-          : state.sessionId,
+      id: state.sessionId,
       createdAt: state.createdAt ?? now,
       updatedAt: state.updatedAt ?? state.createdAt ?? now,
       players: state.players,

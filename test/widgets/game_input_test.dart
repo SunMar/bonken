@@ -313,7 +313,7 @@ void main() {
         GameInputForm(
           game: const SeventhAndThirteenth(),
           players: players,
-          input: const {'trick7winner': null, 'trick13winner': null},
+          input: const {'player1': null, 'player2': null},
           onInputChanged: (_, _) {},
         ),
       );
@@ -328,7 +328,7 @@ void main() {
         GameInputForm(
           game: const SeventhAndThirteenth(),
           players: players,
-          input: const {'trick7winner': null, 'trick13winner': null},
+          input: const {'player1': null, 'player2': null},
           onInputChanged: (key, value) => updates.add((key, value)),
         ),
       );
@@ -337,10 +337,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Dan').last);
       await tester.pump();
-      expect(updates, [
-        ('trick7winner', players[0].id),
-        ('trick13winner', players[3].id),
-      ]);
+      expect(updates, [('player1', players[0].id), ('player2', players[3].id)]);
     });
   });
 
@@ -354,13 +351,13 @@ void main() {
         GameInputForm(
           game: const KingOfHearts(),
           players: players,
-          input: {'winner': players[2].id}, // Carol pre-selected.
+          input: {'player': players[2].id}, // Carol pre-selected.
           onInputChanged: (key, value) => updates.add((key, value)),
         ),
       );
       await tester.tap(find.text('Carol'));
       await tester.pump();
-      expect(updates, [('winner', null)]);
+      expect(updates, [('player', null)]);
     });
   });
 }

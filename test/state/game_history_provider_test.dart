@@ -319,11 +319,12 @@ void main() {
 
         final input = list.first.rounds[0].input;
         final players = list.first.players;
-        final tricks = (input['tricks'] as Map).cast<String, int>();
-        expect(tricks[players[0].id], 4);
-        expect(tricks[players[1].id], 3);
-        expect(tricks[players[2].id], 5);
-        expect(tricks[players[3].id], 1);
+        // After v1→v2→v3 + load, counts games carry a canonical 'counts' map.
+        final counts = (input['counts'] as Map).cast<String, int>();
+        expect(counts[players[0].id], 4);
+        expect(counts[players[1].id], 3);
+        expect(counts[players[2].id], 5);
+        expect(counts[players[3].id], 1);
       },
     );
 
@@ -357,7 +358,7 @@ void main() {
 
         final input = list.first.rounds[0].input;
         final players = list.first.players;
-        expect(input['winner'], players[2].id);
+        expect(input['player'], players[2].id);
       },
     );
 
@@ -385,7 +386,7 @@ void main() {
         addTearDown(c.dispose);
         final list = await c.read(gameHistoryProvider.future);
 
-        expect(list.first.rounds[0].input['winner'], isNull);
+        expect(list.first.rounds[0].input['player'], isNull);
       },
     );
 
@@ -419,8 +420,8 @@ void main() {
 
         final input = list.first.rounds[0].input;
         final players = list.first.players;
-        expect(input['trick7winner'], players[0].id);
-        expect(input['trick13winner'], players[2].id);
+        expect(input['player1'], players[0].id);
+        expect(input['player2'], players[2].id);
       },
     );
 
@@ -595,7 +596,7 @@ void main() {
       final session = list.first;
       final pending = session.pendingRound!;
       expect(pending.chooserId, session.players[3].id);
-      expect(pending.input['winner'], session.players[1].id);
+      expect(pending.input['player'], session.players[1].id);
     });
 
     // -------------------------------------------------------------------------
@@ -616,11 +617,11 @@ void main() {
         expect(prefs.containsKey('bonken_game_history'), isFalse);
         expect(prefs.containsKey('game_history'), isTrue);
 
-        // Verify what was written is valid versioned v2 JSON.
+        // Verify what was written is valid versioned (current) JSON.
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 2);
+        expect(written['version'], 3);
         expect(written['games'], isA<List<dynamic>>());
       },
     );
@@ -629,7 +630,7 @@ void main() {
     // Defensive versioned migration (version: 1 in 'game_history' key)
     // -------------------------------------------------------------------------
 
-    test('version:1 in versioned key is migrated to version:2', () async {
+    test('version:1 in versioned key is migrated to current version', () async {
       SharedPreferences.setMockInitialValues({
         'game_history': jsonEncode({
           'version': 1,
@@ -656,7 +657,7 @@ void main() {
       addTearDown(c.dispose);
       final list = await c.read(gameHistoryProvider.future);
 
-      // Migration ran: sessions loaded correctly.
+      // Full v1→v2→v3 chain ran: sessions loaded correctly.
       expect(list.length, 1);
       final session = list.first;
       expect(session.players.map((p) => p.name), [
@@ -665,12 +666,70 @@ void main() {
         'Carol',
         'Dan',
       ]);
+      // Input is now the canonical counts map.
+      final counts = (session.rounds[0].input['counts'] as Map)
+          .cast<String, int>();
+      expect(counts[session.players[2].id], 5);
 
-      // Verify storage was upgraded to version 2.
+      // Verify storage was upgraded to the current version.
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 2);
+      expect(written['version'], 3);
+    });
+
+    test('version:2 in versioned key is migrated to current version', () async {
+      // A genuine v2 record: UUID-keyed values under the OLD per-game input
+      // keys. The v2→v3 step must reshape it to the uniform counts list.
+      final players = [
+        for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
+      ];
+      final ids = [for (final p in players) p.id];
+      SharedPreferences.setMockInitialValues({
+        'game_history': jsonEncode({
+          'version': 2,
+          'games': [
+            {
+              'id': 'v2sess',
+              'createdAt': '2024-01-01T00:00:00.000',
+              'updatedAt': '2024-01-01T00:00:00.000',
+              'players': [for (final p in players) p.toJson()],
+              'firstDealerId': ids[0],
+              'rounds': [
+                {
+                  'roundNumber': 1,
+                  'gameId': 'seventhAndThirteenth',
+                  'gameName': '7e / 13e',
+                  'chooserId': ids[1],
+                  'scores': {ids[0]: -50, ids[1]: 0, ids[2]: -50, ids[3]: 0},
+                  'input': {'trick7winner': ids[0], 'trick13winner': ids[2]},
+                },
+              ],
+            },
+          ],
+        }),
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final list = await c.read(gameHistoryProvider.future);
+
+      // Dual input reshaped to canonical player1/player2, order preserved.
+      final input = list.first.rounds[0].input;
+      expect(input['player1'], ids[0]);
+      expect(input['player2'], ids[2]);
+
+      final prefs = await SharedPreferences.getInstance();
+      final written =
+          jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
+      expect(written['version'], 3);
+      // On disk the round input is the uniform counts list.
+      final game0 =
+          (written['games'] as List<dynamic>).first as Map<String, dynamic>;
+      final round0 =
+          (game0['rounds'] as List<dynamic>).first as Map<String, dynamic>;
+      final roundInput = round0['input'] as Map<String, dynamic>;
+      expect(roundInput.keys.toList(), ['counts']);
+      expect((roundInput['counts'] as List).length, 2);
     });
   });
 

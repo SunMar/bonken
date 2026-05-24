@@ -1,7 +1,20 @@
 import 'double_matrix.dart';
 import 'games/game_catalog.dart';
+import 'mini_game.dart';
 import 'player.dart';
 import 'round_record.dart';
+
+/// Resolves a [MiniGame] from its [gameId] against the catalog (falling back to
+/// the first game for unknown ids, mirroring [GameSession._roundFromJson]).
+MiniGame _gameForId(String gameId) =>
+    allGames.firstWhere((g) => g.id == gameId, orElse: () => allGames.first);
+
+/// Extracts the persisted counts list from a stored `input` map
+/// (`{'counts': [ {uuid:int}, ... ]}`); `[]` when absent.
+List<Map<String, int>> _countsFromInputJson(Map<String, dynamic>? inputJson) {
+  final raw = (inputJson?['counts'] as List?) ?? const [];
+  return [for (final m in raw) (m as Map).cast<String, int>()];
+}
 
 /// A mini-game round that was started but not fully scored.
 /// Stored inside [GameSession] so partial input survives app restarts.
@@ -29,17 +42,22 @@ class PendingRound {
     'gameId': gameId,
     'gameName': gameName,
     'chooserId': chooserId,
-    'input': input,
+    'input': {'counts': _gameForId(gameId).inputToCounts(input)},
     if (doublesJson != null) 'doublesJson': doublesJson,
   };
 
-  factory PendingRound.fromJson(Map<String, dynamic> json) => PendingRound(
-    gameId: json['gameId'] as String,
-    gameName: json['gameName'] as String,
-    chooserId: json['chooserId'] as String,
-    input: (json['input'] as Map<String, dynamic>?) ?? const {},
-    doublesJson: json['doublesJson'] as Map<String, dynamic>?,
-  );
+  factory PendingRound.fromJson(Map<String, dynamic> json) {
+    final gameId = json['gameId'] as String;
+    return PendingRound(
+      gameId: gameId,
+      gameName: json['gameName'] as String,
+      chooserId: json['chooserId'] as String,
+      input: _gameForId(gameId).countsToInput(
+        _countsFromInputJson(json['input'] as Map<String, dynamic>?),
+      ),
+      doublesJson: json['doublesJson'] as Map<String, dynamic>?,
+    );
+  }
 }
 
 /// A complete record of a saved game session (finished or closed mid-game).
@@ -168,17 +186,19 @@ class GameSession {
     );
   }
 
-  static RoundRecord _roundFromJson(Map<String, dynamic> json) => RoundRecord(
-    roundNumber: json['roundNumber'] as int,
-    game: allGames.firstWhere(
-      (g) => g.id == json['gameId'] as String,
-      orElse: () => allGames.first,
-    ),
-    chooserId: json['chooserId'] as String,
-    scoresByPlayer: Map<String, int>.from(json['scores'] as Map),
-    input: (json['input'] as Map<String, dynamic>?) ?? const {},
-    doubles: json['doublesJson'] != null
-        ? DoubleMatrix.fromJson(json['doublesJson'] as Map<String, dynamic>)
-        : const DoubleMatrix(),
-  );
+  static RoundRecord _roundFromJson(Map<String, dynamic> json) {
+    final game = _gameForId(json['gameId'] as String);
+    return RoundRecord(
+      roundNumber: json['roundNumber'] as int,
+      game: game,
+      chooserId: json['chooserId'] as String,
+      scoresByPlayer: Map<String, int>.from(json['scores'] as Map),
+      input: game.countsToInput(
+        _countsFromInputJson(json['input'] as Map<String, dynamic>?),
+      ),
+      doubles: json['doublesJson'] != null
+          ? DoubleMatrix.fromJson(json['doublesJson'] as Map<String, dynamic>)
+          : const DoubleMatrix(),
+    );
+  }
 }

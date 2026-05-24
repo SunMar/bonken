@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/double_matrix.dart';
+
 /// Colors used by warning/notice surfaces (amber callouts, rules notes).
 ///
 /// Material 3's `ColorScheme` only ships primary / secondary / tertiary /
@@ -43,6 +45,14 @@ class WarningColors extends ThemeExtension<WarningColors> {
     foreground: Color(0xFFFFE082),
     icon: Color(0xFFFFCA28),
   );
+
+  /// Resolves from the ambient theme, falling back to the brightness-appropriate
+  /// static when the extension isn't registered (e.g. unthemed test widgets).
+  static WarningColors of(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<WarningColors>() ??
+        (theme.brightness == Brightness.dark ? dark : light);
+  }
 
   @override
   WarningColors copyWith({
@@ -106,6 +116,11 @@ class GameSuitColors extends ThemeExtension<GameSuitColors> {
     diamonds: Color(0xFFCC6600), // muted orange
     hearts: Color(0xFFB52424), // muted red
   );
+
+  /// Resolves from the ambient theme, falling back to [standard] (these are
+  /// fixed brand colours, so there is no brightness variant).
+  static GameSuitColors of(BuildContext context) =>
+      Theme.of(context).extension<GameSuitColors>() ?? standard;
 
   @override
   GameSuitColors copyWith({
@@ -174,6 +189,29 @@ class DoubleStateColors extends ThemeExtension<DoubleStateColors> {
     redoubledBackground: Color(0xFF703A39),
     onRedoubledBackground: Color(0xFFFFDBD7),
   );
+
+  /// Resolves from the ambient theme, falling back to the brightness-appropriate
+  /// static when the extension isn't registered.
+  static DoubleStateColors of(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<DoubleStateColors>() ??
+        (theme.brightness == Brightness.dark ? dark : light);
+  }
+
+  /// Background for a pair [state]; `null` for [DoubleState.none] (no fill).
+  Color? backgroundFor(DoubleState state) => switch (state) {
+    DoubleState.none => null,
+    DoubleState.doubled => doubledBackground,
+    DoubleState.redoubled => redoubledBackground,
+  };
+
+  /// Foreground (on-background) for a pair [state]; `null` for
+  /// [DoubleState.none].
+  Color? foregroundFor(DoubleState state) => switch (state) {
+    DoubleState.none => null,
+    DoubleState.doubled => onDoubledBackground,
+    DoubleState.redoubled => onRedoubledBackground,
+  };
 
   @override
   DoubleStateColors copyWith({
@@ -269,6 +307,14 @@ class ScoreColors extends ThemeExtension<ScoreColors> {
     positive: Color(0xFF50BF89), // cool green, H 162 / C 50 / T 70
     negative: Color(0xFFFE898B), // warm red,  H  18 / C 50 / T 70
   );
+
+  /// Resolves from the ambient theme, falling back to the brightness-appropriate
+  /// static when the extension isn't registered (e.g. unthemed test widgets).
+  static ScoreColors of(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<ScoreColors>() ??
+        (theme.brightness == Brightness.dark ? dark : light);
+  }
 
   @override
   ScoreColors copyWith({Color? positive, Color? negative}) => ScoreColors(

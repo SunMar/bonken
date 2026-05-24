@@ -81,7 +81,7 @@ void main() {
       n.selectGame(const Clubs());
       final s = c.read(calculatorProvider);
       expect(s.selectedGame!.id, 'clubs');
-      expect((s.input['tricks'] as Map).values.every((v) => v == 0), isTrue);
+      expect((s.input['counts'] as Map).values.every((v) => v == 0), isTrue);
       expect(s.doubles.hasAnyDouble, isFalse);
       expect(s.result, isNull);
     });
@@ -90,7 +90,7 @@ void main() {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
       n.selectGame(const KingOfHearts());
-      expect(c.read(calculatorProvider).input['winner'], isNull);
+      expect(c.read(calculatorProvider).input['player'], isNull);
     });
 
     test('selecting dual-player game leaves both selections null', () {
@@ -98,8 +98,8 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       n.selectGame(const SeventhAndThirteenth());
       final s = c.read(calculatorProvider);
-      expect(s.input['trick7winner'], isNull);
-      expect(s.input['trick13winner'], isNull);
+      expect(s.input['player1'], isNull);
+      expect(s.input['player2'], isNull);
     });
 
     test('chooser defaults to player left of dealer', () {
@@ -117,7 +117,7 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 3, 2, 0])); // sum 9 < 13
+      n.updateInput('counts', _t(ps, [4, 3, 2, 0])); // sum 9 < 13
       final s = c.read(calculatorProvider);
       expect(s.result, isNull);
       expect(s.partialResult, isNotNull);
@@ -129,7 +129,7 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3])); // sum 13
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3])); // sum 13
       final s = c.read(calculatorProvider);
       expect(s.inputState, InputState.complete);
       expect(s.result, isNotNull);
@@ -142,7 +142,7 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       final undoubled = c.read(calculatorProvider).result!.scores;
       n.updateDoubles(
         DoubleMatrix.empty().withState(ps[0].id, ps[1].id, DoubleState.doubled),
@@ -170,7 +170,7 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [3, 0, 0, 0])); // sum 3
+      n.updateInput('counts', _t(ps, [3, 0, 0, 0])); // sum 3
       n.deselectGame();
       final s = c.read(calculatorProvider);
       expect(s.hasPendingGame, isTrue);
@@ -185,7 +185,7 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       final s = c.read(calculatorProvider);
       expect(s.history.length, 1);
@@ -200,7 +200,7 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+      n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
       n.deselectGame();
       final state = c.read(calculatorProvider);
       final r = state.history.first;
@@ -218,7 +218,7 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [3, 0, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 0, 0, 0]));
       n.discardGame();
       final s = c.read(calculatorProvider);
       expect(s.selectedGame, isNull);
@@ -232,12 +232,12 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [3, 2, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 2, 0, 0]));
       n.deselectGame(); // saved as pending
       expect(c.read(calculatorProvider).hasPendingGame, isTrue);
       n.selectGame(const Clubs()); // resume
       final s = c.read(calculatorProvider);
-      expect(s.input['tricks'], _t(ps, [3, 2, 0, 0]));
+      expect(s.input['counts'], _t(ps, [3, 2, 0, 0]));
       expect(s.hasPendingGame, isFalse);
     });
 
@@ -246,11 +246,11 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [3, 2, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 2, 0, 0]));
       n.deselectGame();
       n.selectGame(const Duck());
       final s = c.read(calculatorProvider);
-      expect((s.input['tricks'] as Map).values.every((v) => v == 0), isTrue);
+      expect((s.input['counts'] as Map).values.every((v) => v == 0), isTrue);
     });
   });
 
@@ -261,10 +261,10 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+      n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
       n.deselectGame();
       expect(c.read(calculatorProvider).history.length, 2);
       n.deleteLastRound();
@@ -291,10 +291,10 @@ void main() {
         final ps = c.read(calculatorProvider).players;
         n.setDealer(0);
         n.selectGame(const Clubs());
-        n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+        n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
         n.deselectGame();
         n.selectGame(const Duck());
-        n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+        n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
         n.deselectGame();
 
         final clubsRound = c.read(calculatorProvider).history.first;
@@ -306,16 +306,16 @@ void main() {
         expect(s.editingRoundIndex, 0);
         expect(s.selectedGame!.id, 'clubs');
 
-        n.updateInput('tricks', _t(ps, [3, 4, 3, 3]));
+        n.updateInput('counts', _t(ps, [3, 4, 3, 3]));
         n.deselectGame();
 
         s = c.read(calculatorProvider);
         expect(s.isEditingExistingRound, isFalse);
         expect(s.history.length, 2);
         expect(s.history[0].game.id, 'clubs');
-        expect(s.history[0].input['tricks'], _t(ps, [3, 4, 3, 3]));
+        expect(s.history[0].input['counts'], _t(ps, [3, 4, 3, 3]));
         expect(s.history[1].game.id, 'duck');
-        expect(s.history[1].input['tricks'], _t(ps, [4, 3, 5, 1]));
+        expect(s.history[1].input['counts'], _t(ps, [4, 3, 5, 1]));
       },
     );
 
@@ -326,15 +326,15 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+      n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
       n.deselectGame();
 
       final clubsRound = c.read(calculatorProvider).history.first;
       n.restoreRound(clubsRound);
-      n.updateInput('tricks', _t(ps, [1, 1, 1, 1]));
+      n.updateInput('counts', _t(ps, [1, 1, 1, 1]));
       expect(c.read(calculatorProvider).inputState, isNot(InputState.complete));
       expect(c.read(calculatorProvider).isEditingLastRound, isFalse);
       expect(c.read(calculatorProvider).canRollbackWithPartial, isFalse);
@@ -342,8 +342,8 @@ void main() {
       n.cancelEditRound();
       final s = c.read(calculatorProvider);
       expect(s.history.length, 2);
-      expect(s.history[0].input['tricks'], _t(ps, [4, 4, 2, 3]));
-      expect(s.history[1].input['tricks'], _t(ps, [4, 3, 5, 1]));
+      expect(s.history[0].input['counts'], _t(ps, [4, 4, 2, 3]));
+      expect(s.history[1].input['counts'], _t(ps, [4, 3, 5, 1]));
     });
 
     test(
@@ -354,17 +354,17 @@ void main() {
         final ps = c.read(calculatorProvider).players;
         n.setDealer(0);
         n.selectGame(const Clubs());
-        n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+        n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
         n.deselectGame();
         n.selectGame(const Duck());
-        n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+        n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
         n.deselectGame();
 
         final duckRound = c.read(calculatorProvider).history.last;
         n.restoreRound(duckRound);
         expect(c.read(calculatorProvider).isEditingLastRound, isTrue);
         expect(c.read(calculatorProvider).canRollbackWithPartial, isTrue);
-        n.updateInput('tricks', _t(ps, [0, 0, 0, 0])); // make incomplete
+        n.updateInput('counts', _t(ps, [0, 0, 0, 0])); // make incomplete
         n.rollbackLastRound();
         final s = c.read(calculatorProvider);
         expect(s.history.length, 1);
@@ -380,10 +380,10 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [3, 0, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 0, 0, 0]));
       n.deselectGame(); // saved as pending
       expect(c.read(calculatorProvider).hasPendingGame, isTrue);
 
@@ -394,7 +394,7 @@ void main() {
       expect(s.hasPendingGame, isTrue);
       expect((s.pending as ActivePendingRound).game.id, 'duck');
       expect(
-        (s.pending as ActivePendingRound).input['tricks'],
+        (s.pending as ActivePendingRound).input['counts'],
         _t(ps, [3, 0, 0, 0]),
       );
     });
@@ -405,18 +405,18 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
 
       final beforeEdit = c.read(calculatorProvider);
       n.restoreRound(beforeEdit.history.first);
-      n.updateInput('tricks', _t(ps, [13, 0, 0, 0])); // change input
+      n.updateInput('counts', _t(ps, [13, 0, 0, 0])); // change input
       n.cancelEditRound();
 
       final after = c.read(calculatorProvider);
       expect(after.isEditingExistingRound, isFalse);
       expect(after.history.length, 1);
-      expect(after.history.first.input['tricks'], _t(ps, [4, 4, 2, 3]));
+      expect(after.history.first.input['counts'], _t(ps, [4, 4, 2, 3]));
     });
 
     test('hasActiveChanges is false when nothing was changed during edit', () {
@@ -425,7 +425,7 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.restoreRound(c.read(calculatorProvider).history.first);
       expect(c.read(calculatorProvider).hasActiveChanges, isFalse);
@@ -437,10 +437,10 @@ void main() {
       final ps = c.read(calculatorProvider).players;
       n.setDealer(0);
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.restoreRound(c.read(calculatorProvider).history.first);
-      n.updateInput('tricks', _t(ps, [5, 4, 2, 2]));
+      n.updateInput('counts', _t(ps, [5, 4, 2, 2]));
       expect(c.read(calculatorProvider).hasActiveChanges, isTrue);
     });
   });
@@ -475,10 +475,10 @@ void main() {
       );
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [3, 0, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 0, 0, 0]));
       n.deselectGame();
 
       final session = n.buildSession()!;
@@ -487,7 +487,7 @@ void main() {
       expect(session.rounds.first.game.id, 'clubs');
       expect(session.pendingRound, isNotNull);
       expect(session.pendingRound!.gameId, 'duck');
-      expect(session.pendingRound!.input['tricks'], _t(ps, [3, 0, 0, 0]));
+      expect(session.pendingRound!.input['counts'], _t(ps, [3, 0, 0, 0]));
     });
 
     test('loadSession restores history and pending game', () {
@@ -499,10 +499,10 @@ void main() {
       );
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Clubs());
-      n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+      n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
       n.deselectGame();
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [3, 0, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 0, 0, 0]));
       n.deselectGame();
 
       final session = n.buildSession()!;
@@ -518,7 +518,7 @@ void main() {
       expect(s.hasPendingGame, isTrue);
       expect((s.pending as ActivePendingRound).game.id, 'duck');
       expect(
-        (s.pending as ActivePendingRound).input['tricks'],
+        (s.pending as ActivePendingRound).input['counts'],
         _t(ps, [3, 0, 0, 0]),
       );
     });
@@ -536,7 +536,7 @@ void main() {
       final sessionAId = c.read(calculatorProvider).sessionId;
       final ps = c.read(calculatorProvider).players;
       n.selectGame(const Duck());
-      n.updateInput('tricks', _t(ps, [3, 0, 0, 0]));
+      n.updateInput('counts', _t(ps, [3, 0, 0, 0]));
       n.deselectGame(); // saved as pending; autosave is debounced 400ms.
 
       final now = DateTime.now();
@@ -557,7 +557,7 @@ void main() {
       final savedA = sessions.firstWhere((s) => s.id == sessionAId);
       expect(savedA.pendingRound, isNotNull);
       expect(savedA.pendingRound!.gameId, 'duck');
-      expect(savedA.pendingRound!.input['tricks'], _t(ps, [3, 0, 0, 0]));
+      expect(savedA.pendingRound!.input['counts'], _t(ps, [3, 0, 0, 0]));
     });
   });
 
@@ -583,7 +583,7 @@ void main() {
         final n = c.read(calculatorProvider.notifier);
         final ps = c.read(calculatorProvider).players;
         n.selectGame(const Clubs());
-        n.updateInput('tricks', _t(ps, [-1, 14, 0, 0]));
+        n.updateInput('counts', _t(ps, [-1, 14, 0, 0]));
         expect(c.read(calculatorProvider).inputState, InputState.complete);
       },
     );
@@ -598,10 +598,10 @@ void main() {
         final ps = c.read(calculatorProvider).players;
         n.setDealer(0);
         n.selectGame(const Clubs());
-        n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+        n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
         n.deselectGame();
         n.selectGame(const Duck());
-        n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+        n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
         n.deselectGame();
 
         final before = c.read(calculatorProvider);
@@ -633,10 +633,10 @@ void main() {
         );
         final ps = c.read(calculatorProvider).players;
         n.selectGame(const Clubs());
-        n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+        n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
         n.deselectGame();
         n.selectGame(const Duck());
-        n.updateInput('tricks', _t(ps, [4, 3, 5, 1]));
+        n.updateInput('counts', _t(ps, [4, 3, 5, 1]));
         n.deselectGame();
 
         final session = n.buildSession()!;
@@ -726,7 +726,7 @@ void main() {
             gameId: 'kingOfHearts',
             gameName: 'Hartenheer',
             chooserId: pA[1].id,
-            input: const {'winner': 2},
+            input: const {'player': 2},
           ),
         );
         n.loadSession(session);
@@ -751,7 +751,7 @@ void main() {
             gameId: 'seventhAndThirteenth',
             gameName: '7e / 13e',
             chooserId: pA[1].id,
-            input: const {'trick13winner': 2},
+            input: const {'player2': 2},
           ),
         );
         n.loadSession(session);
@@ -769,10 +769,10 @@ void main() {
         final ps = c.read(calculatorProvider).players;
         n.setDealer(0);
         n.selectGame(const Clubs());
-        n.updateInput('tricks', _t(ps, [4, 4, 2, 3]));
+        n.updateInput('counts', _t(ps, [4, 4, 2, 3]));
         n.deselectGame();
         n.selectGame(const Duck());
-        n.updateInput('tricks', _t(ps, [3, 0, 0, 0]));
+        n.updateInput('counts', _t(ps, [3, 0, 0, 0]));
         n.deselectGame();
         expect(c.read(calculatorProvider).hasPendingGame, isTrue);
 

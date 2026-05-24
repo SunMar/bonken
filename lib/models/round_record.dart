@@ -31,7 +31,8 @@ class RoundRecord {
     'gameId': game.id,
     'chooserId': chooserId,
     'scores': scoresByPlayer,
-    'input': input,
+    // Uniform persisted shape: a positional list of per-player count maps.
+    'input': {'counts': game.inputToCounts(input)},
     if (doubles.hasAnyDouble) 'doublesJson': doubles.toJson(),
   };
 }

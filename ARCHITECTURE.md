@@ -194,7 +194,8 @@ lib/
 
   state/                     Riverpod providers.
     calculator_provider.dart CalculatorState + CalculatorNotifier (the in-game state machine).
-    game_history_provider.dart Persistence (SharedPreferences), versioning, v1→v2 migration.
+    game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3) + runner.
     theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
 
   screens/                   Full-screen routes (all use AppScaffold).
@@ -208,12 +209,31 @@ lib/
   widgets/                   Reusable UI.
     app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens).
     scoreboard_card.dart     The player/score grid used on home + game screens.
+    score_result_view.dart   Per-player score outcome card (final or partial);
+                             trophy Opacity for stable layout, doubles chips.
+                             Used in RoundInputScreen.
     doubles_picker.dart      Two-panel interactive doubling editor (initiators × targets).
     doubles_chips.dart       Read-only doubling summary chips (history view).
+    double_state_chip.dart   Shared M3 chip for double/redouble state pills
+                             (no border, compact density, bold labelMedium).
+                             Used by doubles_chips.dart and doubles_picker.dart.
     selectable_player_tile.dart  Shared selectable tile (player pickers + doubles initiators).
-    app_bar_widgets.dart     Rules / About / Theme app-bar actions.
+    app_bar_widgets.dart     Reusable AppBar building blocks: AboutIconButton
+                             (leading info icon → About dialog), RulesIconButton
+                             (pushes RulesScreen, optionally scoped to one game),
+                             TitleWithRules (AppBar.title with embedded rules icon),
+                             ThemeMenuButton (MenuAnchor cycling light/dark/system;
+                             AlignmentDirectional.bottomEnd — the M3 overflow-menu
+                             pattern), and resolveAboutVersionLine() /
+                             openAboutDialog() (@visibleForTesting).
     game_input/              Round-input building blocks: form, counts input, player picker.
-    …                        dialogs, snackbars (incl. game_deleted_snackbar undo), warning box.
+    …                        dealer_picker_dialog.dart, dialogs.dart,
+                             timed_snackbar.dart + game_deleted_snackbar.dart
+                             (cancel-and-replace timer; undo snackbar),
+                             amber_warning_box.dart, player_name_field.dart,
+                             player_list_field.dart, primary_action_button.dart,
+                             rules_block_view.dart, drag_handle.dart,
+                             incomplete_form_snackbar.dart.
 
   data/game_rules.dart       Static rules content (Block/Section/GameSection) for rules_screen.
   theme/app_theme_extensions.dart  ThemeExtensions: Warning/GameSuit/DoubleState/Score colors.
@@ -224,36 +244,46 @@ lib/
 
 ## 5. Domain model
 
-### `MiniGame` ([`mini_game.dart`](lib/models/mini_game.dart))
-Abstract base for all 13 games. A subclass declares `id`, `name`, `symbol`,
-`category`, `pointsPerUnit`, `totalPoints`, and implements:
-- **`rawCounts(input, players) → {playerId: int}`** — game-specific extraction
-  of a per-player integer "count" (tricks won, penalty cards won, or 0/1 for
-  who-won-a-trick games). Most games are one-liners delegating to the protected
-  helper `countsForKey(key, input, players)`.
-- **`inputDescriptor`** — declares what the UI must collect (see below).
+### `MiniGame` + shape bases ([`mini_game.dart`](lib/models/mini_game.dart))
+Abstract base for all 13 games (declares `id`, `name`, `symbol`, `category`,
+`pointsPerUnit`, `totalPoints`). It supplies the shared **`calculateScores`**
+engine (§6) and defines `GameSymbol` (sealed: `TextSymbol` short label,
+`SuitSymbol` ♠♥♦♣ in bundled DejaVu Sans, `IconSymbol` Material Symbol).
 
-The base supplies the shared **`calculateScores`** engine (§6). It also defines
-`GameSymbol` (sealed: `TextSymbol` short label, `SuitSymbol` ♠♥♦♣ in bundled
-DejaVu Sans, `IconSymbol` Material Symbol) used to render each game's avatar.
+Concrete games never extend `MiniGame` directly — they extend one of **three
+intermediate bases, one per input shape** (mirroring the sealed `InputDescriptor`
+hierarchy). Each base owns its canonical input key(s), `rawCounts`,
+`inputDescriptor`, and the storage round-trip (`inputToCounts` / `countsToInput`,
+§9); a leaf game declares only its metadata + the human-facing bits:
+
+| base | canonical in-memory key(s) | leaf supplies | members |
+|------|---------------------------|---------------|---------|
+| `CountsMiniGame` | `counts` (`{uuid:int}`, Σ = `total`) | `total`, `unitLabel` | 4 negative counts games + `PositiveGame` (the 5 positives) |
+| `SinglePlayerMiniGame` | `player` (uuid or null) | `prompt` | KingOfHearts, FinalTrick, Dominoes |
+| `DualPlayerMiniGame` | `player1`, `player2` | `prompt1`, `prompt2` | SeventhAndThirteenth |
+
+**`rawCounts(input, players) → {playerId: int}`** is the per-player count used by
+scoring: counts games re-key the entered map (absent ⇒ 0); single/dual games emit
+0/1/2 indicators. The protected `countsForKey` helper lives on `CountsMiniGame`
+(only counts games need it).
 
 The **13 games** (catalog order: negatives first, then positives):
 
 | id | name (nl) | category | pointsPerUnit | total | input shape |
 |----|-----------|----------|--------------:|------:|-------------|
-| `kingOfHearts` | Harten Heer | negative | −100 | −100 | single `winner` |
-| `kingsAndJacks` | Heren / Boeren | negative | −25 | −200 | counts `cards` (Σ 8) |
-| `queens` | Vrouwen | negative | −45 | −180 | counts `cards` (Σ 4) |
-| `duck` | Bukken | negative | −10 | −130 | counts `tricks` (Σ 13) |
-| `heartPoints` | Harten punten | negative | −10 | −130 | counts `cards` (Σ 13) |
-| `seventhAndThirteenth` | 7e / 13e | negative | −50 | −100 | dual `trick7winner`,`trick13winner` |
-| `finalTrick` | Laatste slag | negative | −100 | −100 | single `winner` |
-| `dominoes` | Domino | negative | −100 | −100 | single `loser` |
-| `clubs` | Klaveren ♣ | positive | +20 | +260 | counts `tricks` (Σ 13) |
-| `diamonds` | Ruiten ♦ | positive | +20 | +260 | counts `tricks` (Σ 13) |
-| `hearts` | Harten ♥ | positive | +20 | +260 | counts `tricks` (Σ 13) |
-| `spades` | Schoppen ♠ | positive | +20 | +260 | counts `tricks` (Σ 13) |
-| `noTrump` | Zonder troef | positive | +20 | +260 | counts `tricks` (Σ 13) |
+| `kingOfHearts` | Harten Heer | negative | −100 | −100 | single |
+| `kingsAndJacks` | Heren / Boeren | negative | −25 | −200 | counts (Σ 8) |
+| `queens` | Vrouwen | negative | −45 | −180 | counts (Σ 4) |
+| `duck` | Bukken | negative | −10 | −130 | counts (Σ 13) |
+| `heartPoints` | Harten punten | negative | −10 | −130 | counts (Σ 13) |
+| `seventhAndThirteenth` | 7e / 13e | negative | −50 | −100 | dual |
+| `finalTrick` | Laatste slag | negative | −100 | −100 | single |
+| `dominoes` | Domino | negative | −100 | −100 | single |
+| `clubs` | Klaveren ♣ | positive | +20 | +260 | counts (Σ 13) |
+| `diamonds` | Ruiten ♦ | positive | +20 | +260 | counts (Σ 13) |
+| `hearts` | Harten ♥ | positive | +20 | +260 | counts (Σ 13) |
+| `spades` | Schoppen ♠ | positive | +20 | +260 | counts (Σ 13) |
+| `noTrump` | Zonder troef | positive | +20 | +260 | counts (Σ 13) |
 
 > The catalog has **13** games but a session plays **12 rounds** — all 8
 > negative plus 4 of the 5 positive games (one positive is left unplayed).
@@ -263,20 +293,26 @@ The **13 games** (catalog order: negatives first, then positives):
 
 ### `InputDescriptor` ([`input_descriptor.dart`](lib/models/input_descriptor.dart))
 Sealed; tells the UI what form to render *without* the UI knowing concrete game
-types. Each implements `isEmpty`, `isComplete`, and `defaults(players)`. Concrete
-storage shapes (all keyed by player UUID):
+types. Each implements `isEmpty`, `isComplete`, and `defaults(players)`. These are
+the **in-memory** shapes the UI reads/writes (canonical key per shape, owned by
+the matching `MiniGame` base; values keyed by player UUID):
 
 ```jsonc
 // CountsInputDescriptor — 4 per-player counts that must sum to `total`
-{ "tricks": { "<uuidA>": 5, "<uuidB>": 4, "<uuidC>": 3, "<uuidD>": 1 } }
+{ "counts": { "<uuidA>": 5, "<uuidB>": 4, "<uuidC>": 3, "<uuidD>": 1 } }
 // isEmpty  = sum == 0      isComplete = sum == total
 
 // SinglePlayerInputDescriptor — pick exactly one player
-{ "winner": "<uuidB>" }          // or { "winner": null } when unset
+{ "player": "<uuidB>" }          // or { "player": null } when unset
 
 // DualPlayerInputDescriptor — two independent picks
-{ "trick7winner": "<uuidA>", "trick13winner": "<uuidC>" }
+{ "player1": "<uuidA>", "player2": "<uuidC>" }
 ```
+
+> The **persisted** form is *not* these per-shape maps — on disk every game's
+> input collapses to one uniform structure, `{"counts": [ {uuid:int}, … ]}` (§9).
+> Conversion happens at the serialization boundary via the bases'
+> `inputToCounts` / `countsToInput`.
 
 ### `Player` ([`player.dart`](lib/models/player.dart))
 `{id: UUIDv4, name}`. `==`/`hashCode` over both fields; `copyWith` preserves the
@@ -299,10 +335,12 @@ are implemented so `select()` / `copyWith` short-circuits work.
 
 ### `RoundRecord` ([`round_record.dart`](lib/models/round_record.dart))
 One completed round: `roundNumber`, the full `game` object, `chooserId`,
-`scoresByPlayer`, raw `input`, and `doubles`. Has `toJson()` (JSON key for scores
-is `'scores'`) but **no `fromJson`** — deserialization needs the game catalog to
-turn `gameId` back into a `MiniGame`, so that lives on
-`GameSession._roundFromJson`, keeping `RoundRecord` a catalog-free data class.
+`scoresByPlayer`, the in-memory `input`, and `doubles`. `toJson()` (scores under
+`'scores'`) serializes `input` through `game.inputToCounts` to the uniform
+`{"counts":[…]}` form (§9). There is **no `fromJson`** — deserialization needs the
+catalog to turn `gameId` back into a `MiniGame` (and that game to rebuild the
+in-memory input via `countsToInput`), so it lives on `GameSession._roundFromJson`,
+keeping `RoundRecord` a catalog-free data class.
 
 ### `GameSession` + `PendingRound` ([`game_session.dart`](lib/models/game_session.dart))
 The persisted aggregate: `id`, `createdAt`/`updatedAt`, `players`,
@@ -313,8 +351,9 @@ Lazily-computed (`late final`) derived getters: `isFinished` (≥ `totalRounds`
 `displayedWinnerIndices` (rotated so the round-1 dealer is first). `fromJson`
 resolves each round's `gameId` against `allGames`.
 **`PendingRound`** is a round started but not yet scored — it stores
-`gameId`/`gameName` strings + raw `input` + optional `doublesJson` so partial
-work survives an app restart.
+`gameId`/`gameName` strings + `input` + optional `doublesJson` so partial work
+survives an app restart. Its `toJson`/`fromJson` resolve the game by `gameId` to
+convert `input` to/from the uniform counts form, same as a round.
 
 ### `game_mechanics.dart` ([`game_mechanics.dart`](lib/models/game_mechanics.dart))
 `dealerIndexFor(chooserIndex) = (chooserIndex − 1) mod 4` (the dealer sits to the
@@ -455,6 +494,8 @@ preview** shown while a counts game is partway entered (0 < sum < total).
 - `deleteLastRound` / `rollbackLastRound` — drop the most recent round.
 - `setPlayersAndDealer` / `setDealer` / `setPlayerName` — player + dealer edits.
 - `buildSession()` — snapshot state → `GameSession` (or `null` if no session id).
+- `reset()` — clear the in-game slot (called after the active session is deleted,
+  so the provider returns to the "no active game" idle state).
 
 The shared private `_exitSlot` recomputes `dealerId`/`roundNumber`/`chooserId`
 from `firstDealerId` + the *new* history length, so dealer rotation stays correct
@@ -518,12 +559,19 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`_currentVersion` = 2):** `{ "version": 2, "games": [ … ] }`.
+- **Envelope (`currentStorageVersion` = 3):** `{ "version": 3, "games": [ … ] }`.
 - `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
   `players:[{id,name}]`, `firstDealerId`, `rounds:[…]`, `pendingRound?`.
 - `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
-  `scores:{playerId:int}`, `input`, `doublesJson?` (omitted unless a double
-  exists).
+  `scores:{playerId:int}`, `input` (the **uniform** `{"counts":[ {uuid:int}, … ]}`
+  form, regardless of game shape — see below), `doublesJson?` (omitted unless a
+  double exists).
+- **`input` shape (v3, all games):** `{"counts": [ {uuid:int}, … ]}` — a
+  positional list of per-player count maps. Counts and single-player games store
+  one element; dual (7e/13e) stores two (index 0 = 7th, 1 = 13th, so the
+  distinction is preserved). Scoring sums element-wise. The game's
+  `inputToCounts` / `countsToInput` convert to/from the descriptor-shaped
+  in-memory input (§5).
 - `DoubleMatrix.toJson`: `pairs:{"uuidA,uuidB":state}`,
   `initiators:{"uuidA,uuidB":initiatorUuid}`.
 
@@ -533,7 +581,7 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 2,
+  "version": 3,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
@@ -548,7 +596,8 @@ wins 1, B doubled A):
       "gameName": "Vrouwen", "gameId": "queens",
       "chooserId": "b2",
       "scores": {"a1": -225, "b2": 45, "c3": 0, "d4": 0},
-      "input": {"cards": {"a1": 3, "b2": 1, "c3": 0, "d4": 0}},
+      // uniform counts list; Queens is a counts game → one element
+      "input": {"counts": [{"a1": 3, "b2": 1, "c3": 0, "d4": 0}]},
       "doublesJson": {
         "pairs": {"a1,b2": "doubled"},
         "initiators": {"a1,b2": "b2"}
@@ -556,27 +605,40 @@ wins 1, B doubled A):
     }],
     "pendingRound": {
       "gameId": "duck", "gameName": "Bukken", "chooserId": "c3",
-      "input": {"tricks": {"a1": 4, "b2": 0, "c3": 0, "d4": 0}}
+      "input": {"counts": [{"a1": 4, "b2": 0, "c3": 0, "d4": 0}]}
     }
   }]
 }
 ```
 
 **Load behavior (`build`):**
-- Missing current key → check/migrate the legacy key; else `[]`.
+- Missing current key → check/migrate the legacy key (implicitly v1); else `[]`.
 - Corrupt JSON → `[]` (start fresh; never throws to the UI).
-- `version > _currentVersion` → throw `UnsupportedStorageVersionException`,
+- `version > currentStorageVersion` → throw `UnsupportedStorageVersionException`,
   surfaced by `_UnsupportedVersionScreen` (offers "Geschiedenis wissen");
   Riverpod schedules a ~200 ms retry, which tests must drain.
+- `version < currentStorageVersion` → run `runStorageMigrations(...)`, then
+  rewrite the upgraded games under `game_history` at the current version.
 
-**v1 → v2 migration (`_migrateV1ToV2`).** v1 stored *seat-index-keyed* data and
-had no player UUIDs. Migration mints a UUID per seat, back-computes
-`firstDealerId` from the last known dealer, and rewrites scores / input / doubles
-from index-keyed to UUID-keyed (`_migrateInputV1ToV2`, `_migrateDoublesV1ToV2`).
-The legacy key is a raw JSON array (implicitly v1); after migration its contents
-are rewritten under `game_history` and the legacy key removed. **When you change
-a stored shape, bump `_currentVersion` and add a migration step — never silently
-break old saves.**
+**Migration framework ([`migrations.dart`](lib/state/migrations.dart)).**
+Migrations are **frozen, sequenced, self-contained** steps. A `StorageMigration`
+declares its `fromVersion` and an `apply(games)`; a `const` registry lists the
+steps in order; `runStorageMigrations(games, fromVersion:)` applies every step
+from the stored version up to `currentStorageVersion`. Each step carries its own
+historical key/shape knowledge and **never reads live game code** (descriptors,
+classes), so old steps keep working as the models evolve.
+
+- **`_V1ToV2`** — v1 was seat-index-keyed with no player UUIDs. Mints a UUID per
+  seat, back-computes `firstDealerId` from the last known dealer, and rewrites
+  scores / input / doubles from index-keyed to UUID-keyed (keeping the old
+  per-game input keys).
+- **`_V2ToV3`** — collapses each round's per-game input (`{tricks|cards: {…}}`,
+  `{winner|loser: id}`, `{trick7winner, trick13winner}`) into the uniform
+  `{"counts": [ {uuid:int}, … ]}` shape.
+
+**When you change a stored shape: append one new `StorageMigration` step, add it
+to the registry, and bump `currentStorageVersion` — never edit an existing step
+(they are historical) and never silently break old saves.**
 
 ---
 
@@ -659,8 +721,13 @@ ensures the binding.
   **drained** (`await tester.pump(Duration(...))` / `pumpAndSettle`) or teardown
   fails. See `game_screen_actions_test.dart` and the `drainRetry` helper in
   `game_history_provider_test.dart`.
-- `showTimedSnackBar` cancels any prior pending close-`Timer` on a back-to-back
-  call; a test that calls it twice need only drain the **one** remaining timer.
+- `showGameDeletedSnackBar` (via `showTimedSnackBar` internally) cancels any
+  prior pending close-`Timer` on a back-to-back call; a test that triggers two
+  deletes in sequence need only drain the **one** remaining timer. When testing
+  the undo action, invoke `SnackBarAction.onPressed` directly rather than
+  tapping the widget — tapping calls `hideCurrentSnackBar` which, combined with
+  the belt-and-suspenders `controller.close` timer, throws
+  `Bad state: No element` on the second close.
 - Construct fixtures with real model objects (e.g. `const Dominoes()`,
   `RoundRecord(...)`), not hand-rolled JSON, so they stay in sync with the code.
 
@@ -727,7 +794,8 @@ Things to *not* break:
   as fields, recompute in `copyWith` only when inputs change.
 - **`pending` is sealed** — branch with `is ActivePendingRound`; never resurrect
   the old "three nullable fields" pattern.
-- **Bump `_currentVersion` + write a migration** when changing stored JSON shape.
+- **Append a `StorageMigration` step + bump `currentStorageVersion`** when
+  changing stored JSON shape (never edit an existing, frozen step).
 - **UI strings in Dutch, code identifiers in English.**
 - **Run `dart format` before committing** — CI's `verify` action fails on
   unformatted Dart (`dart format --output=none --set-exit-if-changed .`).

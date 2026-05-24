@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/games/game_catalog.dart';
+import '../models/game_mechanics.dart';
 import '../models/game_session.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
@@ -19,16 +20,13 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/dealer_picker_dialog.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
+import '../widgets/game_avatar.dart';
 import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/scoreboard_card.dart';
 import '../widgets/primary_action_button.dart';
 import 'home_screen.dart';
 import 'edit_players_screen.dart';
 import 'round_input_screen.dart';
-
-// Per-suit accent colors live in [GameSuitColors] (a `ThemeExtension`)
-// so they can be themed/overridden alongside the rest of the palette.
-// See `lib/theme/app_theme_extensions.dart`.
 
 // =============================================================================
 // GameScreen — top-level screen
@@ -237,9 +235,11 @@ class _GameTile extends ConsumerWidget {
     final isPending = pendingGameId == game.id;
     final isPendingBlocked = pendingGameId != null && !isPending;
 
-    final isQuotaDisabled =
-        (game.category == GameCategory.negative && negCount >= 2) ||
-        (game.category == GameCategory.positive && posCount >= 1);
+    final isQuotaDisabled = quotaReached(
+      game.category,
+      negativeChosen: negCount,
+      positiveChosen: posCount,
+    );
 
     final isDisabled =
         isPlayed || ((isPendingBlocked || isQuotaDisabled) && !isPending);
@@ -739,15 +739,22 @@ class _RoundInfoBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(calculatorProvider);
+    // Narrow watch: only the four derived values shown here, not the whole
+    // state — keeps the banner off the per-keystroke rebuild path.
+    final (round, dealerName, chooserName, roundsPlayed) = ref.watch(
+      calculatorProvider.select(
+        (s) => (
+          s.roundNumber,
+          s.playerNames[s.dealerIndex],
+          s.playerNames[(s.dealerIndex + 1) % playerCount],
+          s.history.length,
+        ),
+      ),
+    );
     final cs = Theme.of(context).colorScheme;
-    final round = state.roundNumber;
-    final dealerName = state.playerNames[state.dealerIndex];
-    final chooserName =
-        state.playerNames[(state.dealerIndex + 1) % playerCount];
 
     // Hide once all rounds are done.
-    if (state.history.length >= GameSession.totalRounds) {
+    if (roundsPlayed >= GameSession.totalRounds) {
       return const SizedBox.shrink();
     }
 
@@ -817,107 +824,5 @@ class _RoundRowHeader extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-/// Circular avatar showing a mini-game's symbol with its accent color.
-class GameAvatar extends StatelessWidget {
-  const GameAvatar({
-    required this.game,
-    required this.radius,
-    this.disabled = false,
-    super.key,
-  });
-
-  final MiniGame game;
-  final double radius;
-  final bool disabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final suits =
-        Theme.of(context).extension<GameSuitColors>() ??
-        GameSuitColors.standard;
-    final isPositive = game.category == GameCategory.positive;
-    final textColor = scoreColor(isPositive ? 1 : -1, context);
-    final symbolColor = suits.forGameId(game.id) ?? textColor;
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: symbolColor.withValues(alpha: disabled ? 0.06 : 0.12),
-      child: _GameSymbol(
-        symbol: game.symbol,
-        color: disabled ? disabledOnSurface(cs) : symbolColor,
-        fontSize: 16,
-      ),
-    );
-  }
-}
-
-/// Renders a [GameSymbol]: a [TextSymbol] renders as bold text, a
-/// [SuitSymbol] renders as a card-suit glyph in DejaVu Sans (so the
-/// glyph matches the launcher icons and isn't substituted for a colored
-/// emoji on Android), and an [IconSymbol] renders as a Material Symbols
-/// vector glyph sized to roughly match the cap height of adjacent text.
-/// The `switch` arms below are intentionally ordered to match this doc.
-class _GameSymbol extends StatelessWidget {
-  const _GameSymbol({
-    required this.symbol,
-    required this.color,
-    required this.fontSize,
-  });
-
-  final GameSymbol symbol;
-  final Color color;
-  final double fontSize;
-
-  @override
-  Widget build(BuildContext context) {
-    // Sealed-class switch: adding a fourth [GameSymbol] variant in the
-    // model layer would make this expression fail to compile until a
-    // branch is added here, which is the whole point of the sealed-class
-    // refactor.
-    return switch (symbol) {
-      TextSymbol(:final text) => Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: fontSize,
-        ),
-      ),
-      IconSymbol(:final icon) => Icon(
-        icon,
-        // Icon size matches the cap height of adjacent letters. Unlike
-        // [Text], [Icon] does not honor the user's accessibility text
-        // scale automatically, so we apply [MediaQuery.textScalerOf]
-        // manually to keep icon and text avatars visually consistent.
-        size: MediaQuery.textScalerOf(context).scale(fontSize) * 1.1,
-        color: color,
-        // `fill: 1` renders Material Symbols (a variable font) in their
-        // filled variant.
-        fill: 1,
-      ),
-      SuitSymbol(:final text) => Text(
-        text,
-        style: TextStyle(
-          color: color,
-          // Bundled DejaVu Sans, regular weight — matches the suits in
-          // the launcher icons (rendered from the same .ttf by
-          // tool/generate_icons.sh) and avoids Android substituting
-          // colored emoji for these codepoints.
-          fontFamily: 'DejaVu Sans',
-          fontWeight: FontWeight.normal,
-          // The suit glyphs in DejaVu Sans don't fill the em-box the way
-          // letter glyphs do, so they look noticeably smaller than the
-          // text variants at the same nominal size. Scale up so suit
-          // glyphs read at the same visual weight as letter glyphs at
-          // the same nominal `fontSize`. The user's accessibility text
-          // scale is still applied automatically by [Text] on top of
-          // this static design multiplier.
-          fontSize: fontSize * 1.4,
-        ),
-      ),
-    };
   }
 }

@@ -12,10 +12,10 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/app_bar_widgets.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/doubles_picker.dart';
+import '../widgets/game_avatar.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/score_result_view.dart';
-import 'game_screen.dart' show GameAvatar;
 
 // Confirmation body shown when the user tries to save a round whose score
 // fields are not (yet) fully entered.

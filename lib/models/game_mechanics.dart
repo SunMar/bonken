@@ -14,3 +14,20 @@ int dealerIndexFor(int chooserIndex) =>
 /// Current rule: starter = dealer (same seat). A future rule variant will
 /// allow the starter to be the player opposite the chooser (starter = chooser − 2).
 int starterIndexFor(int chooserIndex) => dealerIndexFor(chooserIndex);
+
+/// Per-chooser game quota: across a whole game each chooser may pick at most
+/// this many negative / positive games. A **soft** rule — the UI surfaces it as
+/// a disabled tile with a "Toch doorgaan" override (see `game_screen.dart`).
+const int maxNegativePerChooser = 2;
+const int maxPositivePerChooser = 1;
+
+/// Whether the current chooser has reached their quota for [category], given how
+/// many negative/positive games they have already chosen this game.
+bool quotaReached(
+  GameCategory category, {
+  required int negativeChosen,
+  required int positiveChosen,
+}) => switch (category) {
+  GameCategory.negative => negativeChosen >= maxNegativePerChooser,
+  GameCategory.positive => positiveChosen >= maxPositivePerChooser,
+};

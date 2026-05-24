@@ -49,19 +49,11 @@ Color scoreColor(int score, BuildContext context) {
 }
 
 Color scoreColorPositive(BuildContext context) =>
-    _scoreColors(context).positive;
+    ScoreColors.of(context).positive;
 Color scoreColorNegative(BuildContext context) =>
-    _scoreColors(context).negative;
+    ScoreColors.of(context).negative;
 Color scoreColorNeutral(BuildContext context) =>
     Theme.of(context).colorScheme.onSurfaceVariant;
-
-ScoreColors _scoreColors(BuildContext context) {
-  final theme = Theme.of(context);
-  return theme.extension<ScoreColors>() ??
-      (theme.brightness == Brightness.dark
-          ? ScoreColors.dark
-          : ScoreColors.light);
-}
 
 /// Material 3 disabled-content color: `onSurface` at 38% alpha.
 ///

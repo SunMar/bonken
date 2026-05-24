@@ -606,12 +606,7 @@ class _InitiatorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dc =
-        theme.extension<DoubleStateColors>() ??
-        (theme.brightness == Brightness.dark
-            ? DoubleStateColors.dark
-            : DoubleStateColors.light);
+    final dc = DoubleStateColors.of(context);
 
     final badge = involvedCount > 0
         ? Badge(
@@ -665,20 +660,11 @@ class _TargetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final dc =
-        theme.extension<DoubleStateColors>() ??
-        (theme.brightness == Brightness.dark
-            ? DoubleStateColors.dark
-            : DoubleStateColors.light);
+    final cs = Theme.of(context).colorScheme;
+    final dc = DoubleStateColors.of(context);
 
     // Tile background mirrors the pair state regardless of direction.
-    final Color? bg = switch (state) {
-      DoubleState.none => null,
-      DoubleState.doubled => dc.doubledBackground,
-      DoubleState.redoubled => dc.redoubledBackground,
-    };
+    final Color? bg = dc.backgroundFor(state);
 
     Widget chip(String label, Color background, Color foreground) =>
         DoubleStateChip(
@@ -713,12 +699,8 @@ class _TargetTile extends StatelessWidget {
           state == DoubleState.redoubled
               ? 'gaat terug op'
               : 'is gedubbeld door',
-          state == DoubleState.redoubled
-              ? dc.redoubledBackground
-              : dc.doubledBackground,
-          state == DoubleState.redoubled
-              ? dc.onRedoubledBackground
-              : dc.onDoubledBackground,
+          dc.backgroundFor(state)!,
+          dc.foregroundFor(state)!,
         ),
         const SizedBox(width: 6),
         Text(

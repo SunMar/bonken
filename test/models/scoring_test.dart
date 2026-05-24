@@ -95,7 +95,7 @@ void main() {
       test('${game.name}: even split (4+4+2+3) = +260', () {
         final result = game.calculateScores(
           input: {
-            'tricks': {pa.id: 4, pb.id: 4, pc.id: 2, pd.id: 3},
+            'counts': {pa.id: 4, pb.id: 4, pc.id: 2, pd.id: 3},
           },
           doubles: noDoubles,
           players: players,
@@ -110,7 +110,7 @@ void main() {
       test('${game.name}: one player wins all 13 tricks', () {
         final result = game.calculateScores(
           input: {
-            'tricks': {pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0},
+            'counts': {pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0},
           },
           doubles: noDoubles,
           players: players,
@@ -132,7 +132,7 @@ void main() {
     test('no doubles: straight -10 per trick', () {
       final result = duck.calculateScores(
         input: {
-          'tricks': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
+          'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
         },
         doubles: noDoubles,
         players: players,
@@ -159,7 +159,7 @@ void main() {
 
       final result = duck.calculateScores(
         input: {
-          'tricks': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
+          'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
         },
         doubles: doubles,
         players: players,
@@ -182,7 +182,7 @@ void main() {
 
     test('player 2 wins the King of Hearts', () {
       final result = game.calculateScores(
-        input: {'winner': pc.id},
+        input: {'player': pc.id},
         doubles: noDoubles,
         players: players,
       );
@@ -204,7 +204,7 @@ void main() {
     test('cards split 2-2-2-2 = -200', () {
       final result = game.calculateScores(
         input: {
-          'cards': {pa.id: 2, pb.id: 2, pc.id: 2, pd.id: 2},
+          'counts': {pa.id: 2, pb.id: 2, pc.id: 2, pd.id: 2},
         },
         doubles: noDoubles,
         players: players,
@@ -219,7 +219,7 @@ void main() {
     test('one player wins all 8 scoring cards', () {
       final result = game.calculateScores(
         input: {
-          'cards': {pa.id: 8, pb.id: 0, pc.id: 0, pd.id: 0},
+          'counts': {pa.id: 8, pb.id: 0, pc.id: 0, pd.id: 0},
         },
         doubles: noDoubles,
         players: players,
@@ -239,7 +239,7 @@ void main() {
     test('all 4 queens won by different players = -45 each', () {
       final result = game.calculateScores(
         input: {
-          'cards': {pa.id: 1, pb.id: 1, pc.id: 1, pd.id: 1},
+          'counts': {pa.id: 1, pb.id: 1, pc.id: 1, pd.id: 1},
         },
         doubles: noDoubles,
         players: players,
@@ -262,7 +262,7 @@ void main() {
     test('hearts split 4-3-5-1 = -130', () {
       final result = game.calculateScores(
         input: {
-          'cards': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
+          'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
         },
         doubles: noDoubles,
         players: players,
@@ -284,7 +284,7 @@ void main() {
 
     test('different players win 7th and 13th', () {
       final result = game.calculateScores(
-        input: {'trick7winner': pa.id, 'trick13winner': pc.id},
+        input: {'player1': pa.id, 'player2': pc.id},
         doubles: noDoubles,
         players: players,
       );
@@ -297,7 +297,7 @@ void main() {
 
     test('same player wins both 7th and 13th', () {
       final result = game.calculateScores(
-        input: {'trick7winner': pb.id, 'trick13winner': pb.id},
+        input: {'player1': pb.id, 'player2': pb.id},
         doubles: noDoubles,
         players: players,
       );
@@ -318,7 +318,7 @@ void main() {
 
     test('player 3 wins final trick', () {
       final result = game.calculateScores(
-        input: {'winner': pd.id},
+        input: {'player': pd.id},
         doubles: noDoubles,
         players: players,
       );
@@ -370,7 +370,7 @@ void main() {
 
     test('player 1 plays the last card', () {
       final result = game.calculateScores(
-        input: {'loser': pb.id},
+        input: {'player': pb.id},
         doubles: noDoubles,
         players: players,
       );

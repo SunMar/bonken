@@ -29,7 +29,7 @@ class CountsInputDescriptor extends InputDescriptor {
     required this.unitLabel,
   });
 
-  /// Key used in the input map (e.g. 'tricks', 'cards').
+  /// Key used in the input map (canonical: 'counts', set by `CountsMiniGame`).
   final String inputKey;
 
   /// Required sum of all four player counts.
@@ -67,7 +67,8 @@ class SinglePlayerInputDescriptor extends InputDescriptor {
     required this.prompt,
   });
 
-  /// Key used in the input map (e.g. 'winner', 'loser').
+  /// Key used in the input map (canonical: 'player', set by
+  /// `SinglePlayerMiniGame`).
   final String inputKey;
 
   /// Question shown above the player selector (Dutch).

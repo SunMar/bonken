@@ -101,8 +101,8 @@ void main() {
           gameId: 'duck',
           gameName: 'Bukken',
           chooserId: testPlayers[2].id,
-          input: const {
-            'tricks': [10, 1, 1, 1],
+          input: {
+            'counts': {pa.id: 10, pb.id: 1, pc.id: 1, pd.id: 1},
           },
         ),
       );
@@ -187,8 +187,8 @@ void main() {
             game: const Duck(),
             chooserId: testPlayers[2].id,
             scoresByPlayer: {pa.id: -40, pb.id: -30, pc.id: -50, pd.id: -10},
-            input: const {
-              'tricks': [4, 3, 5, 1],
+            input: {
+              'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
             },
             doubles: DoubleMatrix.empty().withPair(
               pa.id,
@@ -202,8 +202,8 @@ void main() {
           gameId: 'queens',
           gameName: 'Vrouwen',
           chooserId: testPlayers[3].id,
-          input: const {
-            'cards': [1, 0, 0, 0],
+          input: {
+            'counts': {pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0},
           },
         ),
       );
@@ -222,7 +222,7 @@ void main() {
       expect(back.pendingRound, isNotNull);
       expect(back.pendingRound!.gameId, 'queens');
       expect(back.pendingRound!.input, {
-        'cards': [1, 0, 0, 0],
+        'counts': {pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0},
       });
     });
 
@@ -246,8 +246,8 @@ void main() {
         gameId: 'duck',
         gameName: 'Bukken',
         chooserId: testPlayers[2].id,
-        input: const {
-          'tricks': [3, 4, 0, 0],
+        input: {
+          'counts': {pa.id: 3, pb.id: 4, pc.id: 0, pd.id: 0},
         },
         doublesJson: DoubleMatrix.empty()
             .withPair(pa.id, pb.id, DoubleState.redoubled, initiator: pb.id)
@@ -262,6 +262,31 @@ void main() {
       final m = DoubleMatrix.fromJson(back.doublesJson!);
       expect(m.stateFor(pa.id, pb.id), DoubleState.redoubled);
       expect(m.initiatorFor(pa.id, pb.id), pb.id);
+    });
+
+    test('dual 7e/13e round preserves which player won which trick', () {
+      // Two different players: A won the 7th, C won the 13th. The persisted
+      // counts list is positional ([7th, 13th]) so the distinction survives —
+      // a flat {A:1, C:1} map would have lost it.
+      final r = RoundRecord(
+        roundNumber: 3,
+        game: const SeventhAndThirteenth(),
+        chooserId: pa.id,
+        scoresByPlayer: {pa.id: -50, pb.id: 0, pc.id: -50, pd.id: 0},
+        input: {'player1': pa.id, 'player2': pc.id},
+        doubles: const DoubleMatrix(),
+      );
+      final json = r.toJson();
+      expect(json['input'], {
+        'counts': [
+          {pa.id: 1},
+          {pc.id: 1},
+        ],
+      });
+      final back = GameSession.fromJson(
+        sample(rounds: [r]).toJson(),
+      ).rounds.first;
+      expect(back.input, {'player1': pa.id, 'player2': pc.id});
     });
   });
 }
