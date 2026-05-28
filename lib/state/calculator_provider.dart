@@ -242,7 +242,8 @@ class CalculatorState {
   final DoubleMatrix? editOriginalDoubles;
   final String? editOriginalChooserId;
 
-  /// Compares two input maps deeply. Values are either int? or `List<int>`.
+  /// Compares two input maps deeply. Values are a per-player `Map<String, int>`
+  /// (counts games) or a player-id `String?` (single/dual picks).
   static bool _inputEquals(Map<String, dynamic> a, Map<String, dynamic> b) =>
       const DeepCollectionEquality().equals(a, b);
 
@@ -385,7 +386,10 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     if (session == null) return;
     try {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
-    } catch (_) {}
+    } on Exception catch (_) {
+      // Best-effort background write; in-memory state is intact and the next
+      // mutation re-triggers an autosave.
+    }
   }
 
   /// Flushes a pending debounced autosave for the currently loaded session

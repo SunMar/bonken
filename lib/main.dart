@@ -8,8 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'screens/rules_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/rules_screen.dart';
 import 'services/app_updater.dart';
 import 'state/theme_mode_provider.dart';
 import 'theme/app_theme_extensions.dart';
@@ -97,7 +97,7 @@ class BonkenApp extends ConsumerWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),
         actionIconTheme: _symbolsActionIconTheme,
-        extensions: [
+        extensions: const [
           WarningColors.light,
           GameSuitColors.standard,
           DoubleStateColors.light,
@@ -112,7 +112,7 @@ class BonkenApp extends ConsumerWidget {
           ThemeData(brightness: Brightness.dark).textTheme,
         ),
         actionIconTheme: _symbolsActionIconTheme,
-        extensions: [
+        extensions: const [
           WarningColors.dark,
           GameSuitColors.standard,
           DoubleStateColors.dark,

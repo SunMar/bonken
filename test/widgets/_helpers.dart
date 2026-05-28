@@ -1,6 +1,6 @@
+import 'package:bonken/models/player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:bonken/models/player.dart';
 
 /// Standard list of player names used by the widget tests.
 const playerNames = ['Alice', 'Bob', 'Carol', 'Dan'];

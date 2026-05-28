@@ -3,12 +3,11 @@
 // the host theme doesn't register the extension (e.g. unthemed test
 // harnesses).
 
+import 'package:bonken/theme/app_theme_extensions.dart';
+import 'package:bonken/widgets/amber_warning_box.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
-
-import 'package:bonken/theme/app_theme_extensions.dart';
-import 'package:bonken/widgets/amber_warning_box.dart';
 
 Future<void> _pump(
   WidgetTester tester, {

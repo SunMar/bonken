@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/widgets/doubles_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '_helpers.dart';
 
@@ -789,7 +788,7 @@ void main() {
         // chooser=0. Bob(1) initiator. Carol(2) doubled Bob — pair is
         // doubled, initiator=Carol. Bob hasn't acted on Carol yet, so
         // Slappe hap should be outlined (not filled).
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        final DoubleMatrix matrix = DoubleMatrix.empty().withPair(
           playerIds[1],
           playerIds[2],
           DoubleState.doubled,
@@ -819,7 +818,7 @@ void main() {
         // chooser=0. Bob(1) initiator. Carol(2) doubled Bob → Bob redoubled
         // Carol (state=redoubled, initiator=Carol). Bob doubled Dan(3).
         // Slappe hap targets {2,3} both show initiator-action → filled.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        final DoubleMatrix matrix = DoubleMatrix.empty()
             .withPair(
               playerIds[1],
               playerIds[2],
@@ -972,7 +971,7 @@ void main() {
       '"Terug op beide" outlined when only one of the two doublers has been redoubled',
       (tester) async {
         // chooser=2. Alice doubled; Dan doubled then Carol redoubled Dan.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        final DoubleMatrix matrix = DoubleMatrix.empty()
             .withPair(
               playerIds[2],
               playerIds[0],
@@ -1007,7 +1006,7 @@ void main() {
       'chooser doubled by only one player → Zaal button stays disabled',
       (tester) async {
         // chooser=2. Only Alice doubled Carol.
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        final DoubleMatrix matrix = DoubleMatrix.empty().withPair(
           playerIds[2],
           playerIds[0],
           DoubleState.doubled,
@@ -1093,7 +1092,7 @@ void main() {
         'matches the surrounding tile rhythm', (tester) async {
       // chooser=2, Carol initiator with one doubled target → "Zaal"
       // and "Slappe hap" both rendered. Pick whichever button shows.
-      DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+      final DoubleMatrix matrix = DoubleMatrix.empty().withPair(
         playerIds[2],
         playerIds[0],
         DoubleState.doubled,

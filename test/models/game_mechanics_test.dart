@@ -1,7 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/game_mechanics.dart';
 import 'package:bonken/models/mini_game.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('dealerIndexFor', () {

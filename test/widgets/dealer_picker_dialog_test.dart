@@ -2,10 +2,9 @@
 // ([NextDealerNext], [NextDealerRandom], [NextDealerSpecific]) and the
 // `null` result for cancel/dismiss.
 
+import 'package:bonken/widgets/dealer_picker_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:bonken/widgets/dealer_picker_dialog.dart';
 
 const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 

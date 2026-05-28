@@ -1,9 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('storage converters (inputToCounts / countsToInput)', () {

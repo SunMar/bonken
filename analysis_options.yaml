@@ -56,5 +56,35 @@ linter:
     # discriminator field instead.
     avoid_type_to_string: true
 
+    # ---- const correctness (Flutter rebuild perf; mostly `dart fix`-able) ----
+    # `prefer_const_constructors_in_immutables` is already on via flutter_lints;
+    # the rules below close the remaining const gaps.
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+
+    # ---- immutability discipline (pairs with the already-on prefer_final_fields)
+    prefer_final_locals: true
+
+    # ---- import hygiene: sorted/grouped imports prevent drift when editing
+    directives_ordering: true
+
+    # ---- async safety: flag futures created but neither awaited nor stored
+    #      (complements the already-on `unawaited_futures`).
+    discarded_futures: true
+
+    # ---- safety: every catch must declare what it catches. Forces a review of
+    #      broad swallows (corrupt storage, autosave, etc.) and lets the
+    #      analyzer detect "you swallowed something you didn't mean to."
+    avoid_catches_without_on_clauses: true
+
+    # ---- minor cleanliness / future-proofing
+    unnecessary_parenthesis: true
+    unnecessary_lambdas: true
+    avoid_redundant_argument_values: true
+    unnecessary_breaks: true
+    combinators_ordering: true
+    sized_box_shrink_expand: true
+
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options

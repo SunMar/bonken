@@ -20,6 +20,23 @@ runs:
       shell: bash
       run: flutter analyze --fatal-infos
 
+    - name: Check for auto-fixable lint/deprecation drift
+      shell: bash
+      # `dart fix` knows fixes for many lints + deprecated-API uses that
+      # `flutter analyze` only reports. Fail the PR if anything is proposed,
+      # so the codebase stays at "Nothing to fix" instead of accumulating
+      # silent debt between SDK upgrades. Run `dart fix --apply` locally to
+      # clear it. (Pipe through grep so any non-empty fixes section trips
+      # the exit code via `set -o pipefail`-equivalent semantics in bash.)
+      run: |
+        set -euo pipefail
+        out="$(dart fix --dry-run)"
+        echo "$out"
+        if ! grep -q "Nothing to fix!" <<< "$out"; then
+          echo "::error::dart fix proposed changes — run 'dart fix --apply' locally."
+          exit 1
+        fi
+
     - name: Run tests
       shell: bash
       run: flutter test

@@ -1,11 +1,11 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
-import 'package:bonken/models/input_descriptor.dart';
-import 'package:bonken/models/mini_game.dart';
-import 'package:bonken/models/player.dart';
 import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
+import 'package:bonken/models/mini_game.dart';
+import 'package:bonken/models/player.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '_double_matrix_helpers.dart';
 
@@ -339,11 +339,11 @@ void main() {
     // sum of scores equals game.totalPoints regardless of descriptor type.
     Map<String, dynamic> minimalInput(MiniGame game) =>
         switch (game.inputDescriptor) {
-          CountsInputDescriptor d => {
+          final CountsInputDescriptor d => {
             d.inputKey: {pa.id: d.total, pb.id: 0, pc.id: 0, pd.id: 0},
           },
-          SinglePlayerInputDescriptor d => {d.inputKey: pa.id},
-          DualPlayerInputDescriptor d => {
+          final SinglePlayerInputDescriptor d => {d.inputKey: pa.id},
+          final DualPlayerInputDescriptor d => {
             d.inputKey1: pa.id,
             d.inputKey2: pa.id,
           },

@@ -16,7 +16,7 @@ dart format .                                       # auto-format (run before co
 dart format --output=none --set-exit-if-changed .  # formatting check (CI gate)
 ```
 
-Flutter is pinned in `.fvmrc` (3.41.9); CI installs from there. Bare
+Flutter is pinned in `.fvmrc`; CI installs from there. Bare
 `flutter`/`dart` work locally; use `fvm flutter <cmd>` to match the pin exactly.
 
 ## Before you finish
@@ -28,7 +28,11 @@ gates, in order**: format check → `flutter analyze --fatal-infos` →
 
 The analyzer is strict (`analysis_options.yaml`): strict casts/inference/
 raw-types, required trailing commas, explicit return types, no `dynamic`
-calls. Write explicit types; let `dart format` add the trailing commas.
+calls, const correctness (`prefer_const_*`), `prefer_final_locals`, sorted
+imports, `discarded_futures`, and every `catch` must declare an `on` type
+(`avoid_catches_without_on_clauses`). The verify gate also runs
+`dart fix --dry-run` and fails on any proposed change. Write explicit types;
+run `dart fix --apply` + `dart format .` before pushing.
 
 ## Conventions (do not break)
 

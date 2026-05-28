@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/game_session.dart';
 import '../state/calculator_provider.dart';
@@ -36,9 +38,17 @@ class HomeScreen extends ConsumerWidget {
       body: historyAsync.when(
         skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => e is UnsupportedStorageVersionException
-            ? const _UnsupportedVersionScreen()
-            : const SizedBox.shrink(),
+        error: (e, _) => switch (e) {
+          UnsupportedStorageVersionException() => const _StorageErrorScreen(
+            kind: _StorageErrorKind.unsupportedVersion,
+          ),
+          CorruptStorageException() => const _StorageErrorScreen(
+            kind: _StorageErrorKind.corrupt,
+          ),
+          // Any other error (shouldn't happen — build() only throws the two
+          // above) still gets the corrupt screen rather than a silent blank.
+          _ => const _StorageErrorScreen(kind: _StorageErrorKind.unknown),
+        },
         data: (sessions) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -118,10 +128,12 @@ class HomeScreen extends ConsumerWidget {
                   // NewGameScreen holds its own local working state; the
                   // calculator provider is only mutated when the user
                   // confirms "Start spel".
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NewGameScreen(),
-                      fullscreenDialog: true,
+                  unawaited(
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const NewGameScreen(),
+                        fullscreenDialog: true,
+                      ),
                     ),
                   );
                 },
@@ -135,15 +147,41 @@ class HomeScreen extends ConsumerWidget {
 }
 
 // =============================================================================
-// Unsupported storage version screen
+// Storage-error screen — surfaces both unsupported-version and corrupt-storage
+// cases with a "Geschiedenis wissen" escape hatch.
 // =============================================================================
 
-class _UnsupportedVersionScreen extends ConsumerWidget {
-  const _UnsupportedVersionScreen();
+enum _StorageErrorKind { unsupportedVersion, corrupt, unknown }
+
+class _StorageErrorScreen extends ConsumerWidget {
+  const _StorageErrorScreen({required this.kind});
+
+  final _StorageErrorKind kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final (title, body) = switch (kind) {
+      _StorageErrorKind.unsupportedVersion => (
+        'App bijwerken vereist',
+        'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
+            'de app en kan niet worden geladen. Update de app om je '
+            'geschiedenis te bekijken, of wis de geschiedenis om verder te '
+            'spelen — eerdere spellen kunnen daarna niet meer worden hersteld.',
+      ),
+      _StorageErrorKind.corrupt => (
+        'Geschiedenis beschadigd',
+        'Je opgeslagen spelgeschiedenis kan niet worden gelezen (mogelijk '
+            'beschadigd). Wis de geschiedenis om verder te spelen — eerdere '
+            'spellen kunnen daarna niet meer worden hersteld.',
+      ),
+      _StorageErrorKind.unknown => (
+        'Onbekende fout',
+        'Er is een onverwachte fout opgetreden bij het laden van de '
+            'spelgeschiedenis. Wis de geschiedenis om verder te spelen — '
+            'eerdere spellen kunnen daarna niet meer worden hersteld.',
+      ),
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -153,16 +191,13 @@ class _UnsupportedVersionScreen extends ConsumerWidget {
             Icon(Symbols.error, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(
-              'App bijwerken vereist',
+              title,
               style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
-              'de app en kan niet worden geladen. Update de app om je '
-              'geschiedenis te bekijken, of wis de geschiedenis om verder te '
-              'spelen.',
+              body,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -209,9 +244,11 @@ class _GameSessionCard extends ConsumerWidget {
 
     void onTap() {
       ref.read(calculatorProvider.notifier).loadSession(session);
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const GameScreen()));
+      unawaited(
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const GameScreen())),
+      );
     }
 
     // Muted tint for the trailing Verwijderen IconButton (standard 48dp

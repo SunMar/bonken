@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/widgets/selectable_player_tile.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '_helpers.dart';
 

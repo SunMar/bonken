@@ -34,7 +34,7 @@ Future<void> checkForAndroidUpdate() async {
     // If the user dismisses the snackbar this is also fine — the install
     // will happen the next time the app starts.
     await InAppUpdate.completeFlexibleUpdate();
-  } catch (e) {
+  } on Exception catch (e) {
     // Most common reasons we get here:
     //   * App was sideloaded (not installed via Play).
     //   * Device has no Play Services / no network.

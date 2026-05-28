@@ -2,11 +2,6 @@
 // resuming a session by tapping its card, the card delete + undo flow, and the
 // unsupported-storage-version screen.
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
@@ -17,6 +12,10 @@ import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/widgets/scoreboard_card.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
 
@@ -26,8 +25,8 @@ GameSession _session(String id) {
   final players = [for (final n in _names) Player(name: n)];
   return GameSession(
     id: id,
-    createdAt: DateTime(2024, 1, 1),
-    updatedAt: DateTime(2024, 1, 1),
+    createdAt: DateTime(2024),
+    updatedAt: DateTime(2024),
     players: players,
     firstDealerId: players[0].id,
     rounds: [
@@ -163,6 +162,32 @@ void main() {
     // cleanly, then let the single pending timer fire.
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('game_history');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('corrupt storage shows the corrupt-data screen', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'bonken_game_history': 'this is not json',
+    });
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Geschiedenis beschadigd'), findsOneWidget);
+    expect(find.text('Geschiedenis wissen'), findsOneWidget);
+
+    // Drain the retry (same pattern as the unsupported-version test).
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('bonken_game_history');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
   });

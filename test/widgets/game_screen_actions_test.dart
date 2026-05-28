@@ -8,21 +8,20 @@
 // About dialog) are exercised by `app_bar_widgets_test.dart`; this
 // file focuses on what is unique to the game screen.
 
+import 'package:bonken/models/double_matrix.dart';
+import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/player.dart';
+import 'package:bonken/models/round_record.dart';
+import 'package:bonken/screens/edit_players_screen.dart';
+import 'package:bonken/screens/game_screen.dart';
+import 'package:bonken/screens/home_screen.dart';
+import 'package:bonken/state/calculator_provider.dart';
+import 'package:bonken/state/game_history_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
-
-import 'package:bonken/models/game_session.dart';
-import 'package:bonken/models/games/negative_games.dart';
-import 'package:bonken/models/double_matrix.dart';
-import 'package:bonken/models/player.dart';
-import 'package:bonken/models/round_record.dart';
-import 'package:bonken/screens/edit_players_screen.dart';
-import 'package:bonken/screens/home_screen.dart';
-import 'package:bonken/screens/game_screen.dart';
-import 'package:bonken/state/calculator_provider.dart';
-import 'package:bonken/state/game_history_provider.dart';
 
 import '../test_helpers.dart';
 
@@ -37,8 +36,8 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
   final players = [for (final name in _names) Player(name: name)];
   final session = GameSession(
     id: 'seed-session',
-    createdAt: DateTime(2024, 1, 1),
-    updatedAt: DateTime(2024, 1, 1),
+    createdAt: DateTime(2024),
+    updatedAt: DateTime(2024),
     players: players,
     firstDealerId: players[0].id,
     rounds: [

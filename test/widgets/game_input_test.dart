@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/widgets/game_input/counts_input.dart';
 import 'package:bonken/widgets/game_input/game_input_form.dart';
 import 'package:bonken/widgets/game_input/player_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '_helpers.dart';
 

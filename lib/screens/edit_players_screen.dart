@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -109,8 +111,9 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
   );
 
   void _onReorder(int oldIndex, int newIndex) {
+    // `onReorderItem` already pre-adjusts newIndex for the removed item — no
+    // manual `if (newIndex > oldIndex) newIndex -= 1` decrement needed.
     var target = newIndex;
-    if (target > oldIndex) target -= 1;
     if (target < 0) target = 0;
     if (target >= playerCount) target = playerCount - 1;
     if (target == oldIndex) return;
@@ -170,9 +173,10 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (orderChanged) AmberWarningBox(text: _playerOrderShortWarning),
+            if (orderChanged)
+              const AmberWarningBox(text: _playerOrderShortWarning),
             if (orderChanged && dealerChanged) const SizedBox(height: 8),
-            if (dealerChanged) AmberWarningBox(text: _dealerShortWarning),
+            if (dealerChanged) const AmberWarningBox(text: _dealerShortWarning),
             const SizedBox(height: 12),
             Text(
               _inProgressEffectExplanation,
@@ -217,7 +221,7 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
       builder: (context, child) => PopScope(
         canPop: !_hasChanges,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _confirmAndCancel();
+          if (!didPop) unawaited(_confirmAndCancel());
         },
         child: child!,
       ),
@@ -265,13 +269,13 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
                         controllers: _controllers,
                         focusNodes: _focusNodes,
                         suggestions: suggestions,
-                        onReorder: _onReorder,
+                        onReorderItem: _onReorder,
                         onSubmitted: _handleFieldSubmitted,
                       ),
                     ),
                     if (_gameInProgress && orderChanged) ...[
                       const SizedBox(height: 12),
-                      AmberWarningBox(text: _playerOrderShortWarning),
+                      const AmberWarningBox(text: _playerOrderShortWarning),
                     ],
                   ],
                 ),
@@ -302,7 +306,7 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
                     ),
                     if (_gameInProgress && _dealerPlayerChanged) ...[
                       const SizedBox(height: 12),
-                      AmberWarningBox(text: _dealerShortWarning),
+                      const AmberWarningBox(text: _dealerShortWarning),
                     ],
                   ],
                 ),

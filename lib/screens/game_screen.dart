@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:math' show Random;
 
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
-import '../models/games/game_catalog.dart';
 import '../models/game_mechanics.dart';
 import '../models/game_session.dart';
+import '../models/games/game_catalog.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/round_record.dart';
@@ -22,10 +22,10 @@ import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_deleted_snackbar.dart';
-import '../widgets/scoreboard_card.dart';
 import '../widgets/primary_action_button.dart';
-import 'home_screen.dart';
+import '../widgets/scoreboard_card.dart';
 import 'edit_players_screen.dart';
+import 'home_screen.dart';
 import 'round_input_screen.dart';
 
 // =============================================================================
@@ -421,10 +421,12 @@ class _LiveScoreboard extends ConsumerWidget {
               icon: const Icon(Symbols.edit),
               tooltip: 'Spel bewerken',
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const EditPlayersScreen(),
-                    fullscreenDialog: true,
+                unawaited(
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const EditPlayersScreen(),
+                      fullscreenDialog: true,
+                    ),
                   ),
                 );
               },
@@ -698,9 +700,11 @@ class _HistoryRow extends StatelessWidget {
               tooltip: 'Wijzigen',
               onPressed: () {
                 notifier.restoreRound(record);
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const RoundInputScreen(),
+                unawaited(
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const RoundInputScreen(),
+                    ),
                   ),
                 );
               },

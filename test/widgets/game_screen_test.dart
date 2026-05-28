@@ -7,11 +7,6 @@
 // covered by `game_screen_actions_test.dart`; this file focuses on the tile
 // list and round flow.
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:material_symbols_icons/symbols.dart';
-
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/game_catalog.dart';
@@ -23,6 +18,10 @@ import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../test_helpers.dart';
 
@@ -48,8 +47,8 @@ GameSession _session({
   PendingRound? pendingRound,
 }) => GameSession(
   id: 'seed',
-  createdAt: DateTime(2024, 1, 1),
-  updatedAt: DateTime(2024, 1, 1),
+  createdAt: DateTime(2024),
+  updatedAt: DateTime(2024),
   players: players,
   firstDealerId: players[0].id,
   rounds: rounds,
@@ -194,7 +193,6 @@ void main() {
         gameId: 'duck',
         gameName: 'Bukken',
         chooserId: players[1].id,
-        input: const {},
       ),
     );
     await _pump(tester, session: session);

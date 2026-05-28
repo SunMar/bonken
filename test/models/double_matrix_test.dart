@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '_double_matrix_helpers.dart';
 

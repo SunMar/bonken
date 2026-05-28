@@ -1,12 +1,9 @@
 {
-  // Map composite action files to the GitHub Actions metadata schema instead
-  // of the workflow schema (which would falsely require `on:`).  Workflow
-  // files in .github/workflows/ continue to use the default workflow schema
-  // detected by the GitHub Actions extension.
   "yaml.schemas": {
     "https://json.schemastore.org/github-action.json": [
       ".github/actions/*/action.yml",
       ".github/actions/*/action.yaml"
     ]
-  }
+  },
+  "dart.flutterSdkPath": ".fvm/versions/3.44.0"
 }

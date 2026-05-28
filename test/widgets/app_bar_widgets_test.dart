@@ -3,14 +3,13 @@
 // shared Thema menu. Pumped in isolation (no surrounding screen) so we
 // cover the widgets themselves rather than each consumer.
 
+import 'package:bonken/screens/rules_screen.dart';
+import 'package:bonken/state/theme_mode_provider.dart';
+import 'package:bonken/widgets/app_bar_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
-
-import 'package:bonken/screens/rules_screen.dart';
-import 'package:bonken/state/theme_mode_provider.dart';
-import 'package:bonken/widgets/app_bar_widgets.dart';
 
 import '../test_helpers.dart';
 
@@ -23,9 +22,9 @@ Future<ProviderContainer> _pumpActions(WidgetTester tester) async {
       child: MaterialApp(
         home: Scaffold(
           appBar: AppBar(
-            title: Row(
+            title: const Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [Text('T'), RulesIconButton()],
+              children: [Text('T'), RulesIconButton()],
             ),
             actions: const [ThemeMenuButton()],
           ),

@@ -1,4 +1,4 @@
-// ignore_for_file: avoid_print, depend_on_referenced_packages
+// ignore_for_file: avoid_print
 
 // Convert between sRGB hex and HCT (hue, chroma, tone) using Google's
 // material_color_utilities — the canonical implementation behind

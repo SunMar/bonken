@@ -10,10 +10,6 @@
 //   • textContrastGuideline      — text meets 4.5:1 contrast
 // These ride the normal `flutter test` gate (no separate CI step).
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
@@ -28,6 +24,9 @@ import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/screens/rules_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'test_helpers.dart';
 
@@ -35,8 +34,8 @@ const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 
 GameSession _session(List<Player> players) => GameSession(
   id: 'seed',
-  createdAt: DateTime(2024, 1, 1),
-  updatedAt: DateTime(2024, 1, 1),
+  createdAt: DateTime(2024),
+  updatedAt: DateTime(2024),
   players: players,
   firstDealerId: players[0].id,
   rounds: [

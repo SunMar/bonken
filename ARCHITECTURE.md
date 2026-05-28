@@ -218,6 +218,8 @@ lib/
                              (no border, compact density, bold labelMedium).
                              Used by doubles_chips.dart and doubles_picker.dart.
     selectable_player_tile.dart  Shared selectable tile (player pickers + doubles initiators).
+    game_avatar.dart         GameAvatar (circular mini-game symbol avatar) + the
+                             _GameSymbol renderer; used by the game / round-input screens.
     app_bar_widgets.dart     Reusable AppBar building blocks: AboutIconButton
                              (leading info icon → About dialog), RulesIconButton
                              (pushes RulesScreen, optionally scoped to one game),
@@ -613,9 +615,12 @@ wins 1, B doubled A):
 
 **Load behavior (`build`):**
 - Missing current key → check/migrate the legacy key (implicitly v1); else `[]`.
-- Corrupt JSON → `[]` (start fresh; never throws to the UI).
+- Unreadable storage → throw `CorruptStorageException`, surfaced by the
+  `_StorageErrorScreen` ("Geschiedenis beschadigd" + "Geschiedenis wissen"
+  button). Deliberately *not* silently `[]` — that would overwrite the user's
+  saved games on the next write.
 - `version > currentStorageVersion` → throw `UnsupportedStorageVersionException`,
-  surfaced by `_UnsupportedVersionScreen` (offers "Geschiedenis wissen");
+  also surfaced by `_StorageErrorScreen` ("App bijwerken vereist" variant);
   Riverpod schedules a ~200 ms retry, which tests must drain.
 - `version < currentStorageVersion` → run `runStorageMigrations(...)`, then
   rewrite the upgraded games under `game_history` at the current version.
@@ -653,8 +658,8 @@ delegates are registered.
 **Screens** (what they watch / do):
 - **`HomeScreen`** — watches `gameHistoryProvider`; renders the saved-games list
   (`ScoreboardCard` per game), the "Nieuw spel" button, theme menu, rules/about.
-  Handles resume (tap), delete + undo snackbar, and the unsupported-version
-  screen.
+  Handles resume (tap), delete + undo snackbar, and the storage-error screen
+  (unsupported version or corrupt data — see §9).
 - **`NewGameScreen`** — local working state only; commits via `startNewGame`.
 - **`GameScreen`** — the in-game hub. `_GameSelectionBody` separates unplayed
   and played games per category (negative / positive); played games are hidden by
@@ -700,7 +705,8 @@ Run with `flutter test`. Layout mirrors `lib/`:
 
 - **`test/models/`** — pure domain: scoring (`scoring_test`,
   `scoring_doubles_test`), `double_matrix_test`, `game_session_test`,
-  `mini_game_test`, `score_result_test`.
+  `mini_game_test` (incl. the input↔counts storage converters),
+  `game_mechanics_test` (dealer rotation + per-chooser quota), `score_result_test`.
 - **`test/state/`** — `calculator_provider_test`, `game_history_provider_test`
   (incl. migration, corrupt data, and unsupported-version handling).
 - **`test/widgets/`** — one file per screen/widget.
@@ -735,9 +741,14 @@ ensures the binding.
 
 ## 12. Build, run & release
 
-Flutter SDK version is pinned in [`.fvmrc`](.fvmrc) (3.41.9). CI installs it
+Flutter SDK version is pinned in [`.fvmrc`](.fvmrc). CI installs it
 from there via the `setup-build` action; bare `flutter` / `dart` work locally,
-and `fvm flutter <cmd>` runs against the pinned version exactly.
+and `fvm flutter <cmd>` runs against the pinned version exactly. Bump the pin to
+the latest **stable** release with `dart run tool/update_flutter.dart`
+([`--check`](tool/update_flutter.dart) reports without writing) — it rewrites
+`.fvmrc` and the `pubspec.yaml` Dart `sdk:` lower-bound together, never
+downgrades, and prints the follow-up steps (install the SDK, re-resolve, run the
+gates).
 
 ```bash
 flutter pub get
@@ -762,10 +773,18 @@ flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 - **The analyzer is intentionally strict** ([`analysis_options.yaml`](analysis_options.yaml)):
   `strict-casts` / `strict-inference` / `strict-raw-types` plus
   `require_trailing_commas`, `always_declare_return_types`,
-  `avoid_dynamic_calls`, `avoid_type_to_string`, and `unawaited_futures`. Write
-  explicit types (no bare `dynamic`/raw generics), declare return types, wrap
-  fire-and-forget futures in `unawaited(...)`, and let `dart format` add the
-  trailing commas.
+  `avoid_dynamic_calls`, `avoid_type_to_string`, and `unawaited_futures`. On top
+  of those, a set of *preventive* lints: const correctness
+  (`prefer_const_constructors` / `_declarations` / `_literals_to_create_immutables`),
+  `prefer_final_locals`, `directives_ordering`, `discarded_futures`,
+  `avoid_catches_without_on_clauses` (every `catch` must declare `on …`), plus
+  `unnecessary_parenthesis` / `_lambdas` / `_breaks`, `avoid_redundant_argument_values`,
+  `combinators_ordering`, and `sized_box_shrink_expand`. Write explicit types,
+  declare return types, wrap fire-and-forget futures in `unawaited(...)`, and
+  let `dart format` add the trailing commas.
+- **`dart fix --dry-run` is part of `verify`** — CI fails if the analyzer
+  proposes any auto-fix. Run `dart fix --apply` locally to clear drift before
+  pushing.
 - **Versioning:** `pubspec.yaml` is a sentinel `0.0.0+0`; CI passes
   `--build-name` / `--build-number` from the git tag / run number.
 - **Fonts:** Roboto + DejaVu Sans are bundled under versioned asset paths with

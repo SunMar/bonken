@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,8 +10,8 @@ import '../models/score_result.dart';
 import '../state/calculator_provider.dart';
 import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
-import '../widgets/app_scaffold.dart';
 import '../widgets/app_bar_widgets.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/game_avatar.dart';
@@ -206,7 +208,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
       // Always intercept back so the discard-confirmation can run.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) saveOrConfirmBack();
+        if (!didPop) unawaited(saveOrConfirmBack());
       },
       child: AppScaffold(
         appBar: AppBar(
@@ -501,7 +503,6 @@ class _ChooserSelector extends StatelessWidget {
               key: ValueKey(chooserIndex),
               initialSelection: chooserIndex,
               enableSearch: false,
-              enableFilter: false,
               requestFocusOnTap: false,
               expandedInsets: EdgeInsets.zero,
               menuStyle: const MenuStyle(visualDensity: VisualDensity.compact),

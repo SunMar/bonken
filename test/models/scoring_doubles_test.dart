@@ -1,8 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
-import 'package:bonken/models/player.dart';
-import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/player.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '_double_matrix_helpers.dart';
 

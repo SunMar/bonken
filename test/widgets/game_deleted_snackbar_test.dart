@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:async';
 
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/widgets/game_deleted_snackbar.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../test_helpers.dart';
 
@@ -18,8 +19,8 @@ GameSession _session(String id) {
   ];
   return GameSession(
     id: id,
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
     players: players,
     firstDealerId: players[0].id,
     rounds: const [],
@@ -144,10 +145,12 @@ void main() {
                       // route so the originating widget tree is gone
                       // before "Ongedaan maken" is tapped.
                       showGameDeletedSnackBar(messenger, container, session);
-                      Navigator.of(rootCtx).pushReplacement(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              const Scaffold(body: Text('next screen')),
+                      unawaited(
+                        Navigator.of(rootCtx).pushReplacement(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                const Scaffold(body: Text('next screen')),
+                          ),
                         ),
                       );
                     },

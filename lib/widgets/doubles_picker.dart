@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
@@ -209,14 +211,16 @@ class _DoublesPickerState extends State<DoublesPicker> {
     }
     final actor = widget.players[selected];
     final other = widget.players[target];
-    _confirmForce(
-      title: 'Beurt voorbij',
-      message:
-          'De beurt van ${actor.name} is al voorbij. ${actor.name} kan '
-          'daardoor niet meer teruggaan op ${other.name}.',
-      confirmLabel: 'Toch teruggaan',
-      onConfirm: () =>
-          _cycle(selected, target, false, canTargetRedouble: false),
+    unawaited(
+      _confirmForce(
+        title: 'Beurt voorbij',
+        message:
+            'De beurt van ${actor.name} is al voorbij. ${actor.name} kan '
+            'daardoor niet meer teruggaan op ${other.name}.',
+        confirmLabel: 'Toch teruggaan',
+        onConfirm: () =>
+            _cycle(selected, target, false, canTargetRedouble: false),
+      ),
     );
   }
 
@@ -231,12 +235,15 @@ class _DoublesPickerState extends State<DoublesPicker> {
       return;
     }
     final actor = widget.players[selected];
-    _confirmForce(
-      title: 'Kiezer mag niet dubbelen',
-      message:
-          '${actor.name} mag als kiezer niet zelf dubbelen (alleen teruggaan).',
-      confirmLabel: 'Toch dubbelen',
-      onConfirm: () => _cycle(selected, target, true, canTargetRedouble: false),
+    unawaited(
+      _confirmForce(
+        title: 'Kiezer mag niet dubbelen',
+        message:
+            '${actor.name} mag als kiezer niet zelf dubbelen (alleen teruggaan).',
+        confirmLabel: 'Toch dubbelen',
+        onConfirm: () =>
+            _cycle(selected, target, true, canTargetRedouble: false),
+      ),
     );
   }
 

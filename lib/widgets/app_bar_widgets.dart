@@ -195,7 +195,7 @@ Future<void> openAboutDialog(BuildContext context) async {
 ///
 /// Returns `null` when [aboutGitCommit] is set: the deploy-to-Pages
 /// workflow injects `GIT_COMMIT` and never builds from a tag, so the
-/// `PackageInfo` version would always be the meaningless `1.0.0` default
+/// `PackageInfo` version would always be the meaningless `0.0.0` default
 /// — we fall back to showing the commit alone via `applicationVersion`.
 ///
 /// Pure (no [BuildContext], no widget pumping) so it can be unit-tested
@@ -207,7 +207,7 @@ Future<String?> resolveAboutVersionLine() async {
   try {
     final info = await PackageInfo.fromPlatform();
     return 'Versie ${info.version} (build ${info.buildNumber})';
-  } catch (_) {
+  } on Exception catch (_) {
     return 'Versie onbekend';
   }
 }

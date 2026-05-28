@@ -10,7 +10,7 @@ import 'player_name_field.dart';
 /// detected (case-insensitive).
 ///
 /// Holds no state itself — the parent owns [controllers] and [focusNodes],
-/// reorders them on [onReorder], and feeds new [takenNamesFor] / suggestions
+/// reorders them on [onReorderItem], and feeds new [takenNamesFor] / suggestions
 /// after every keystroke.
 class PlayerListField extends StatelessWidget {
   const PlayerListField({
@@ -18,7 +18,7 @@ class PlayerListField extends StatelessWidget {
     required this.controllers,
     required this.focusNodes,
     required this.suggestions,
-    required this.onReorder,
+    required this.onReorderItem,
     required this.onSubmitted,
   }) : assert(controllers.length == playerCount),
        assert(focusNodes.length == playerCount);
@@ -27,8 +27,9 @@ class PlayerListField extends StatelessWidget {
   final List<FocusNode> focusNodes;
   final List<String> suggestions;
 
-  /// Same convention as [ReorderableListView.onReorder].
-  final void Function(int oldIndex, int newIndex) onReorder;
+  /// Same convention as [ReorderableListView.onReorderItem]: `newIndex` is the
+  /// final post-removal insertion index (no manual `newIndex -= 1` needed).
+  final void Function(int oldIndex, int newIndex) onReorderItem;
 
   /// Called when the user presses Enter on field [index].
   final void Function(int index) onSubmitted;
@@ -60,7 +61,7 @@ class PlayerListField extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           buildDefaultDragHandles: false,
-          onReorder: onReorder,
+          onReorderItem: onReorderItem,
           children: [
             for (int i = 0; i < playerCount; i++)
               Padding(
@@ -155,7 +156,6 @@ class DealerDropdownField extends StatelessWidget {
       initialSelection:
           value ?? (allowRandomDealer ? _randomDealerValue : null),
       enableSearch: false,
-      enableFilter: false,
       requestFocusOnTap: false,
       expandedInsets: EdgeInsets.zero,
       hintText: hintText,

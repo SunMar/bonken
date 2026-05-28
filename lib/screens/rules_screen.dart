@@ -59,10 +59,10 @@ class RulesScreen extends StatelessWidget {
   List<Widget> _buildFullDocument(BuildContext context) {
     return [
       for (final s in kSectionsBeforeGames) _SectionView(section: s),
-      _SectionView(section: kNegatieveIntroSection),
+      const _SectionView(section: kNegatieveIntroSection),
       for (final g in kGameSections.where((g) => !_isPositive(g.gameId)))
         _GameSectionView(section: g),
-      _SectionView(section: kPositieveIntroSection),
+      const _SectionView(section: kPositieveIntroSection),
       for (final g in kGameSections.where((g) => _isPositive(g.gameId)))
         _GameSectionView(section: g),
       for (final s in kSectionsAfterGames) _SectionView(section: s),

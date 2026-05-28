@@ -16,14 +16,14 @@ class RulesBlockView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     return switch (block) {
-      Para b => Padding(
+      final Para b => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Text.rich(
           _parseInline(b.text, tt.bodyMedium ?? const TextStyle()),
           style: tt.bodyMedium,
         ),
       ),
-      BulletList b => Padding(
+      final BulletList b => Padding(
         padding: const EdgeInsets.only(bottom: 10, left: 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,7 +44,7 @@ class RulesBlockView extends StatelessWidget {
           ],
         ),
       ),
-      NumberedList b => Padding(
+      final NumberedList b => Padding(
         padding: const EdgeInsets.only(bottom: 10, left: 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,11 +68,11 @@ class RulesBlockView extends StatelessWidget {
           ],
         ),
       ),
-      TableBlock b => Padding(
+      final TableBlock b => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: _RulesTable(block: b),
       ),
-      Note b => Padding(
+      final Note b => Padding(
         padding: const EdgeInsets.only(bottom: 12, top: 2),
         child: _NoteCallout(label: b.label, text: b.text),
       ),

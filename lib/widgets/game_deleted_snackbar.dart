@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,7 +41,9 @@ void showGameDeletedSnackBar(
       action: SnackBarAction(
         label: 'Ongedaan maken',
         onPressed: () {
-          container.read(gameHistoryProvider.notifier).saveGame(session);
+          unawaited(
+            container.read(gameHistoryProvider.notifier).saveGame(session),
+          );
         },
       ),
     ),

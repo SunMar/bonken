@@ -9,7 +9,7 @@ publish_to: 'none'
 version: 0.0.0+0
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -62,6 +62,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+
+  # Used by tool/hct.dart (HCT colour exploration). Available transitively via
+  # flutter, but declared explicitly so `missing_dependency` is satisfied and
+  # the tool import is traceable to a real direct dependency.
+  material_color_utilities: ^0.13.0
 
 # Launcher icon generation.  Run after changing the source SVG/PNG:
 #   dart run flutter_launcher_icons

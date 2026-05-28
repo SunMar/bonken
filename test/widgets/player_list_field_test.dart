@@ -1,7 +1,6 @@
+import 'package:bonken/widgets/player_list_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:bonken/widgets/player_list_field.dart';
 
 import '_helpers.dart';
 
@@ -27,7 +26,7 @@ void main() {
       }
     }
 
-    Widget host({void Function(int, int)? onReorder}) => StatefulBuilder(
+    Widget host({void Function(int, int)? onReorderItem}) => StatefulBuilder(
       builder: (context, setState) {
         // Mimic NewGameScreen: rebuild on every keystroke so the
         // duplicate warning reflects the latest controller text.
@@ -42,16 +41,15 @@ void main() {
           controllers: controllers,
           focusNodes: focusNodes,
           suggestions: const [],
-          onReorder: (oldI, newI) {
-            var t = newI;
-            if (t > oldI) t -= 1;
+          onReorderItem: (oldI, newI) {
+            // onReorderItem already pre-adjusts newI — no decrement here.
             setState(() {
               final c = controllers.removeAt(oldI);
-              controllers.insert(t, c);
+              controllers.insert(newI, c);
               final f = focusNodes.removeAt(oldI);
-              focusNodes.insert(t, f);
+              focusNodes.insert(newI, f);
             });
-            onReorder?.call(oldI, newI);
+            onReorderItem?.call(oldI, newI);
           },
           onSubmitted: (_) {},
         );
@@ -102,7 +100,7 @@ void main() {
           controllers: [TextEditingController()],
           focusNodes: [FocusNode()],
           suggestions: const [],
-          onReorder: (_, _) {},
+          onReorderItem: (_, _) {},
           onSubmitted: (_) {},
         ),
         throwsAssertionError,

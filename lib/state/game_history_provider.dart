@@ -16,6 +16,18 @@ class UnsupportedStorageVersionException implements Exception {
       'Please update the app.';
 }
 
+/// Raised when the stored game history can't be read (corrupt JSON, malformed
+/// structure, …). Surfaced to the UI instead of silently discarding the user's
+/// saved games — they see a "Geschiedenis beschadigd" screen with a clear
+/// button and can decide.
+class CorruptStorageException implements Exception {
+  const CorruptStorageException(this.cause);
+  final Object cause;
+
+  @override
+  String toString() => 'Game history is corrupt and could not be read: $cause';
+}
+
 final gameHistoryProvider =
     AsyncNotifierProvider<GameHistoryNotifier, List<GameSession>>(
       GameHistoryNotifier.new,
@@ -70,10 +82,14 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
       ];
       sessions.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return sessions;
-    } catch (e) {
-      if (e is UnsupportedStorageVersionException) rethrow;
-      // Corrupt data — start fresh.
-      return [];
+    } on UnsupportedStorageVersionException {
+      rethrow;
+    } on Object catch (e) {
+      // Unreadable storage — surface it (mirrors the unsupported-version flow)
+      // instead of silently discarding the user's saved games. Catching `Object`
+      // is deliberate: corrupt data manifests as both `FormatException` (from
+      // `jsonDecode`) and `TypeError` (from `as` casts in fromJson / migration).
+      throw CorruptStorageException(e);
     }
   }
 

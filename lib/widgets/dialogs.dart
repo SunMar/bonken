@@ -121,7 +121,6 @@ Future<void> showDealerAnnouncementDialog(
         title: const Text('Deler', textAlign: TextAlign.center),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Row(
               mainAxisSize: MainAxisSize.min,

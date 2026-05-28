@@ -19,7 +19,6 @@ void showIncompleteFormSnackBar(
     messenger,
     SnackBar(
       content: Text(message),
-      duration: const Duration(seconds: 4),
       behavior: SnackBarBehavior.floating,
       showCloseIcon: true,
     ),

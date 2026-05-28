@@ -1,7 +1,6 @@
+import 'package:bonken/widgets/player_name_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:bonken/widgets/player_name_field.dart';
 
 import '_helpers.dart';
 

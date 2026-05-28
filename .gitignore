@@ -52,3 +52,6 @@ app.*.map.json
 /android/app/src/main/res/mipmap-*/ic_launcher.png
 /android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 /android/app/src/main/res/drawable-*/ic_launcher_*.png
+
+# FVM Version Cache
+.fvm/

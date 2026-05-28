@@ -30,11 +30,7 @@ enum DoubleState {
 /// the UI to show direction (e.g. "A dubbelt B") and to correctly label who
 /// can redouble.
 class DoubleMatrix {
-  const DoubleMatrix({
-    Map<(String, String), DoubleState> pairs = const {},
-    Map<(String, String), String> initiators = const {},
-  }) : _pairs = pairs,
-       _initiators = initiators;
+  const DoubleMatrix({this._pairs = const {}, this._initiators = const {}});
 
   final Map<(String, String), DoubleState> _pairs;
 

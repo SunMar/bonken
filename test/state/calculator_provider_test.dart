@@ -1,6 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
@@ -8,6 +5,8 @@ import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../models/_double_matrix_helpers.dart';
 import '../test_helpers.dart';

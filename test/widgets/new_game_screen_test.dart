@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/player_name_field.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../test_helpers.dart';
 
@@ -289,12 +288,12 @@ void main() {
 
       await pickDealer(tester, 'Carol');
 
-      // Find ReorderableListView and trigger onReorder programmatically.
+      // Find ReorderableListView and trigger onReorderItem programmatically.
       // Move slot 2 (Carol) to position 0.
       final reorderable = tester.widget<ReorderableListView>(
         find.byType(ReorderableListView),
       );
-      reorderable.onReorder(2, 0);
+      reorderable.onReorderItem!(2, 0);
       await tester.pumpAndSettle();
 
       // Carol should now be at slot 0, and the dealer dropdown should still

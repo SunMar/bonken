@@ -2,10 +2,9 @@
 // [showTimedSnackBar] used by save buttons that stay enabled so the user
 // can learn *why* nothing happened.
 
+import 'package:bonken/widgets/incomplete_form_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:bonken/widgets/incomplete_form_snackbar.dart';
 
 void main() {
   testWidgets(

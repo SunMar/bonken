@@ -1,15 +1,14 @@
 import 'dart:convert';
 
-import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
 
@@ -42,15 +41,30 @@ void main() {
       expect(list, isEmpty);
     });
 
-    test('returns empty list when storage is corrupt', () async {
-      SharedPreferences.setMockInitialValues({
-        'bonken_game_history': 'this is not json',
-      });
-      final c = ProviderContainer();
-      addTearDown(c.dispose);
-      final list = await c.read(gameHistoryProvider.future);
-      expect(list, isEmpty);
-    });
+    testWidgets(
+      'enters AsyncError with CorruptStorageException when storage is unreadable',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'bonken_game_history': 'this is not json',
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: c, child: const SizedBox()),
+        );
+        c.read(gameHistoryProvider);
+        await tester.pumpAndSettle();
+        expect(
+          c.read(gameHistoryProvider).error,
+          isA<CorruptStorageException>(),
+        );
+        // Drain the Riverpod retry timer (same pattern as the unsupported test).
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('bonken_game_history');
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+      },
+    );
   });
 
   group('saveGame', () {
@@ -60,7 +74,7 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('id1', DateTime(2024, 1, 1)));
+          .saveGame(session('id1', DateTime(2024)));
       final list = c.read(gameHistoryProvider).value!;
       expect(list.length, 1);
       expect(list.first.id, 'id1');
@@ -73,7 +87,7 @@ void main() {
       await c
           .read(gameHistoryProvider.notifier)
           .saveGame(
-            session('id1', DateTime(2024, 1, 1), names: ['A', 'B', 'C', 'D']),
+            session('id1', DateTime(2024), names: ['A', 'B', 'C', 'D']),
           );
       await c
           .read(gameHistoryProvider.notifier)
@@ -91,7 +105,7 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('old', DateTime(2024, 1, 1)));
+          .saveGame(session('old', DateTime(2024)));
       await c
           .read(gameHistoryProvider.notifier)
           .saveGame(session('new', DateTime(2024, 1, 5)));
@@ -107,7 +121,7 @@ void main() {
       await c1.read(gameHistoryProvider.future);
       await c1
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('persisted', DateTime(2024, 1, 1)));
+          .saveGame(session('persisted', DateTime(2024)));
       c1.dispose();
 
       final c2 = ProviderContainer();
@@ -192,7 +206,7 @@ void main() {
           .saveGame(session('keep', DateTime(2024, 1, 2)));
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('drop', DateTime(2024, 1, 1)));
+          .saveGame(session('drop', DateTime(2024)));
       await c.read(gameHistoryProvider.notifier).deleteGame('drop');
       final list = c.read(gameHistoryProvider).value!;
       expect(list.length, 1);
@@ -205,13 +219,13 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('keep', DateTime(2024, 1, 1)));
+          .saveGame(session('keep', DateTime(2024)));
       await c.read(gameHistoryProvider.notifier).deleteGame('does-not-exist');
       expect(c.read(gameHistoryProvider).value!.length, 1);
     });
   });
 
-  group('v1→v2 migration', () {
+  group('storage migrations (v1 → v2 → v3)', () {
     // ---------------------------------------------------------------------------
     // Helpers for constructing v1 JSON
     // ---------------------------------------------------------------------------
@@ -288,11 +302,11 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // Input migration — CountsInputDescriptor (Duck: tricks list → UUID map)
+    // Input migration — counts game (Duck: v1 tricks list → canonical counts)
     // -------------------------------------------------------------------------
 
     test(
-      'CountsInputDescriptor input (tricks list) migrated to UUID-keyed map',
+      'counts game input (v1 tricks list) migrated to the canonical counts map',
       () async {
         SharedPreferences.setMockInitialValues({
           'bonken_game_history': v1Storage([
@@ -749,11 +763,7 @@ void main() {
       await c.read(gameHistoryProvider.future);
       final n = c.read(gameHistoryProvider.notifier);
       await n.saveGame(
-        session(
-          '1',
-          DateTime(2024, 1, 1),
-          names: ['Alice', 'Bob', 'Carol', 'Dan'],
-        ),
+        session('1', DateTime(2024), names: ['Alice', 'Bob', 'Carol', 'Dan']),
       );
       await n.saveGame(
         session(
@@ -781,11 +791,7 @@ void main() {
       await c.read(gameHistoryProvider.future);
       final n = c.read(gameHistoryProvider.notifier);
       await n.saveGame(
-        session(
-          '1',
-          DateTime(2024, 1, 1),
-          names: ['Alice', 'Alice', 'Bob', 'Bob'],
-        ),
+        session('1', DateTime(2024), names: ['Alice', 'Alice', 'Bob', 'Bob']),
       );
       final s = n.playerNameSuggestions;
       expect(s.toSet().length, s.length);
@@ -800,11 +806,7 @@ void main() {
       // Names are inserted in non-alphabetical insertion order to make
       // sure the sort, not insertion order, drives the result.
       await n.saveGame(
-        session(
-          '1',
-          DateTime(2024, 1, 1),
-          names: ['carol', 'Alice', 'bob', 'Dan'],
-        ),
+        session('1', DateTime(2024), names: ['carol', 'Alice', 'bob', 'Dan']),
       );
       expect(n.playerNameSuggestions, ['Alice', 'bob', 'carol', 'Dan']);
     });

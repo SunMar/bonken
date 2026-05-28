@@ -80,8 +80,9 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   );
 
   void _handleReorder(int oldIndex, int newIndex) {
-    var target = newIndex;
-    if (target > oldIndex) target -= 1;
+    // `onReorderItem` already pre-adjusts newIndex for the removed item — no
+    // manual `if (newIndex > oldIndex) newIndex -= 1` decrement needed.
+    final target = newIndex;
     if (oldIndex == target) return;
     setState(() {
       final movedC = _controllers.removeAt(oldIndex);
@@ -155,7 +156,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
             controllers: _controllers,
             focusNodes: _focusNodes,
             suggestions: suggestions,
-            onReorder: _handleReorder,
+            onReorderItem: _handleReorder,
             onSubmitted: _handleFieldSubmitted,
           ),
 

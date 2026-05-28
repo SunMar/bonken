@@ -1,4 +1,3 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/game_catalog.dart';
@@ -6,6 +5,7 @@ import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   // Fixed players for all tests. Created once so UUIDs are stable.
@@ -20,7 +20,7 @@ void main() {
     List<RoundRecord>? rounds,
     PendingRound? pending,
   }) {
-    final now = DateTime(2024, 1, 1, 12, 0);
+    final now = DateTime(2024, 1, 1, 12);
     return GameSession(
       id: id,
       createdAt: now,

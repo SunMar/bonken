@@ -3,15 +3,14 @@
 // behaviour (immediate apply for the default chooser, confirm dialog
 // for any other player).
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/utils.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import '../test_helpers.dart';
 

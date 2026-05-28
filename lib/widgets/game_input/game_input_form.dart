@@ -28,7 +28,7 @@ class GameInputForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final playerNames = [for (final p in players) p.name];
     return switch (game.inputDescriptor) {
-      CountsInputDescriptor d => CountsInput(
+      final CountsInputDescriptor d => CountsInput(
         playerNames: playerNames,
         counts: [
           for (final p in players)
@@ -40,12 +40,12 @@ class GameInputForm extends StatelessWidget {
           for (int i = 0; i < players.length; i++) players[i].id: counts[i],
         }),
       ),
-      SinglePlayerInputDescriptor d => _pickerFor(
+      final SinglePlayerInputDescriptor d => _pickerFor(
         inputKey: d.inputKey,
         prompt: d.prompt,
         playerNames: playerNames,
       ),
-      DualPlayerInputDescriptor d => Column(
+      final DualPlayerInputDescriptor d => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _pickerFor(

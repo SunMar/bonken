@@ -1,10 +1,9 @@
 // Tests for [showTimedSnackBar]: it hides any current snackbar, shows the
 // new one, and force-closes it after the SnackBar's [duration] elapses.
 
+import 'package:bonken/widgets/timed_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:bonken/widgets/timed_snackbar.dart';
 
 Future<ScaffoldMessengerState> _pumpMessenger(WidgetTester tester) async {
   late ScaffoldMessengerState messenger;
@@ -51,17 +50,11 @@ void main() {
   ) async {
     final messenger = await _pumpMessenger(tester);
 
-    showTimedSnackBar(
-      messenger,
-      const SnackBar(content: Text('first'), duration: Duration(seconds: 4)),
-    );
+    showTimedSnackBar(messenger, const SnackBar(content: Text('first')));
     await tester.pump();
     expect(find.text('first'), findsOneWidget);
 
-    showTimedSnackBar(
-      messenger,
-      const SnackBar(content: Text('second'), duration: Duration(seconds: 4)),
-    );
+    showTimedSnackBar(messenger, const SnackBar(content: Text('second')));
     await tester.pumpAndSettle();
     expect(find.text('first'), findsNothing);
     expect(find.text('second'), findsOneWidget);

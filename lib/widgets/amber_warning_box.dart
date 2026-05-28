@@ -51,8 +51,6 @@ class AmberWarningBox extends StatelessWidget {
       );
     } else {
       content = Row(
-        // Center so the icon aligns with the mid-point of multi-line text.
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // No label — icon alone conveys "warning" to screen readers.
           Icon(
@@ -75,7 +73,7 @@ class AmberWarningBox extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: warning.background,
-        border: Border.all(color: warning.border, width: 1),
+        border: Border.all(color: warning.border),
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
