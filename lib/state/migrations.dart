@@ -17,10 +17,10 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 3;
+const int currentStorageVersion = 4;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
-const List<StorageMigration> _migrations = [_V1ToV2(), _V2ToV3()];
+const List<StorageMigration> _migrations = [_V1ToV2(), _V2ToV3(), _V3ToV4()];
 
 /// Applies every registered step from [fromVersion] up to
 /// [currentStorageVersion], in order, returning the upgraded games list.
@@ -318,5 +318,51 @@ class _V2ToV3 extends StorageMigration {
           id2 == null ? <String, int>{} : {id2: 1},
         ];
     }
+  }
+}
+
+// =============================================================================
+// v3 → v4 : doublesJson {pairs:{…}, initiators:{…}}
+//         → doublesJson {"A,B": {state:…, initiator:…}}
+// =============================================================================
+
+class _V3ToV4 extends StorageMigration {
+  const _V3ToV4();
+
+  @override
+  int get fromVersion => 3;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games) _migrateGame(raw as Map<String, dynamic>),
+  ];
+
+  static Map<String, dynamic> _migrateGame(Map<String, dynamic> game) => {
+    ...game,
+    'rounds': [
+      for (final r in (game['rounds'] as List<dynamic>? ?? const []))
+        _migrateHolder(r as Map<String, dynamic>),
+    ],
+    if (game['pendingRound'] != null)
+      'pendingRound': _migrateHolder(
+        game['pendingRound'] as Map<String, dynamic>,
+      ),
+  };
+
+  static Map<String, dynamic> _migrateHolder(Map<String, dynamic> h) {
+    final raw = h['doublesJson'] as Map<String, dynamic>?;
+    if (raw == null) return h;
+    return {...h, 'doublesJson': _reshape(raw)};
+  }
+
+  /// Reshape { pairs: {"A,B": state}, initiators: {"A,B": uuid} }
+  ///      to { "A,B": { state: …, initiator: … } }
+  static Map<String, dynamic> _reshape(Map<String, dynamic> old) {
+    final pairs = (old['pairs'] as Map<String, dynamic>?) ?? {};
+    final inits = (old['initiators'] as Map<String, dynamic>?) ?? {};
+    return {
+      for (final e in pairs.entries)
+        e.key: <String, dynamic>{'state': e.value, 'initiator': inits[e.key]},
+    };
   }
 }

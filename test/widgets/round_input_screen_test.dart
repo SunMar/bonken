@@ -4,6 +4,7 @@
 // for any other player).
 
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
@@ -124,34 +125,25 @@ void main() {
 
       // Round 1 — Clubs, valid input, commit.
       notifier.selectGame(const Clubs());
-      notifier.updateInput('counts', {
-        ps[0].id: 4,
-        ps[1].id: 4,
-        ps[2].id: 2,
-        ps[3].id: 3,
-      });
+      notifier.updateInput(
+        CountsInput({ps[0].id: 4, ps[1].id: 4, ps[2].id: 2, ps[3].id: 3}),
+      );
       notifier.deselectGame();
       // Round 2 — Diamonds, valid input, commit. Now there are two
       // rounds in history, so editing round 1 is editing a non-last
       // round (canRollbackWithPartial is false).
       notifier.selectGame(const Diamonds());
-      notifier.updateInput('counts', {
-        ps[0].id: 4,
-        ps[1].id: 3,
-        ps[2].id: 5,
-        ps[3].id: 1,
-      });
+      notifier.updateInput(
+        CountsInput({ps[0].id: 4, ps[1].id: 3, ps[2].id: 5, ps[3].id: 1}),
+      );
       notifier.deselectGame();
 
       // Restore round 1 for edit, then make its input invalid.
       final round1 = container.read(calculatorProvider).history.first;
       notifier.restoreRound(round1);
-      notifier.updateInput('counts', {
-        ps[0].id: 4,
-        ps[1].id: 3,
-        ps[2].id: 2,
-        ps[3].id: 0,
-      }); // sum 9 ≠ 13
+      notifier.updateInput(
+        CountsInput({ps[0].id: 4, ps[1].id: 3, ps[2].id: 2, ps[3].id: 0}),
+      ); // sum 9 ≠ 13
       expect(
         container.read(calculatorProvider).inputState,
         isNot(InputState.complete),

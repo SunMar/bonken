@@ -341,6 +341,7 @@ class _InputFormCard extends ConsumerWidget {
     final (displayedPlayers, input) = ref.watch(
       calculatorProvider.select((s) => (s.displayedPlayers, s.input)),
     );
+    if (input == null) return const SizedBox.shrink();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),

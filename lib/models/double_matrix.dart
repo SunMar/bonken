@@ -10,6 +10,10 @@ enum DoubleState {
   redoubled,
 }
 
+/// State + initiator for one active pair — both fields are always present
+/// when a pair is in [DoubleState.doubled] or [DoubleState.redoubled].
+typedef _PairState = ({DoubleState state, String initiator});
+
 /// Holds the doubling/redoubling state for every pair of players, including
 /// which player initiated the double (the "initiator").
 ///
@@ -30,25 +34,20 @@ enum DoubleState {
 /// the UI to show direction (e.g. "A dubbelt B") and to correctly label who
 /// can redouble.
 class DoubleMatrix {
-  const DoubleMatrix({this._pairs = const {}, this._initiators = const {}});
+  const DoubleMatrix({this._pairs = const {}});
 
-  final Map<(String, String), DoubleState> _pairs;
-
-  /// Maps canonical pair key → the player UUID who initiated the double.
-  /// Only set when the pair's state is [DoubleState.doubled] or
-  /// [DoubleState.redoubled].
-  final Map<(String, String), String> _initiators;
+  final Map<(String, String), _PairState> _pairs;
 
   static (String, String) _key(String a, String b) =>
       a.compareTo(b) <= 0 ? (a, b) : (b, a);
 
   DoubleState stateFor(String playerA, String playerB) =>
-      _pairs[_key(playerA, playerB)] ?? DoubleState.none;
+      _pairs[_key(playerA, playerB)]?.state ?? DoubleState.none;
 
   /// The player UUID who initiated the double for this pair, or null if
   /// neither player has doubled the other.
   String? initiatorFor(String playerA, String playerB) =>
-      _initiators[_key(playerA, playerB)];
+      _pairs[_key(playerA, playerB)]?.initiator;
 
   int multiplierFor(String playerA, String playerB) =>
       switch (stateFor(playerA, playerB)) {
@@ -65,48 +64,37 @@ class DoubleMatrix {
     DoubleState state, {
     String? initiator,
   }) {
+    assert(state == DoubleState.none || initiator != null);
     final key = _key(playerA, playerB);
-    final updatedPairs = Map<(String, String), DoubleState>.from(_pairs);
-    final updatedInitiators = Map<(String, String), String>.from(_initiators);
-
+    final updated = Map<(String, String), _PairState>.from(_pairs);
     if (state == DoubleState.none) {
-      updatedPairs.remove(key);
-      updatedInitiators.remove(key);
+      updated.remove(key);
     } else {
-      updatedPairs[key] = state;
-      if (initiator != null) updatedInitiators[key] = initiator;
+      updated[key] = (state: state, initiator: initiator!);
     }
-
-    return DoubleMatrix(pairs: updatedPairs, initiators: updatedInitiators);
+    return DoubleMatrix(pairs: updated);
   }
 
   /// Returns a fresh matrix where all pairs are [DoubleState.none].
   static DoubleMatrix empty() => const DoubleMatrix();
 
   /// True when at least one pair has an active double or redouble.
-  bool get hasAnyDouble => _pairs.values.any((s) => s != DoubleState.none);
+  bool get hasAnyDouble => _pairs.isNotEmpty;
 
   @override
   bool operator ==(Object other) {
     if (other is! DoubleMatrix) return false;
     if (_pairs.length != other._pairs.length) return false;
-    if (_initiators.length != other._initiators.length) return false;
     for (final e in _pairs.entries) {
       if (other._pairs[e.key] != e.value) return false;
-    }
-    for (final e in _initiators.entries) {
-      if (other._initiators[e.key] != e.value) return false;
     }
     return true;
   }
 
   @override
-  int get hashCode => Object.hash(
-    Object.hashAllUnordered(
-      _pairs.entries.map((e) => Object.hash(e.key, e.value)),
-    ),
-    Object.hashAllUnordered(
-      _initiators.entries.map((e) => Object.hash(e.key, e.value)),
+  int get hashCode => Object.hashAllUnordered(
+    _pairs.entries.map(
+      (e) => Object.hash(e.key, e.value.state, e.value.initiator),
     ),
   );
 
@@ -116,12 +104,11 @@ class DoubleMatrix {
   // ---------------------------------------------------------------------------
 
   Map<String, dynamic> toJson() => {
-    'pairs': {
-      for (final e in _pairs.entries) '${e.key.$1},${e.key.$2}': e.value.name,
-    },
-    'initiators': {
-      for (final e in _initiators.entries) '${e.key.$1},${e.key.$2}': e.value,
-    },
+    for (final e in _pairs.entries)
+      '${e.key.$1},${e.key.$2}': {
+        'state': e.value.state.name,
+        'initiator': e.value.initiator,
+      },
   };
 
   factory DoubleMatrix.fromJson(Map<String, dynamic> json) {
@@ -130,16 +117,15 @@ class DoubleMatrix {
       return (k.substring(0, comma), k.substring(comma + 1));
     }
 
-    final pairsRaw = (json['pairs'] as Map<String, dynamic>?) ?? {};
-    final initRaw = (json['initiators'] as Map<String, dynamic>?) ?? {};
-
     return DoubleMatrix(
       pairs: {
-        for (final e in pairsRaw.entries)
-          parseKey(e.key): DoubleState.values.byName(e.value as String),
-      },
-      initiators: {
-        for (final e in initRaw.entries) parseKey(e.key): e.value as String,
+        for (final e in json.entries)
+          parseKey(e.key): (
+            state: DoubleState.values.byName(
+              (e.value as Map<String, dynamic>)['state'] as String,
+            ),
+            initiator: (e.value as Map<String, dynamic>)['initiator'] as String,
+          ),
       },
     );
   }

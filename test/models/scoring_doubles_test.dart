@@ -1,6 +1,7 @@
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,9 +25,7 @@ void main() {
           .withState(pb.id, pd.id, DoubleState.doubled)
           .withState(pc.id, pd.id, DoubleState.redoubled);
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
-        },
+        input: CountsInput({pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1}),
         doubles: doubles,
         players: players,
       );
@@ -42,9 +41,7 @@ void main() {
         DoubleState.redoubled,
       );
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 3, pb.id: 3, pc.id: 3, pd.id: 4},
-        },
+        input: CountsInput({pa.id: 3, pb.id: 3, pc.id: 3, pd.id: 4}),
         doubles: doubles,
         players: players,
       );
@@ -61,9 +58,7 @@ void main() {
         DoubleState.doubled,
       );
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 5, pb.id: 1, pc.id: 4, pd.id: 3},
-        },
+        input: CountsInput({pa.id: 5, pb.id: 1, pc.id: 4, pd.id: 3}),
         doubles: doubles,
         players: players,
       );
@@ -81,9 +76,7 @@ void main() {
         DoubleState.redoubled,
       );
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 5, pb.id: 1, pc.id: 4, pd.id: 3},
-        },
+        input: CountsInput({pa.id: 5, pb.id: 1, pc.id: 4, pd.id: 3}),
         doubles: doubles,
         players: players,
       );
@@ -97,9 +90,7 @@ void main() {
           .withState(pa.id, pd.id, DoubleState.doubled)
           .withState(pb.id, pc.id, DoubleState.redoubled);
       final r = heartPoints.calculateScores(
-        input: {
-          'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
-        },
+        input: CountsInput({pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1}),
         doubles: doubles,
         players: players,
       );
@@ -117,9 +108,7 @@ void main() {
         DoubleState.doubled,
       );
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0}),
         doubles: doubles,
         players: players,
       );
@@ -131,9 +120,7 @@ void main() {
   group('Positive game variants share scoring', () {
     test('All five positive games produce identical scores for same input', () {
       const games = [Clubs(), Diamonds(), Hearts(), Spades(), NoTrump()];
-      final input = {
-        'counts': {pa.id: 4, pb.id: 4, pc.id: 2, pd.id: 3},
-      };
+      final input = CountsInput({pa.id: 4, pb.id: 4, pc.id: 2, pd.id: 3});
       final results = [
         for (final g in games)
           g.calculateScores(
@@ -152,9 +139,7 @@ void main() {
     test('Duck: one player wins all 13 tricks', () {
       const duck = Duck();
       final r = duck.calculateScores(
-        input: {
-          'counts': {pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0}),
         doubles: DoubleMatrix.empty(),
         players: players,
       );
@@ -167,9 +152,7 @@ void main() {
     test('Queens: one player takes all 4 queens', () {
       const queens = Queens();
       final r = queens.calculateScores(
-        input: {
-          'counts': {pa.id: 4, pb.id: 0, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 4, pb.id: 0, pc.id: 0, pd.id: 0}),
         doubles: DoubleMatrix.empty(),
         players: players,
       );
@@ -179,9 +162,7 @@ void main() {
     test('Heart Points: one player takes all 13 hearts', () {
       const hp = HeartPoints();
       final r = hp.calculateScores(
-        input: {
-          'counts': {pa.id: 0, pb.id: 13, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 0, pb.id: 13, pc.id: 0, pd.id: 0}),
         doubles: DoubleMatrix.empty(),
         players: players,
       );
@@ -194,9 +175,7 @@ void main() {
 
     test('Clubs [13,0,0,0] no doubles → losing players score 0', () {
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0}),
         doubles: DoubleMatrix.empty(),
         players: players,
       );
@@ -213,9 +192,7 @@ void main() {
         DoubleState.doubled,
       );
       final r = clubs.calculateScores(
-        input: {
-          'counts': {pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0}),
         doubles: doubles,
         players: players,
       );
@@ -233,9 +210,7 @@ void main() {
             .withState(pa.id, pc.id, DoubleState.doubled)
             .withState(pa.id, pd.id, DoubleState.doubled);
         final r = clubs.calculateScores(
-          input: {
-            'counts': {pa.id: 5, pb.id: 2, pc.id: 3, pd.id: 3},
-          },
+          input: CountsInput({pa.id: 5, pb.id: 2, pc.id: 3, pd.id: 3}),
           doubles: doubles,
           players: players,
         );
@@ -259,9 +234,7 @@ void main() {
           .withState(pa.id, pc.id, DoubleState.doubled)
           .withState(pa.id, pd.id, DoubleState.doubled);
       final r = duck.calculateScores(
-        input: {
-          'counts': {pa.id: 5, pb.id: 2, pc.id: 3, pd.id: 3},
-        },
+        input: CountsInput({pa.id: 5, pb.id: 2, pc.id: 3, pd.id: 3}),
         doubles: doubles,
         players: players,
       );
@@ -279,7 +252,7 @@ void main() {
         DoubleState.doubled,
       );
       final r = game.calculateScores(
-        input: {'player1': pb.id, 'player2': pb.id},
+        input: RecipientInput([pb.id, pb.id]),
         doubles: doubles,
         players: players,
       );

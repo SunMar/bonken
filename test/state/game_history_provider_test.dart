@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/state/game_history_provider.dart';
@@ -333,8 +334,8 @@ void main() {
 
         final input = list.first.rounds[0].input;
         final players = list.first.players;
-        // After v1→v2→v3 + load, counts games carry a canonical 'counts' map.
-        final counts = (input['counts'] as Map).cast<String, int>();
+        // After v1→v2→v3 + load, counts games carry a typed CountsInput.
+        final counts = (input as CountsInput).counts;
         expect(counts[players[0].id], 4);
         expect(counts[players[1].id], 3);
         expect(counts[players[2].id], 5);
@@ -343,11 +344,11 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // Input migration — SinglePlayerInputDescriptor (KingOfHearts: int → UUID)
+    // Input migration — RecipientInputDescriptor (KingOfHearts: int → UUID)
     // -------------------------------------------------------------------------
 
     test(
-      'SinglePlayerInputDescriptor input (winner int) migrated to UUID',
+      'RecipientInputDescriptor input (winner int) migrated to UUID',
       () async {
         SharedPreferences.setMockInitialValues({
           'bonken_game_history': v1Storage([
@@ -372,44 +373,44 @@ void main() {
 
         final input = list.first.rounds[0].input;
         final players = list.first.players;
-        expect(input['player'], players[2].id);
+        expect((input as RecipientInput).recipients[0], players[2].id);
       },
     );
 
-    test(
-      'SinglePlayerInputDescriptor input (null winner) stays null',
-      () async {
-        SharedPreferences.setMockInitialValues({
-          'bonken_game_history': v1Storage([
-            v1Game(
-              rounds: [
-                {
-                  'roundNumber': 1,
-                  'gameId': 'kingOfHearts',
-                  'gameName': 'Harten Heer',
-                  'dealerIndex': 0,
-                  'chooserIndex': 1,
-                  'scores': {'0': 0, '1': 0, '2': 0, '3': 0},
-                  'input': {'winner': null},
-                },
-              ],
-            ),
-          ]),
-        });
-        final c = ProviderContainer();
-        addTearDown(c.dispose);
-        final list = await c.read(gameHistoryProvider.future);
+    test('RecipientInputDescriptor input (null winner) stays null', () async {
+      SharedPreferences.setMockInitialValues({
+        'bonken_game_history': v1Storage([
+          v1Game(
+            rounds: [
+              {
+                'roundNumber': 1,
+                'gameId': 'kingOfHearts',
+                'gameName': 'Harten Heer',
+                'dealerIndex': 0,
+                'chooserIndex': 1,
+                'scores': {'0': 0, '1': 0, '2': 0, '3': 0},
+                'input': {'winner': null},
+              },
+            ],
+          ),
+        ]),
+      });
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final list = await c.read(gameHistoryProvider.future);
 
-        expect(list.first.rounds[0].input['player'], isNull);
-      },
-    );
+      expect(
+        (list.first.rounds[0].input as RecipientInput).recipients[0],
+        isNull,
+      );
+    });
 
     // -------------------------------------------------------------------------
-    // Input migration — DualPlayerInputDescriptor (7th/13th: ints → UUIDs)
+    // Input migration — RecipientInputDescriptor (7th/13th: ints → UUIDs)
     // -------------------------------------------------------------------------
 
     test(
-      'DualPlayerInputDescriptor input (trick7/13 ints) migrated to UUIDs',
+      'RecipientInputDescriptor input (trick7/13 ints) migrated to UUIDs',
       () async {
         SharedPreferences.setMockInitialValues({
           'bonken_game_history': v1Storage([
@@ -432,10 +433,10 @@ void main() {
         addTearDown(c.dispose);
         final list = await c.read(gameHistoryProvider.future);
 
-        final input = list.first.rounds[0].input;
+        final ri = list.first.rounds[0].input as RecipientInput;
         final players = list.first.players;
-        expect(input['player1'], players[0].id);
-        expect(input['player2'], players[2].id);
+        expect(ri.recipients[0], players[0].id);
+        expect(ri.recipients[1], players[2].id);
       },
     );
 
@@ -610,7 +611,10 @@ void main() {
       final session = list.first;
       final pending = session.pendingRound!;
       expect(pending.chooserId, session.players[3].id);
-      expect(pending.input['player'], session.players[1].id);
+      expect(
+        (pending.input as RecipientInput).recipients[0],
+        session.players[1].id,
+      );
     });
 
     // -------------------------------------------------------------------------
@@ -635,7 +639,7 @@ void main() {
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 3);
+        expect(written['version'], 4);
         expect(written['games'], isA<List<dynamic>>());
       },
     );
@@ -680,16 +684,15 @@ void main() {
         'Carol',
         'Dan',
       ]);
-      // Input is now the canonical counts map.
-      final counts = (session.rounds[0].input['counts'] as Map)
-          .cast<String, int>();
+      // Input is now a typed CountsInput.
+      final counts = (session.rounds[0].input as CountsInput).counts;
       expect(counts[session.players[2].id], 5);
 
       // Verify storage was upgraded to the current version.
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 3);
+      expect(written['version'], 4);
     });
 
     test('version:2 in versioned key is migrated to current version', () async {
@@ -727,15 +730,15 @@ void main() {
       addTearDown(c.dispose);
       final list = await c.read(gameHistoryProvider.future);
 
-      // Dual input reshaped to canonical player1/player2, order preserved.
-      final input = list.first.rounds[0].input;
-      expect(input['player1'], ids[0]);
-      expect(input['player2'], ids[2]);
+      // Recipients reshaped to positional list, order preserved.
+      final ri = list.first.rounds[0].input as RecipientInput;
+      expect(ri.recipients[0], ids[0]);
+      expect(ri.recipients[1], ids[2]);
 
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 3);
+      expect(written['version'], 4);
       // On disk the round input is the uniform counts list.
       final game0 =
           (written['games'] as List<dynamic>).first as Map<String, dynamic>;
@@ -745,6 +748,68 @@ void main() {
       expect(roundInput.keys.toList(), ['counts']);
       expect((roundInput['counts'] as List).length, 2);
     });
+
+    test(
+      'version:3 doublesJson is reshaped to flat pair-object format',
+      () async {
+        final players = [
+          for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
+        ];
+        final ids = [for (final p in players) p.id];
+        // Pair keys must be canonical (lexicographically smaller UUID first),
+        // matching what real v3 storage always contained.
+        String pairKey(String a, String b) =>
+            a.compareTo(b) <= 0 ? '$a,$b' : '$b,$a';
+        final k01 = pairKey(ids[0], ids[1]);
+        final k23 = pairKey(ids[2], ids[3]);
+        SharedPreferences.setMockInitialValues({
+          'game_history': jsonEncode({
+            'version': 3,
+            'games': [
+              {
+                'id': 'v3sess',
+                'createdAt': '2024-01-01T00:00:00.000',
+                'updatedAt': '2024-01-01T00:00:00.000',
+                'players': [for (final p in players) p.toJson()],
+                'firstDealerId': ids[0],
+                'rounds': [
+                  {
+                    'roundNumber': 1,
+                    'gameId': 'duck',
+                    'gameName': 'Bukken',
+                    'chooserId': ids[1],
+                    'scores': {
+                      ids[0]: -40,
+                      ids[1]: -30,
+                      ids[2]: -50,
+                      ids[3]: -10,
+                    },
+                    'input': {
+                      'counts': [
+                        {ids[0]: 4, ids[1]: 3, ids[2]: 5, ids[3]: 1},
+                      ],
+                    },
+                    'doublesJson': {
+                      'pairs': {k01: 'doubled', k23: 'redoubled'},
+                      'initiators': {k01: ids[0], k23: ids[3]},
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        final dm = list.first.rounds[0].doubles;
+        expect(dm.stateFor(ids[0], ids[1]), DoubleState.doubled);
+        expect(dm.initiatorFor(ids[0], ids[1]), ids[0]);
+        expect(dm.stateFor(ids[2], ids[3]), DoubleState.redoubled);
+        expect(dm.initiatorFor(ids[2], ids[3]), ids[3]);
+      },
+    );
   });
 
   group('playerNameSuggestions', () {

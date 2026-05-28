@@ -3,6 +3,7 @@ import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +41,7 @@ void main() {
     scoresByPlayer: {
       for (int i = 0; i < 4; i++) testPlayers[i].id: indexedScores[i] ?? 0,
     },
-    input: const {},
+    input: CountsInput({for (final p in testPlayers) p.id: 0}),
     doubles: const DoubleMatrix(),
   );
 
@@ -101,9 +102,7 @@ void main() {
           gameId: 'duck',
           gameName: 'Bukken',
           chooserId: testPlayers[2].id,
-          input: {
-            'counts': {pa.id: 10, pb.id: 1, pc.id: 1, pd.id: 1},
-          },
+          input: CountsInput({pa.id: 10, pb.id: 1, pc.id: 1, pd.id: 1}),
         ),
       );
       expect(s.finalScoresByPlayer, {
@@ -187,9 +186,7 @@ void main() {
             game: const Duck(),
             chooserId: testPlayers[2].id,
             scoresByPlayer: {pa.id: -40, pb.id: -30, pc.id: -50, pd.id: -10},
-            input: {
-              'counts': {pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1},
-            },
+            input: CountsInput({pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1}),
             doubles: DoubleMatrix.empty().withPair(
               pa.id,
               pb.id,
@@ -202,9 +199,7 @@ void main() {
           gameId: 'queens',
           gameName: 'Vrouwen',
           chooserId: testPlayers[3].id,
-          input: {
-            'counts': {pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0},
-          },
+          input: CountsInput({pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0}),
         ),
       );
 
@@ -221,9 +216,10 @@ void main() {
       expect(back.rounds[1].doubles.hasAnyDouble, isTrue);
       expect(back.pendingRound, isNotNull);
       expect(back.pendingRound!.gameId, 'queens');
-      expect(back.pendingRound!.input, {
-        'counts': {pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0},
-      });
+      expect(
+        back.pendingRound!.input,
+        CountsInput({pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0}),
+      );
     });
 
     test('GameSession without pendingRound omits the field', () {
@@ -246,9 +242,7 @@ void main() {
         gameId: 'duck',
         gameName: 'Bukken',
         chooserId: testPlayers[2].id,
-        input: {
-          'counts': {pa.id: 3, pb.id: 4, pc.id: 0, pd.id: 0},
-        },
+        input: CountsInput({pa.id: 3, pb.id: 4, pc.id: 0, pd.id: 0}),
         doublesJson: DoubleMatrix.empty()
             .withPair(pa.id, pb.id, DoubleState.redoubled, initiator: pb.id)
             .toJson(),
@@ -273,7 +267,7 @@ void main() {
         game: const SeventhAndThirteenth(),
         chooserId: pa.id,
         scoresByPlayer: {pa.id: -50, pb.id: 0, pc.id: -50, pd.id: 0},
-        input: {'player1': pa.id, 'player2': pc.id},
+        input: RecipientInput([pa.id, pc.id]),
         doubles: const DoubleMatrix(),
       );
       final json = r.toJson();
@@ -286,7 +280,7 @@ void main() {
       final back = GameSession.fromJson(
         sample(rounds: [r]).toJson(),
       ).rounds.first;
-      expect(back.input, {'player1': pa.id, 'player2': pc.id});
+      expect(back.input, RecipientInput([pa.id, pc.id]));
     });
   });
 }

@@ -5,6 +5,7 @@
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/game_screen.dart';
@@ -35,7 +36,7 @@ GameSession _session(String id) {
         game: const Dominoes(),
         chooserId: players[1].id,
         scoresByPlayer: {for (final p in players) p.id: 0},
-        input: const {},
+        input: const RecipientInput([null]),
         doubles: const DoubleMatrix(),
       ),
     ],

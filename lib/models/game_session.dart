@@ -1,5 +1,6 @@
 import 'double_matrix.dart';
 import 'games/game_catalog.dart';
+import 'input_descriptor.dart';
 import 'mini_game.dart';
 import 'player.dart';
 import 'round_record.dart';
@@ -23,7 +24,7 @@ class PendingRound {
     required this.gameId,
     required this.gameName,
     required this.chooserId,
-    this.input = const {},
+    this.input,
     this.doublesJson,
   });
 
@@ -35,14 +36,18 @@ class PendingRound {
   /// The dealer is derived from [chooserId] via [dealerIndexFor] — not stored.
   final String chooserId;
 
-  final Map<String, dynamic> input;
+  final GameInput? input;
   final Map<String, dynamic>? doublesJson;
 
   Map<String, dynamic> toJson() => {
     'gameId': gameId,
     'gameName': gameName,
     'chooserId': chooserId,
-    'input': {'counts': _gameForId(gameId).inputToCounts(input)},
+    'input': {
+      'counts': input == null
+          ? const <Map<String, int>>[]
+          : _gameForId(gameId).inputToCounts(input!),
+    },
     if (doublesJson != null) 'doublesJson': doublesJson,
   };
 

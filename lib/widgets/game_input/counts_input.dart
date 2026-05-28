@@ -5,8 +5,8 @@ import '../../models/mini_game.dart';
 
 /// Displays four stepper rows (one per player) for games where each player's
 /// count must be entered and all four must sum to [total].
-class CountsInput extends StatelessWidget {
-  const CountsInput({
+class CountsStepper extends StatelessWidget {
+  const CountsStepper({
     required this.playerNames,
     required this.counts,
     required this.total,

@@ -176,7 +176,7 @@ void main() {
       expect(back.initiatorFor(c, d), d);
     });
 
-    test('fromJson handles missing pairs/initiators keys', () {
+    test('fromJson handles empty object (no active pairs)', () {
       final m = DoubleMatrix.fromJson(<String, dynamic>{});
       expect(m.hasAnyDouble, isFalse);
     });

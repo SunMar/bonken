@@ -1,4 +1,5 @@
 import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/widgets/game_input/counts_input.dart';
 import 'package:bonken/widgets/game_input/game_input_form.dart';
 import 'package:bonken/widgets/game_input/player_picker.dart';
@@ -9,11 +10,11 @@ import 'package:material_symbols_icons/symbols.dart';
 import '_helpers.dart';
 
 void main() {
-  group('CountsInput', () {
+  group('CountsStepper', () {
     testWidgets('renders one row per player and a total label', (tester) async {
       await pumpHost(
         tester,
-        CountsInput(
+        CountsStepper(
           playerNames: playerNames,
           counts: const [0, 0, 0, 0],
           total: 13,
@@ -33,7 +34,7 @@ void main() {
       List<int>? captured;
       await pumpHost(
         tester,
-        CountsInput(
+        CountsStepper(
           playerNames: playerNames,
           counts: const [0, 0, 0, 0],
           total: 13,
@@ -49,7 +50,7 @@ void main() {
     testWidgets('decrement button is disabled when count is 0', (tester) async {
       await pumpHost(
         tester,
-        CountsInput(
+        CountsStepper(
           playerNames: playerNames,
           counts: const [0, 0, 0, 0],
           total: 13,
@@ -68,7 +69,7 @@ void main() {
     ) async {
       await pumpHost(
         tester,
-        CountsInput(
+        CountsStepper(
           playerNames: playerNames,
           counts: const [4, 4, 3, 2], // sum 13
           total: 13,
@@ -89,7 +90,7 @@ void main() {
         List<int>? captured;
         await pumpHost(
           tester,
-          CountsInput(
+          CountsStepper(
             playerNames: playerNames,
             counts: const [2, 1, 0, 0],
             total: 13,
@@ -113,7 +114,7 @@ void main() {
     ) async {
       await pumpHost(
         tester,
-        CountsInput(
+        CountsStepper(
           playerNames: playerNames,
           counts: const [4, 4, 3, 2],
           total: 13,
@@ -152,7 +153,7 @@ void main() {
       // a hypothetical future alwaysIncludeSemantics: true on the Opacity.
       await pumpHost(
         tester,
-        CountsInput(
+        CountsStepper(
           playerNames: playerNames,
           counts: const [0, 0, 0, 0],
           total: 13,
@@ -305,15 +306,15 @@ void main() {
     );
   });
 
-  group('GameInputForm with DualPlayerInputDescriptor', () {
+  group('GameInputForm with RecipientInputDescriptor (multi-slot)', () {
     testWidgets('shows two prompts', (tester) async {
       await pumpHost(
         tester,
         GameInputForm(
           game: const SeventhAndThirteenth(),
           players: players,
-          input: const {'player1': null, 'player2': null},
-          onInputChanged: (_, _) {},
+          input: const RecipientInput([null, null]),
+          onInputChanged: (_) {},
         ),
       );
       expect(find.text('Wie won de 7e slag?'), findsOneWidget);
@@ -321,14 +322,14 @@ void main() {
     });
 
     testWidgets('callbacks fire independently per picker', (tester) async {
-      final updates = <(String, dynamic)>[];
+      final updates = <GameInput>[];
       await pumpHost(
         tester,
         GameInputForm(
           game: const SeventhAndThirteenth(),
           players: players,
-          input: const {'player1': null, 'player2': null},
-          onInputChanged: (key, value) => updates.add((key, value)),
+          input: const RecipientInput([null, null]),
+          onInputChanged: updates.add,
         ),
       );
       // Each player name appears twice (once per picker).
@@ -336,27 +337,40 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Dan').last);
       await tester.pump();
-      expect(updates, [('player1', players[0].id), ('player2', players[3].id)]);
+      // Each picker fires independently from the current input prop.
+      expect(updates.length, 2);
+      expect(updates[0], isA<RecipientInput>());
+      expect(
+        (updates[0] as RecipientInput).recipients,
+        equals([players[0].id, null]),
+      );
+      expect(updates[1], isA<RecipientInput>());
+      expect(
+        (updates[1] as RecipientInput).recipients,
+        equals([null, players[3].id]),
+      );
     });
   });
 
-  group('GameInputForm with SinglePlayerInputDescriptor', () {
+  group('GameInputForm with RecipientInputDescriptor (single-slot)', () {
     testWidgets('tapping the selected player again writes null (deselect)', (
       tester,
     ) async {
-      final updates = <(String, dynamic)>[];
+      final updates = <GameInput>[];
       await pumpHost(
         tester,
         GameInputForm(
           game: const KingOfHearts(),
           players: players,
-          input: {'player': players[2].id}, // Carol pre-selected.
-          onInputChanged: (key, value) => updates.add((key, value)),
+          input: RecipientInput([players[2].id]), // Carol pre-selected.
+          onInputChanged: updates.add,
         ),
       );
       await tester.tap(find.text('Carol'));
       await tester.pump();
-      expect(updates, [('player', null)]);
+      expect(updates.length, 1);
+      expect(updates[0], isA<RecipientInput>());
+      expect((updates[0] as RecipientInput).recipients, equals([null]));
     });
   });
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,12 +32,12 @@ class NoPendingRound extends PendingRoundState {
 class ActivePendingRound extends PendingRoundState {
   const ActivePendingRound({
     required this.game,
-    this.input = const {},
+    this.input,
     this.doubles = const DoubleMatrix(),
   });
 
   final MiniGame game;
-  final Map<String, dynamic> input;
+  final GameInput? input;
   final DoubleMatrix doubles;
 }
 
@@ -56,13 +55,13 @@ class CalculatorState {
     int roundNumber = 1,
     List<RoundRecord> history = const [],
     MiniGame? selectedGame,
-    Map<String, dynamic> input = const {},
+    GameInput? input,
     DoubleMatrix doubles = const DoubleMatrix(),
     ScoreResult? result,
     PendingRoundState pending = const NoPendingRound(),
     ScoreResult? partialResult,
     int? editingRoundIndex,
-    Map<String, dynamic>? editOriginalInput,
+    GameInput? editOriginalInput,
     DoubleMatrix? editOriginalDoubles,
     String? editOriginalChooserId,
   }) {
@@ -196,7 +195,9 @@ class CalculatorState {
   final List<RoundRecord> history;
 
   final MiniGame? selectedGame;
-  final Map<String, dynamic> input;
+
+  /// Typed in-memory input for the current round; null when no game is selected.
+  final GameInput? input;
   final DoubleMatrix doubles;
   final ScoreResult? result;
 
@@ -214,12 +215,14 @@ class CalculatorState {
   bool get hasMeaningfulPendingInput {
     final p = pending;
     if (p is! ActivePendingRound) return false;
-    return !p.game.inputDescriptor.isEmpty(p.input);
+    final gameInput = p.input;
+    if (gameInput == null) return false;
+    return !p.game.inputDescriptor.isEmpty(gameInput);
   }
 
   /// Intermediate score shown while the player is still entering counts.
   /// Only set for [CountsInputDescriptor] games when the sum is > 0 but
-  /// < [CountsInputDescriptor.total]. Null for player-picker games.
+  /// < [CountsInputDescriptor.total]. Null for recipient games.
   final ScoreResult? partialResult;
 
   /// Non-null when the user is re-editing an already-scored round; holds the
@@ -238,14 +241,9 @@ class CalculatorState {
 
   /// Original input/doubles/chooser captured at the start of an edit, used to
   /// detect whether anything actually changed (see [hasActiveChanges]).
-  final Map<String, dynamic>? editOriginalInput;
+  final GameInput? editOriginalInput;
   final DoubleMatrix? editOriginalDoubles;
   final String? editOriginalChooserId;
-
-  /// Compares two input maps deeply. Values are a per-player `Map<String, int>`
-  /// (counts games) or a player-id `String?` (single/dual picks).
-  static bool _inputEquals(Map<String, dynamic> a, Map<String, dynamic> b) =>
-      const DeepCollectionEquality().equals(a, b);
 
   /// True when there is meaningful active input that would be lost on cancel.
   bool get hasActiveChanges {
@@ -259,11 +257,14 @@ class CalculatorState {
       }
       if (chooserId != origChooser) return true;
       if (doubles != origDoubles) return true;
-      if (!_inputEquals(input, origInput)) return true;
+      if (input != origInput) return true;
       return false;
     }
     final game = selectedGame!;
-    if (!game.inputDescriptor.isEmpty(input)) return true;
+    final gameInput = input;
+    if (gameInput != null && !game.inputDescriptor.isEmpty(gameInput)) {
+      return true;
+    }
     if (doubles.hasAnyDouble) return true;
     if (chooserId != players[(dealerIndex + 1) % playerCount].id) return true;
     return false;
@@ -272,8 +273,10 @@ class CalculatorState {
   InputState get inputState {
     final game = selectedGame;
     if (game == null) return InputState.none;
-    if (game.inputDescriptor.isComplete(input)) return InputState.complete;
-    if (game.inputDescriptor.isEmpty(input)) return InputState.none;
+    final gameInput = input;
+    if (gameInput == null) return InputState.none;
+    if (game.inputDescriptor.isComplete(gameInput)) return InputState.complete;
+    if (game.inputDescriptor.isEmpty(gameInput)) return InputState.none;
     return InputState.partial;
   }
 
@@ -289,7 +292,8 @@ class CalculatorState {
     List<RoundRecord>? history,
     MiniGame? selectedGame,
     bool clearSelectedGame = false,
-    Map<String, dynamic>? input,
+    GameInput? input,
+    bool clearInput = false,
     DoubleMatrix? doubles,
     ScoreResult? result,
     bool clearResult = false,
@@ -297,7 +301,7 @@ class CalculatorState {
     ScoreResult? partialResult,
     bool clearPartialResult = false,
     int? editingRoundIndex,
-    Map<String, dynamic>? editOriginalInput,
+    GameInput? editOriginalInput,
     DoubleMatrix? editOriginalDoubles,
     String? editOriginalChooserId,
     bool clearEditState = false,
@@ -327,7 +331,7 @@ class CalculatorState {
       selectedGame: clearSelectedGame
           ? null
           : (selectedGame ?? this.selectedGame),
-      input: input ?? this.input,
+      input: clearInput ? null : (input ?? this.input),
       doubles: doubles ?? this.doubles,
       result: clearResult ? null : (result ?? this.result),
       pending: pending ?? this.pending,
@@ -464,7 +468,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       return;
     }
 
-    // Counts: pre-fill with zeros. Player-picker games start unselected.
     final defaults = game.inputDescriptor.defaults(state.players);
 
     state = state.copyWith(
@@ -504,7 +507,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
           ? s.chooserId
           : s.players[nextChooserIdx].id,
       clearSelectedGame: true,
-      input: const {},
+      clearInput: true,
       doubles: const DoubleMatrix(),
       clearResult: true,
       clearPartialResult: true,
@@ -536,7 +539,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
         game: s.selectedGame!,
         chooserId: s.chooserId,
         scoresByPlayer: Map<String, int>.from(s.result!.scores),
-        input: s.input,
+        input: s.input!,
         doubles: s.doubles,
       );
       final newHistory = [
@@ -557,7 +560,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
           game: s.selectedGame!,
           chooserId: s.chooserId,
           scoresByPlayer: Map<String, int>.from(s.result!.scores),
-          input: s.input,
+          input: s.input!,
           doubles: s.doubles,
         ),
       ];
@@ -609,9 +612,9 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     state = _exitSlot(state, newHistory: newHistory, historyChanged: true);
   }
 
-  void updateInput(String key, dynamic value) {
-    if (const DeepCollectionEquality().equals(state.input[key], value)) return;
-    state = state.copyWith(input: {...state.input, key: value});
+  void updateInput(GameInput input) {
+    if (state.input == input) return;
+    state = state.copyWith(input: input);
     _recalculate();
   }
 
@@ -642,7 +645,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       result: ScoreResult(scores: Map<String, int>.from(record.scoresByPlayer)),
       clearPartialResult: true,
       editingRoundIndex: index,
-      editOriginalInput: Map<String, dynamic>.from(record.input),
+      editOriginalInput: record.input.copy(),
       editOriginalDoubles: record.doubles,
       editOriginalChooserId: record.chooserId,
     );
@@ -663,7 +666,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
     if (state.inputState == InputState.complete) {
       final result = game.calculateScores(
-        input: state.input,
+        input: state.input!,
         doubles: state.doubles,
         players: state.players,
       );
@@ -677,7 +680,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       state = state.copyWith(result: result, clearPartialResult: true);
     } else if (state.inputState == InputState.partial) {
       final partial = game.calculateScores(
-        input: state.input,
+        input: state.input!,
         doubles: state.doubles,
         players: state.players,
       );

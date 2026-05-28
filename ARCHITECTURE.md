@@ -71,7 +71,8 @@ most of the structure exists to serve one of these.
 - **Sealed types for compile-time exhaustiveness.** Unions are `sealed class`
   hierarchies, so `switch` is exhaustive and adding a variant *breaks
   compilation* until every consumer handles it: `GameSymbol`
-  (Text/Suit/Icon), `InputDescriptor` (Counts/SinglePlayer/DualPlayer),
+  (Text/Suit/Icon), `GameInput` (Counts/Recipient) + `InputDescriptor`
+  (Counts/Recipient),
   `PendingRoundState` (None/Active), `Block` (rules content).
 
 - **Single sources of truth.** The game catalog is the one list `allGames`
@@ -181,7 +182,7 @@ lib/
     mini_game.dart           MiniGame abstract base + calculateScores engine; GameSymbol
                              sealed union; GameCategory; playerCount(4); doublingTurnIndex.
     game_mechanics.dart      dealerIndexFor / starterIndexFor — ONLY home of seat relationships.
-    input_descriptor.dart    Sealed InputDescriptor: Counts / SinglePlayer / DualPlayer.
+    input_descriptor.dart    Sealed GameInput (CountsInput/RecipientInput) + sealed InputDescriptor.
     player.dart              Player (stable UUID id + name).
     double_matrix.dart       DoubleMatrix: per-pair doubling state + initiator, UUID-keyed.
     score_result.dart        ScoreResult: {playerId: pointsThisRound}.
@@ -195,7 +196,7 @@ lib/
   state/                     Riverpod providers.
     calculator_provider.dart CalculatorState + CalculatorNotifier (the in-game state machine).
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3) + runner.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4) + runner.
     theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
 
   screens/                   Full-screen routes (all use AppScaffold).
@@ -252,35 +253,34 @@ Abstract base for all 13 games (declares `id`, `name`, `symbol`, `category`,
 engine (§6) and defines `GameSymbol` (sealed: `TextSymbol` short label,
 `SuitSymbol` ♠♥♦♣ in bundled DejaVu Sans, `IconSymbol` Material Symbol).
 
-Concrete games never extend `MiniGame` directly — they extend one of **three
-intermediate bases, one per input shape** (mirroring the sealed `InputDescriptor`
-hierarchy). Each base owns its canonical input key(s), `rawCounts`,
-`inputDescriptor`, and the storage round-trip (`inputToCounts` / `countsToInput`,
-§9); a leaf game declares only its metadata + the human-facing bits:
+Concrete games never extend `MiniGame` directly — they extend one of **two
+intermediate bases, one per input shape** (mirroring the sealed `GameInput` /
+`InputDescriptor` hierarchies). Each base owns `rawCounts`, `inputDescriptor`,
+and the storage round-trip (`inputToCounts` / `countsToInput`, §9); a leaf game
+declares only its metadata + the human-facing bits:
 
-| base | canonical in-memory key(s) | leaf supplies | members |
-|------|---------------------------|---------------|---------|
-| `CountsMiniGame` | `counts` (`{uuid:int}`, Σ = `total`) | `total`, `unitLabel` | 4 negative counts games + `PositiveGame` (the 5 positives) |
-| `SinglePlayerMiniGame` | `player` (uuid or null) | `prompt` | KingOfHearts, FinalTrick, Dominoes |
-| `DualPlayerMiniGame` | `player1`, `player2` | `prompt1`, `prompt2` | SeventhAndThirteenth |
+| base | in-memory type | leaf supplies | members |
+|------|---------------|---------------|---------|
+| `CountsMiniGame` | `CountsInput` (`{uuid:int}`, Σ = `total`) | `total`, `unitLabel` | 4 negative counts games + `PositiveGame` (the 5 positives) |
+| `RecipientMiniGame` | `RecipientInput` (`List<String?>`, one slot per prompt) | `prompts` | KingOfHearts, FinalTrick, Dominoes, SeventhAndThirteenth |
 
 **`rawCounts(input, players) → {playerId: int}`** is the per-player count used by
-scoring: counts games re-key the entered map (absent ⇒ 0); single/dual games emit
-0/1/2 indicators. The protected `countsForKey` helper lives on `CountsMiniGame`
-(only counts games need it).
+scoring: counts games re-key the entered map (absent ⇒ 0); recipient games count
+how many slots contain each player UUID (0, 1, or 2 for SeventhAndThirteenth when
+the same player wins both tricks).
 
 The **13 games** (catalog order: negatives first, then positives):
 
 | id | name (nl) | category | pointsPerUnit | total | input shape |
 |----|-----------|----------|--------------:|------:|-------------|
-| `kingOfHearts` | Harten Heer | negative | −100 | −100 | single |
+| `kingOfHearts` | Harten Heer | negative | −100 | −100 | recipient (1 slot) |
 | `kingsAndJacks` | Heren / Boeren | negative | −25 | −200 | counts (Σ 8) |
 | `queens` | Vrouwen | negative | −45 | −180 | counts (Σ 4) |
 | `duck` | Bukken | negative | −10 | −130 | counts (Σ 13) |
 | `heartPoints` | Harten punten | negative | −10 | −130 | counts (Σ 13) |
-| `seventhAndThirteenth` | 7e / 13e | negative | −50 | −100 | dual |
-| `finalTrick` | Laatste slag | negative | −100 | −100 | single |
-| `dominoes` | Domino | negative | −100 | −100 | single |
+| `seventhAndThirteenth` | 7e / 13e | negative | −50 | −100 | recipient (2 slots) |
+| `finalTrick` | Laatste slag | negative | −100 | −100 | recipient (1 slot) |
+| `dominoes` | Domino | negative | −100 | −100 | recipient (1 slot) |
 | `clubs` | Klaveren ♣ | positive | +20 | +260 | counts (Σ 13) |
 | `diamonds` | Ruiten ♦ | positive | +20 | +260 | counts (Σ 13) |
 | `hearts` | Harten ♥ | positive | +20 | +260 | counts (Σ 13) |
@@ -293,28 +293,30 @@ The **13 games** (catalog order: negatives first, then positives):
 > negative** games. Enforced softly in `game_screen.dart` (tile disabled with an
 > override dialog), not in the model.
 
-### `InputDescriptor` ([`input_descriptor.dart`](lib/models/input_descriptor.dart))
-Sealed; tells the UI what form to render *without* the UI knowing concrete game
-types. Each implements `isEmpty`, `isComplete`, and `defaults(players)`. These are
-the **in-memory** shapes the UI reads/writes (canonical key per shape, owned by
-the matching `MiniGame` base; values keyed by player UUID):
+### `GameInput` + `InputDescriptor` ([`input_descriptor.dart`](lib/models/input_descriptor.dart))
+**`GameInput`** is a sealed class with two variants that carry the typed
+in-memory round input — no string keys, no `dynamic`:
 
-```jsonc
-// CountsInputDescriptor — 4 per-player counts that must sum to `total`
-{ "counts": { "<uuidA>": 5, "<uuidB>": 4, "<uuidC>": 3, "<uuidD>": 1 } }
-// isEmpty  = sum == 0      isComplete = sum == total
+```dart
+// CountsInput — per-player tally; Σ must equal total
+CountsInput({"<uuidA>": 5, "<uuidB>": 4, "<uuidC>": 3, "<uuidD>": 1})
+// isEmpty = Σ == 0    isComplete = Σ == total
 
-// SinglePlayerInputDescriptor — pick exactly one player
-{ "player": "<uuidB>" }          // or { "player": null } when unset
-
-// DualPlayerInputDescriptor — two independent picks
-{ "player1": "<uuidA>", "player2": "<uuidC>" }
+// RecipientInput — one slot per prompt (null = not yet selected)
+RecipientInput(["<uuidB>"])                  // single-slot game
+RecipientInput(["<uuidA>", "<uuidC>"])       // two-slot game (7e/13e)
+RecipientInput([null, "<uuidC>"])            // half-filled two-slot
 ```
 
-> The **persisted** form is *not* these per-shape maps — on disk every game's
-> input collapses to one uniform structure, `{"counts": [ {uuid:int}, … ]}` (§9).
-> Conversion happens at the serialization boundary via the bases'
-> `inputToCounts` / `countsToInput`.
+**`InputDescriptor`** is sealed; tells the UI what form to render *without*
+knowing concrete game types. `CountsInputDescriptor` and
+`RecipientInputDescriptor` each implement `isEmpty(GameInput)`,
+`isComplete(GameInput)`, and `defaults(players) → GameInput`.
+
+> The **persisted** form is not `GameInput` — on disk every game's input
+> collapses to the uniform structure `{"counts": [ {uuid:int}, … ]}` (§9).
+> Conversion happens at the serialization boundary via `inputToCounts` /
+> `countsToInput` on the `MiniGame` bases.
 
 ### `Player` ([`player.dart`](lib/models/player.dart))
 `{id: UUIDv4, name}`. `==`/`hashCode` over both fields; `copyWith` preserves the
@@ -322,14 +324,15 @@ id. The public constructor mints a new UUID; the private `Player._` (used by
 `fromJson` and migration) keeps an existing one.
 
 ### `DoubleMatrix` ([`double_matrix.dart`](lib/models/double_matrix.dart))
-Immutable map of the (up to) 6 player-pairs → `DoubleState`
-(`none`/`doubled`/`redoubled`), plus an `initiators` map recording *who* started
-each double. Pair keys are **canonicalized** (lexicographically smaller UUID
-first) so lookups are order-independent. `multiplierFor` → 0 / 1 / 2 (the only
-thing scoring needs); the initiator drives UI direction labels and who is
-allowed to redouble, but does **not** affect the score. `hasAnyDouble` gates
-serialization. JSON keys are `"uuidA,uuidB"` strings. Value-equality + hashCode
-are implemented so `select()` / `copyWith` short-circuits work.
+Immutable map of the (up to) 6 player-pairs → a unified record
+`({DoubleState state, String initiator})`. Absence means `none`; every entry
+in the map has a non-none state and a known initiator by construction.
+Pair keys are **canonicalized** (lexicographically smaller UUID first) so
+lookups are order-independent. `multiplierFor` → 0 / 1 / 2 (the only thing
+scoring needs); the initiator drives UI direction labels and who is allowed to
+redouble, but does **not** affect the score. `hasAnyDouble` gates
+serialization. JSON: `"uuidA,uuidB": {"state": …, "initiator": …}`. Value-equality
++ hashCode are implemented so `select()` / `copyWith` short-circuits work.
 
 ### `ScoreResult` ([`score_result.dart`](lib/models/score_result.dart))
 `{playerId: pointsThisRound}` (already multiplied to points). Value equality so
@@ -422,9 +425,9 @@ C and D are untouched (not in any double) and the total stays 260 throughout.
 ### How doubling is represented & enforced
 
 The data model is `DoubleMatrix` (§5): a value type mapping canonical
-player-pairs to `none`/`doubled`/`redoubled` plus an `initiators` map. **Scoring
-reads only `multiplierFor` (0/1/2)** — the initiator exists purely so the UI can
-label direction and decide who may still redouble; it never affects the math.
+player-pairs to a `({state, initiator})` record. **Scoring reads only
+`multiplierFor` (0/1/2)** — the initiator exists purely so the UI can label
+direction and decide who may still redouble; it never affects the math.
 
 The rule *prose* is data, not logic: it lives in `kDubbelenSection`
 (`game_rules.dart`) and is surfaced verbatim as amber `Note` warnings on
@@ -561,7 +564,7 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 3):** `{ "version": 3, "games": [ … ] }`.
+- **Envelope (`currentStorageVersion` = 4):** `{ "version": 4, "games": [ … ] }`.
 - `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
   `players:[{id,name}]`, `firstDealerId`, `rounds:[…]`, `pendingRound?`.
 - `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
@@ -569,13 +572,13 @@ Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_hist
   form, regardless of game shape — see below), `doublesJson?` (omitted unless a
   double exists).
 - **`input` shape (v3, all games):** `{"counts": [ {uuid:int}, … ]}` — a
-  positional list of per-player count maps. Counts and single-player games store
-  one element; dual (7e/13e) stores two (index 0 = 7th, 1 = 13th, so the
-  distinction is preserved). Scoring sums element-wise. The game's
-  `inputToCounts` / `countsToInput` convert to/from the descriptor-shaped
-  in-memory input (§5).
-- `DoubleMatrix.toJson`: `pairs:{"uuidA,uuidB":state}`,
-  `initiators:{"uuidA,uuidB":initiatorUuid}`.
+  positional list of per-player count maps. Counts games and single-slot
+  recipient games store one element; two-slot recipient games (7e/13e) store two
+  (index 0 = 7th, 1 = 13th, so the distinction is preserved). Scoring sums
+  element-wise. The game's `inputToCounts` / `countsToInput` convert to/from
+  the descriptor-shaped in-memory input (§5).
+- `DoubleMatrix.toJson`: flat object — `{"uuidA,uuidB": {"state": …, "initiator": …}, …}`
+  (omitted entirely when `!hasAnyDouble`).
 
 **Worked storage example** (one finished-style round + a pending round; UUIDs
 shortened, scores match the Vrouwen example in the rules — A wins 3 queens, B
@@ -583,7 +586,7 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 3,
+  "version": 4,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
@@ -600,9 +603,9 @@ wins 1, B doubled A):
       "scores": {"a1": -225, "b2": 45, "c3": 0, "d4": 0},
       // uniform counts list; Queens is a counts game → one element
       "input": {"counts": [{"a1": 3, "b2": 1, "c3": 0, "d4": 0}]},
+      // flat pair-object format: key = canonical "smaller,larger" UUID pair
       "doublesJson": {
-        "pairs": {"a1,b2": "doubled"},
-        "initiators": {"a1,b2": "b2"}
+        "a1,b2": {"state": "doubled", "initiator": "b2"}
       }
     }],
     "pendingRound": {
@@ -640,6 +643,9 @@ classes), so old steps keep working as the models evolve.
 - **`_V2ToV3`** — collapses each round's per-game input (`{tricks|cards: {…}}`,
   `{winner|loser: id}`, `{trick7winner, trick13winner}`) into the uniform
   `{"counts": [ {uuid:int}, … ]}` shape.
+- **`_V3ToV4`** — reshapes `doublesJson` from two parallel sub-maps
+  (`{pairs:{…}, initiators:{…}}`) into a flat object where each canonical pair
+  key maps to a single `{"state": …, "initiator": …}` record.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step

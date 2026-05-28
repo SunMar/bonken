@@ -37,7 +37,7 @@ RoundRecord _round(
   game: game,
   chooserId: chooserId,
   scoresByPlayer: {for (final p in players) p.id: 0},
-  input: const {},
+  input: game.inputDescriptor.defaults(players),
   doubles: const DoubleMatrix(),
 );
 

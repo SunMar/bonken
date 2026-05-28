@@ -1,5 +1,6 @@
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,9 +14,7 @@ void main() {
 
     test('counts game round-trips its per-player distribution', () {
       const game = Clubs();
-      final input = {
-        'counts': {ids[0]: 5, ids[1]: 4, ids[2]: 3, ids[3]: 1},
-      };
+      final input = CountsInput({ids[0]: 5, ids[1]: 4, ids[2]: 3, ids[3]: 1});
       final stored = game.inputToCounts(input);
       expect(stored, [
         {ids[0]: 5, ids[1]: 4, ids[2]: 3, ids[3]: 1},
@@ -23,46 +22,54 @@ void main() {
       expect(game.countsToInput(stored), input);
     });
 
-    test('single-player game round-trips the chosen player', () {
+    test('recipient game round-trips the chosen player', () {
       const game = KingOfHearts();
-      final stored = game.inputToCounts({'player': ids[2]});
+      final stored = game.inputToCounts(RecipientInput([ids[2]]));
       expect(stored, [
         {ids[2]: 1},
       ]);
-      expect(game.countsToInput(stored), {'player': ids[2]});
+      expect(game.countsToInput(stored), RecipientInput([ids[2]]));
     });
 
-    test('single-player game maps a null pick to an empty element', () {
+    test('recipient game maps a null pick to an empty element', () {
       const game = KingOfHearts();
-      expect(game.inputToCounts({'player': null}), [<String, int>{}]);
-      expect(game.countsToInput([<String, int>{}]), {'player': null});
+      expect(game.inputToCounts(const RecipientInput([null])), [
+        <String, int>{},
+      ]);
+      expect(
+        game.countsToInput([<String, int>{}]),
+        const RecipientInput([null]),
+      );
     });
 
-    test('dual game preserves which player won which trick (positional)', () {
-      const game = SeventhAndThirteenth();
-      final input = {'player1': ids[0], 'player2': ids[2]};
-      final stored = game.inputToCounts(input);
-      expect(stored, [
-        {ids[0]: 1},
-        {ids[2]: 1},
-      ]);
-      // Same two players, swapped slots → a *different* stored list, proving
-      // the 7th-vs-13th distinction survives.
-      expect(game.inputToCounts({'player1': ids[2], 'player2': ids[0]}), [
-        {ids[2]: 1},
-        {ids[0]: 1},
-      ]);
-      expect(game.countsToInput(stored), input);
-    });
+    test(
+      'recipient game preserves which player won which trick (positional)',
+      () {
+        const game = SeventhAndThirteenth();
+        final input = RecipientInput([ids[0], ids[2]]);
+        final stored = game.inputToCounts(input);
+        expect(stored, [
+          {ids[0]: 1},
+          {ids[2]: 1},
+        ]);
+        // Same two players, swapped slots → a *different* stored list, proving
+        // the 7th-vs-13th distinction survives.
+        expect(game.inputToCounts(RecipientInput([ids[2], ids[0]])), [
+          {ids[2]: 1},
+          {ids[0]: 1},
+        ]);
+        expect(game.countsToInput(stored), input);
+      },
+    );
 
-    test('dual game round-trips a half-filled round (one slot null)', () {
+    test('recipient game round-trips a half-filled round (one slot null)', () {
       const game = SeventhAndThirteenth();
-      final stored = game.inputToCounts({'player1': ids[1], 'player2': null});
+      final stored = game.inputToCounts(RecipientInput([ids[1], null]));
       expect(stored, [
         {ids[1]: 1},
         <String, int>{},
       ]);
-      expect(game.countsToInput(stored), {'player1': ids[1], 'player2': null});
+      expect(game.countsToInput(stored), RecipientInput([ids[1], null]));
     });
   });
 

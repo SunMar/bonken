@@ -11,6 +11,7 @@
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/edit_players_screen.dart';
@@ -51,7 +52,7 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
           players[2].id: 5,
           players[3].id: -5,
         },
-        input: const {},
+        input: const RecipientInput([null]),
         doubles: const DoubleMatrix(),
       ),
     ],

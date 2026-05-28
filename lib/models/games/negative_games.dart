@@ -6,9 +6,9 @@ import '../mini_game.dart';
 // Negative game 1 — Harten Heer (King of Hearts)
 // =============================================================================
 // The player who wins the trick containing the King of Hearts loses -100.
-// Only one player can win it. Single-player pick; total -100.
+// Only one player can win it. Single-recipient pick; total -100.
 
-class KingOfHearts extends SinglePlayerMiniGame {
+class KingOfHearts extends RecipientMiniGame {
   const KingOfHearts()
     : super(
         id: 'kingOfHearts',
@@ -17,7 +17,7 @@ class KingOfHearts extends SinglePlayerMiniGame {
         category: GameCategory.negative,
         pointsPerUnit: -100,
         totalPoints: -100,
-        prompt: 'Wie won de Harten Heer slag?',
+        prompts: const ['Wie won de Harten Heer slag?'],
       );
 }
 
@@ -104,10 +104,10 @@ class HeartPoints extends CountsMiniGame {
 // Negative game 6 — 7e / 13e (7th / 13th trick)
 // =============================================================================
 // Winning the 7th trick costs -50; winning the 13th trick costs -50. Both can
-// be won by the same player (-100) or different players. Two independent picks
-// (7th, then 13th); total always -100.
+// be won by the same player (-100) or different players. Two independent
+// recipient slots (7th, then 13th); total always -100.
 
-class SeventhAndThirteenth extends DualPlayerMiniGame {
+class SeventhAndThirteenth extends RecipientMiniGame {
   const SeventhAndThirteenth()
     : super(
         id: 'seventhAndThirteenth',
@@ -116,17 +116,16 @@ class SeventhAndThirteenth extends DualPlayerMiniGame {
         category: GameCategory.negative,
         pointsPerUnit: -50,
         totalPoints: -100,
-        prompt1: 'Wie won de 7e slag?',
-        prompt2: 'Wie won de 13e slag?',
+        prompts: const ['Wie won de 7e slag?', 'Wie won de 13e slag?'],
       );
 }
 
 // =============================================================================
 // Negative game 7 — Laatste slag (Final trick)
 // =============================================================================
-// Winning the 13th (final) trick costs -100. Single-player pick; total -100.
+// Winning the 13th (final) trick costs -100. Single-recipient pick; total -100.
 
-class FinalTrick extends SinglePlayerMiniGame {
+class FinalTrick extends RecipientMiniGame {
   const FinalTrick()
     : super(
         id: 'finalTrick',
@@ -135,7 +134,7 @@ class FinalTrick extends SinglePlayerMiniGame {
         category: GameCategory.negative,
         pointsPerUnit: -100,
         totalPoints: -100,
-        prompt: 'Wie won de laatste slag?',
+        prompts: const ['Wie won de laatste slag?'],
       );
 }
 
@@ -144,9 +143,9 @@ class FinalTrick extends SinglePlayerMiniGame {
 // =============================================================================
 // The player forced to play the last card of the game loses -100. Different
 // gameplay (not card-trick based) but the scoring model is identical to
-// FinalTrick: one player gets the penalty. Single-player pick; total -100.
+// FinalTrick: one player gets the penalty. Single-recipient pick; total -100.
 
-class Dominoes extends SinglePlayerMiniGame {
+class Dominoes extends RecipientMiniGame {
   const Dominoes()
     : super(
         id: 'dominoes',
@@ -155,6 +154,6 @@ class Dominoes extends SinglePlayerMiniGame {
         category: GameCategory.negative,
         pointsPerUnit: -100,
         totalPoints: -100,
-        prompt: 'Wie speelde de laatste kaart?',
+        prompts: const ['Wie speelde de laatste kaart?'],
       );
 }

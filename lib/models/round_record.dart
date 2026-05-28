@@ -1,4 +1,5 @@
 import 'double_matrix.dart';
+import 'input_descriptor.dart';
 import 'mini_game.dart';
 
 /// Stores everything about a completed round so it can be shown in history
@@ -22,7 +23,7 @@ class RoundRecord {
   /// Maps player ID → score delta for this round.
   final Map<String, int> scoresByPlayer;
 
-  final Map<String, dynamic> input;
+  final GameInput input;
   final DoubleMatrix doubles;
 
   Map<String, dynamic> toJson() => {

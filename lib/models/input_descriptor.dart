@@ -1,36 +1,95 @@
 import 'player.dart';
 
+/// The typed, in-memory input for a single round.
+///
+/// Two variants, one per input shape:
+///   - [CountsInput] — a per-player count map (tricks / scoring cards won).
+///   - [RecipientInput] — a positional list of player UUIDs, one per prompt
+///     slot (null when unfilled).
+///
+/// Using a sealed class gives exhaustive switch checking at compile time and
+/// eliminates the need for string keys in the in-memory representation.
+sealed class GameInput {
+  const GameInput();
+
+  /// Deep copy. Both variants hold mutable collections by reference, so a
+  /// shallow copy is insufficient when capturing original state for edit-change
+  /// detection.
+  GameInput copy();
+}
+
+/// In-memory input for counts-style games: a per-player tally of tricks or
+/// scoring cards won.
+class CountsInput extends GameInput {
+  const CountsInput(this.counts);
+
+  /// Maps player UUID → count for this round.
+  final Map<String, int> counts;
+
+  @override
+  CountsInput copy() => CountsInput(Map<String, int>.from(counts));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! CountsInput) return false;
+    if (counts.length != other.counts.length) return false;
+    for (final e in counts.entries) {
+      if (other.counts[e.key] != e.value) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hashAll(counts.entries.map((e) => Object.hash(e.key, e.value)));
+}
+
+/// In-memory input for recipient-style games: one player UUID per prompt slot
+/// (null when the slot is not yet filled).
+class RecipientInput extends GameInput {
+  const RecipientInput(this.recipients);
+
+  /// One UUID per prompt slot; null when the slot is unfilled.
+  final List<String?> recipients;
+
+  @override
+  RecipientInput copy() => RecipientInput(List<String?>.from(recipients));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! RecipientInput) return false;
+    if (recipients.length != other.recipients.length) return false;
+    for (int i = 0; i < recipients.length; i++) {
+      if (recipients[i] != other.recipients[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hashAll(recipients);
+}
+
 /// Describes the input fields required by a mini-game so the UI can render
 /// the correct form without knowing concrete game types.
 sealed class InputDescriptor {
   const InputDescriptor();
 
-  /// True when [input] contains no meaningful entry yet (used by both
-  /// "has some input" and "has meaningful pending input" — they share
-  /// identical semantics: not-empty == has at least one entered value).
-  bool isEmpty(Map<String, dynamic> input);
+  /// True when [input] contains no meaningful entry yet.
+  bool isEmpty(GameInput input);
 
   /// True when [input] is fully and validly filled in for this descriptor.
-  bool isComplete(Map<String, dynamic> input);
+  bool isComplete(GameInput input);
 
-  /// Initial input map used when a game is freshly selected.
-  /// Input values are keyed by player UUID (not seat index).
-  Map<String, dynamic> defaults(List<Player> players);
+  /// Initial input used when a game is freshly selected.
+  GameInput defaults(List<Player> players);
 }
 
 /// A mini-game where each of the 4 players enters a count (tricks or scoring
 /// cards won). The four values must sum to [total].
-///
-/// Storage format: `{inputKey: {"<playerUUID>": count, ...}}`
 class CountsInputDescriptor extends InputDescriptor {
-  const CountsInputDescriptor({
-    required this.inputKey,
-    required this.total,
-    required this.unitLabel,
-  });
-
-  /// Key used in the input map (canonical: 'counts', set by `CountsMiniGame`).
-  final String inputKey;
+  const CountsInputDescriptor({required this.total, required this.unitLabel});
 
   /// Required sum of all four player counts.
   final int total;
@@ -39,84 +98,45 @@ class CountsInputDescriptor extends InputDescriptor {
   final String unitLabel;
 
   @override
-  bool isEmpty(Map<String, dynamic> input) {
-    final map = (input[inputKey] as Map?)?.cast<String, int>();
-    if (map == null) return true;
-    return map.values.fold<int>(0, (a, b) => a + b) == 0;
+  bool isEmpty(GameInput input) {
+    final counts = (input as CountsInput).counts;
+    return counts.values.fold<int>(0, (a, b) => a + b) == 0;
   }
 
   @override
-  bool isComplete(Map<String, dynamic> input) {
-    final map = (input[inputKey] as Map?)?.cast<String, int>();
-    if (map == null) return false;
-    return map.values.fold<int>(0, (a, b) => a + b) == total;
+  bool isComplete(GameInput input) {
+    final counts = (input as CountsInput).counts;
+    return counts.values.fold<int>(0, (a, b) => a + b) == total;
   }
 
   @override
-  Map<String, dynamic> defaults(List<Player> players) => {
-    inputKey: {for (final p in players) p.id: 0},
-  };
+  GameInput defaults(List<Player> players) =>
+      CountsInput({for (final p in players) p.id: 0});
 }
 
-/// A mini-game where a single player is selected (winner or loser).
-///
-/// Storage format: `{inputKey: "<playerUUID>" | null}`
-class SinglePlayerInputDescriptor extends InputDescriptor {
-  const SinglePlayerInputDescriptor({
-    required this.inputKey,
-    required this.prompt,
-  });
+/// A mini-game where one or more players are identified as recipients of an
+/// outcome (a trick won, a card taken, etc.). Each slot in [prompts]
+/// corresponds to one independent player selection.
+class RecipientInputDescriptor extends InputDescriptor {
+  const RecipientInputDescriptor({required this.prompts});
 
-  /// Key used in the input map (canonical: 'player', set by
-  /// `SinglePlayerMiniGame`).
-  final String inputKey;
-
-  /// Question shown above the player selector (Dutch).
-  final String prompt;
+  /// Questions shown above each player selector (Dutch), one per slot.
+  final List<String> prompts;
 
   @override
-  bool isEmpty(Map<String, dynamic> input) => input[inputKey] == null;
-
-  @override
-  bool isComplete(Map<String, dynamic> input) {
-    final v = input[inputKey] as String?;
-    return v != null && v.isNotEmpty;
+  bool isEmpty(GameInput input) {
+    final recipients = (input as RecipientInput).recipients;
+    return recipients.every((v) => v == null);
   }
 
   @override
-  Map<String, dynamic> defaults(List<Player> players) => {inputKey: null};
-}
-
-/// A mini-game with two independent player selections (7e / 13e).
-///
-/// Storage format: `{inputKey1: "<playerUUID>" | null, inputKey2: "<playerUUID>" | null}`
-class DualPlayerInputDescriptor extends InputDescriptor {
-  const DualPlayerInputDescriptor({
-    required this.inputKey1,
-    required this.prompt1,
-    required this.inputKey2,
-    required this.prompt2,
-  });
-
-  final String inputKey1;
-  final String prompt1;
-  final String inputKey2;
-  final String prompt2;
-
-  @override
-  bool isEmpty(Map<String, dynamic> input) =>
-      input[inputKey1] == null && input[inputKey2] == null;
-
-  @override
-  bool isComplete(Map<String, dynamic> input) {
-    final v1 = input[inputKey1] as String?;
-    final v2 = input[inputKey2] as String?;
-    return v1 != null && v1.isNotEmpty && v2 != null && v2.isNotEmpty;
+  bool isComplete(GameInput input) {
+    final recipients = (input as RecipientInput).recipients;
+    if (recipients.length != prompts.length) return false;
+    return recipients.every((v) => v != null && v.isNotEmpty);
   }
 
   @override
-  Map<String, dynamic> defaults(List<Player> players) => {
-    inputKey1: null,
-    inputKey2: null,
-  };
+  GameInput defaults(List<Player> players) =>
+      RecipientInput(List<String?>.filled(prompts.length, null));
 }

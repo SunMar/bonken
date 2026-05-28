@@ -59,10 +59,10 @@ class IconSymbol extends GameSymbol {
 
 /// Base class for all 13 Bonken mini-games. Concrete games don't extend this
 /// directly — they extend one of the shape bases below ([CountsMiniGame],
-/// [SinglePlayerMiniGame], [DualPlayerMiniGame]), which implement [rawCounts],
-/// [inputDescriptor] and the storage round-trip for their input shape; a leaf
-/// game only supplies [id], [name], [symbol], [category], [pointsPerUnit],
-/// [totalPoints] + the shape's human-facing fields.
+/// [RecipientMiniGame]), which implement [rawCounts], [inputDescriptor] and
+/// the storage round-trip for their input shape; a leaf game only supplies
+/// [id], [name], [symbol], [category], [pointsPerUnit], [totalPoints] + the
+/// shape's human-facing fields.
 ///
 /// The shared [calculateScores] method handles all doubling/redoubling logic
 /// and converts effective counts to points.
@@ -118,7 +118,7 @@ abstract class MiniGame {
   /// Keys are player UUIDs (matching [players]). Values are counts per player.
   /// For trick-based games this is the number of tricks won.
   /// For card-based games this is the number of scoring cards won.
-  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players);
+  Map<String, int> rawCounts(GameInput input, List<Player> players);
 
   /// Describes what input fields this game requires.
   /// The UI uses this to render the correct form without knowing concrete types.
@@ -126,20 +126,20 @@ abstract class MiniGame {
 
   /// Serializes the in-memory [input] to the uniform persisted form: a
   /// positional list of per-player count maps (see ARCHITECTURE.md §9). Counts
-  /// and single-player games yield one element; dual-player games yield two
-  /// (ordered) elements. The inverse is [countsToInput].
-  List<Map<String, int>> inputToCounts(Map<String, dynamic> input);
+  /// games yield one element; recipient games yield one element per prompt slot.
+  /// The inverse is [countsToInput].
+  List<Map<String, int>> inputToCounts(GameInput input);
 
-  /// Rebuilds the in-memory input map from a persisted [counts] list — the
+  /// Rebuilds the in-memory input from a persisted [counts] list — the
   /// inverse of [inputToCounts]. Called when loading/restoring a saved round.
-  Map<String, dynamic> countsToInput(List<Map<String, int>> counts);
+  GameInput countsToInput(List<Map<String, int>> counts);
 
   // ---------------------------------------------------------------------------
   // Shared scoring engine
   // ---------------------------------------------------------------------------
 
   ScoreResult calculateScores({
-    required Map<String, dynamic> input,
+    required GameInput input,
     required DoubleMatrix doubles,
     required List<Player> players,
   }) {
@@ -160,15 +160,15 @@ abstract class MiniGame {
 
 // =============================================================================
 // Intermediate bases — one per input shape, mirroring the sealed
-// InputDescriptor hierarchy. Each owns its canonical input key(s), its
-// rawCounts strategy, its descriptor, and the storage round-trip
-// (inputToCounts / countsToInput). Leaf games only declare id/name/symbol/
-// points + the human-facing bits (total/unitLabel or prompt(s)).
+// InputDescriptor hierarchy. Each owns its rawCounts strategy, its descriptor,
+// and the storage round-trip (inputToCounts / countsToInput). Leaf games only
+// declare id/name/symbol/points + the human-facing bits (total/unitLabel or
+// prompts).
 // =============================================================================
 
 /// Returns the single player id in a count map (the entry with count ≥ 1), or
-/// `null` when the map is empty. Used to invert a single-pick storage element
-/// back into a `'player'`-style input value.
+/// `null` when the map is empty. Used to invert a recipient-slot storage
+/// element back into a player UUID.
 String? _soleKey(Map<String, int> counts) {
   for (final e in counts.entries) {
     if (e.value >= 1) return e.key;
@@ -177,8 +177,7 @@ String? _soleKey(Map<String, int> counts) {
 }
 
 /// Games where each of the 4 players enters a count (tricks / scoring cards
-/// won) and the four counts sum to [total]. Canonical input key: `'counts'`,
-/// a `{playerId: count}` map.
+/// won) and the four counts sum to [total].
 abstract class CountsMiniGame extends MiniGame {
   const CountsMiniGame({
     required super.id,
@@ -197,127 +196,71 @@ abstract class CountsMiniGame extends MiniGame {
   /// Dutch unit shown in the counts form (e.g. 'slagen', 'harten').
   final String unitLabel;
 
-  static const _inputKey = 'counts';
-
   @override
-  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
-    final map = (input[_inputKey] as Map).cast<String, int>();
-    return {for (final p in players) p.id: map[p.id] ?? 0};
-  }
-
-  @override
-  InputDescriptor get inputDescriptor => CountsInputDescriptor(
-    inputKey: _inputKey,
-    total: total,
-    unitLabel: unitLabel,
-  );
-
-  @override
-  List<Map<String, int>> inputToCounts(Map<String, dynamic> input) => [
-    (input[_inputKey] as Map?)?.cast<String, int>() ?? const <String, int>{},
-  ];
-
-  @override
-  Map<String, dynamic> countsToInput(List<Map<String, int>> counts) => {
-    _inputKey: counts.isEmpty ? <String, int>{} : counts.first,
-  };
-}
-
-/// Games where exactly one player is selected (the player who won that
-/// trick/card — and is therefore penalised in the negative games). Canonical
-/// input key: `'player'`, a single player id (or `null`).
-abstract class SinglePlayerMiniGame extends MiniGame {
-  const SinglePlayerMiniGame({
-    required super.id,
-    required super.name,
-    required super.symbol,
-    required super.category,
-    required super.pointsPerUnit,
-    required super.totalPoints,
-    required this.prompt,
-  });
-
-  /// Question shown above the player selector (Dutch).
-  final String prompt;
-
-  static const _inputKey = 'player';
-
-  @override
-  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
-    final selected = input[_inputKey] as String?;
-    return {for (final p in players) p.id: selected == p.id ? 1 : 0};
+  Map<String, int> rawCounts(GameInput input, List<Player> players) {
+    final counts = (input as CountsInput).counts;
+    return {for (final p in players) p.id: counts[p.id] ?? 0};
   }
 
   @override
   InputDescriptor get inputDescriptor =>
-      SinglePlayerInputDescriptor(inputKey: _inputKey, prompt: prompt);
+      CountsInputDescriptor(total: total, unitLabel: unitLabel);
 
   @override
-  List<Map<String, int>> inputToCounts(Map<String, dynamic> input) {
-    final selected = input[_inputKey] as String?;
-    return [
-      selected == null ? <String, int>{} : {selected: 1},
-    ];
-  }
+  List<Map<String, int>> inputToCounts(GameInput input) => [
+    (input as CountsInput).counts,
+  ];
 
   @override
-  Map<String, dynamic> countsToInput(List<Map<String, int>> counts) => {
-    _inputKey: _soleKey(counts.isEmpty ? const {} : counts.first),
-  };
+  GameInput countsToInput(List<Map<String, int>> counts) =>
+      CountsInput(counts.isEmpty ? {} : counts.first);
 }
 
-/// Games with two independent single-player picks (7e / 13e). Canonical input
-/// keys: `'player1'` (first sub-result) and `'player2'` (second); the stored
-/// counts list is positional, so the two picks never blur together.
-abstract class DualPlayerMiniGame extends MiniGame {
-  const DualPlayerMiniGame({
+/// Games where one or more players are identified as the recipient of an
+/// outcome (a trick won, a card taken, etc.). Each slot in [prompts]
+/// corresponds to one independent player selection.
+///
+/// The stored counts list has one positional element per slot —
+/// `{playerId: 1}` when filled, `{}` otherwise — so the identity of which
+/// recipient corresponds to which outcome is preserved.
+abstract class RecipientMiniGame extends MiniGame {
+  const RecipientMiniGame({
     required super.id,
     required super.name,
     required super.symbol,
     required super.category,
     required super.pointsPerUnit,
     required super.totalPoints,
-    required this.prompt1,
-    required this.prompt2,
+    required this.prompts,
   });
 
-  final String prompt1;
-  final String prompt2;
-
-  static const _key1 = 'player1';
-  static const _key2 = 'player2';
+  /// Questions shown above each player selector (Dutch), one per slot.
+  final List<String> prompts;
 
   @override
-  Map<String, int> rawCounts(Map<String, dynamic> input, List<Player> players) {
-    final p1 = input[_key1] as String?;
-    final p2 = input[_key2] as String?;
+  Map<String, int> rawCounts(GameInput input, List<Player> players) {
+    final recipients = (input as RecipientInput).recipients;
     return {
       for (final p in players)
-        p.id: (p1 == p.id ? 1 : 0) + (p2 == p.id ? 1 : 0),
+        p.id: recipients.where((id) => id == p.id).length,
     };
   }
 
   @override
-  InputDescriptor get inputDescriptor => DualPlayerInputDescriptor(
-    inputKey1: _key1,
-    prompt1: prompt1,
-    inputKey2: _key2,
-    prompt2: prompt2,
-  );
+  InputDescriptor get inputDescriptor =>
+      RecipientInputDescriptor(prompts: prompts);
 
   @override
-  List<Map<String, int>> inputToCounts(Map<String, dynamic> input) {
-    final p1 = input[_key1] as String?;
-    final p2 = input[_key2] as String?;
+  List<Map<String, int>> inputToCounts(GameInput input) {
+    final recipients = (input as RecipientInput).recipients;
     return [
-      p1 == null ? <String, int>{} : {p1: 1},
-      p2 == null ? <String, int>{} : {p2: 1},
+      for (final id in recipients) id == null ? <String, int>{} : {id: 1},
     ];
   }
 
   @override
-  Map<String, dynamic> countsToInput(List<Map<String, int>> counts) => {
-    _key1: _soleKey(counts.isNotEmpty ? counts[0] : const {}),
-    _key2: _soleKey(counts.length > 1 ? counts[1] : const {}),
-  };
+  GameInput countsToInput(List<Map<String, int>> counts) => RecipientInput([
+    for (int i = 0; i < prompts.length; i++)
+      _soleKey(i < counts.length ? counts[i] : const {}),
+  ]);
 }
