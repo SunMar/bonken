@@ -19,6 +19,27 @@ const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 
 List<Player> _makePlayers() => [for (final name in _names) Player(name: name)];
 
+Widget _wrapWithNavigator(ProviderContainer container) =>
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const RoundInputScreen(),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
 Future<ProviderContainer> _pumpRoundInput(WidgetTester tester) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
@@ -183,6 +204,56 @@ void main() {
     },
   );
 
+  testWidgets('back without input on new round shows no dialog and pops', (
+    tester,
+  ) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(calculatorProvider.notifier);
+    notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
+    notifier.selectGame(const Clubs());
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.pumpWidget(_wrapWithNavigator(container));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Terug'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scores ingevoerd'), findsNothing);
+    expect(find.byType(RoundInputScreen), findsNothing);
+  });
+
+  testWidgets(
+    'back without changes while editing an existing round shows no dialog and pops',
+    (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(calculatorProvider.notifier);
+      notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
+      final ps = container.read(calculatorProvider).players;
+      notifier.selectGame(const Clubs());
+      notifier.updateInput(
+        CountsInput({ps[0].id: 4, ps[1].id: 4, ps[2].id: 2, ps[3].id: 3}),
+      );
+      notifier.deselectGame();
+      final round = container.read(calculatorProvider).history.first;
+      notifier.restoreRound(round);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      await tester.pumpWidget(_wrapWithNavigator(container));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Terug'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Scores aangepast'), findsNothing);
+      expect(find.byType(RoundInputScreen), findsNothing);
+    },
+  );
+
   testWidgets(
     'back without changes leaves the active game and pops without a dialog',
     (tester) async {
@@ -219,8 +290,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(RoundInputScreen), findsOneWidget);
 
-      // Tap the AppBar's leading back button (tooltip "Verwerpen").
-      await tester.tap(find.byTooltip('Verwerpen'));
+      // Tap the AppBar's leading back button (tooltip "Terug").
+      await tester.tap(find.byTooltip('Terug'));
       await tester.pumpAndSettle();
 
       // No discard dialog (nothing changed), screen popped,

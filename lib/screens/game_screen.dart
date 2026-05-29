@@ -302,7 +302,7 @@ class _GameTile extends ConsumerWidget {
               title: kRoundIncompleteTitle,
               contentText:
                   '${(state.pending as ActivePendingRound).game.name} is nog niet afgerond. '
-                  'Maak dat spel eerst af.',
+                  'Maak dat spel eerst af, of verwerp het.',
             );
             return;
           }

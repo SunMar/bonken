@@ -106,34 +106,23 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
 
     Future<void> saveOrConfirmBack() async {
       final state = ref.read(calculatorProvider);
-      if (state.isEditingExistingRound) {
-        // Back while editing = discard path, same as Verwerpen.
-        if (state.hasActiveChanges) {
-          if (!context.mounted) return;
-          final confirmed = await _confirmDiscardChanges(
-            context,
-            title: 'Wijzigingen niet opgeslagen',
-          );
-          if (!confirmed) return;
-        }
-        ref.read(calculatorProvider.notifier).cancelEditRound();
-        popIfMounted();
+
+      if (!state.hasActiveChanges) {
+        cancelInputPhase();
         return;
       }
-      if (state.hasActiveChanges) {
-        if (!context.mounted) return;
-        final confirm = await showConfirmDialog(
-          context,
-          title: kRoundIncompleteTitle,
-          contentText:
-              'Deze ronde is nog niet gescoord. Wil je de invoer verwerpen?',
-          confirmLabel: 'Verwerpen',
-          destructive: true,
-        );
-        if (confirm != true) return;
-      }
-      ref.read(calculatorProvider.notifier).discardGame();
-      popIfMounted();
+
+      await showInfoDialog(
+        context,
+        title: state.isEditingExistingRound
+            ? 'Scores aangepast'
+            : 'Scores ingevoerd',
+        contentText: state.isEditingExistingRound
+            ? 'Je aanpassingen zijn nog niet opgeslagen. '
+                  'Sla de scores op of verwerp ze om terug te gaan.'
+            : 'Je ingevoerde scores zijn nog niet opgeslagen. '
+                  'Sla de scores op of verwerp ze om terug te gaan.',
+      );
     }
 
     Future<void> saveOrConfirmDone() async {
@@ -219,7 +208,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             flexibleTitle: true,
           ),
           leading: Tooltip(
-            message: 'Verwerpen',
+            message: 'Terug',
             child: BackButton(onPressed: saveOrConfirmBack),
           ),
           actions: [
