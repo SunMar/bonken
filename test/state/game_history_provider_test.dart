@@ -810,6 +810,50 @@ void main() {
         expect(dm.initiatorFor(ids[2], ids[3]), ids[3]);
       },
     );
+
+    test(
+      'version:4 injects starterVariant and heartsVariant with default values',
+      () async {
+        final players = [
+          for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
+        ];
+        final ids = [for (final p in players) p.id];
+        SharedPreferences.setMockInitialValues({
+          'game_history': jsonEncode({
+            'version': 4,
+            'games': [
+              {
+                'id': 'v4sess',
+                'createdAt': '2024-01-01T00:00:00.000',
+                'updatedAt': '2024-01-01T00:00:00.000',
+                'players': [for (final p in players) p.toJson()],
+                'firstDealerId': ids[0],
+                'rounds': <dynamic>[],
+              },
+            ],
+          }),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        expect(list.length, 1);
+        final session = list.first;
+        expect(session.starterVariant.name, 'dealerStarts');
+        expect(session.heartsVariant.name, 'onlyAfterPlayedHeart');
+
+        // Verify the written JSON also contains the new fields.
+        final prefs = await SharedPreferences.getInstance();
+        final written =
+            jsonDecode(prefs.getString('game_history')!)
+                as Map<String, dynamic>;
+        expect(written['version'], 5);
+        final game =
+            (written['games'] as List<dynamic>).first as Map<String, dynamic>;
+        expect(game['starterVariant'], 'dealerStarts');
+        expect(game['heartsVariant'], 'onlyAfterPlayedHeart');
+      },
+    );
   });
 
   group('playerNameSuggestions', () {

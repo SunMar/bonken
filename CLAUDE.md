@@ -34,17 +34,28 @@ imports, `discarded_futures`, and every `catch` must declare an `on` type
 `dart fix --dry-run` and fails on any proposed change. Write explicit types;
 run `dart fix --apply` + `dart format .` before pushing.
 
+**Update `CLAUDE.md` and `ARCHITECTURE.md` as part of the change** when it
+affects documented architecture, conventions, the storage version, the directory
+map, or invariants — not as a follow-up.
+
 ## Conventions (do not break)
 
 - **4 players, 12 rounds** (`playerCount`, `GameSession.totalRounds`).
 - **Key per-round data by player UUID**, never seat index — derive indices on demand.
 - **Σ scores == `totalPoints`** per game (engine invariant, asserted).
-- **Seat math only in `lib/models/game_mechanics.dart`** (`dealerIndexFor`).
+- **Seat math only in `lib/models/game_mechanics.dart`** (`dealerIndexFor`,
+  `starterIndexFor` — the only home for seat arithmetic).
 - **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`).
 - **Accessible by default** ([ARCHITECTURE.md §2](ARCHITECTURE.md)): interactive
   tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout
-  spacers use `ExcludeSemantics`. `test/a11y_test.dart` gates four guidelines.
+  spacers use `ExcludeSemantics`; **section titles wrapped in
+  `Semantics(header: true)`** (`FormSectionCard` does this automatically).
+  `test/a11y_test.dart` gates four guidelines.
 - **UI strings Dutch, code identifiers English.**
 - **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored JSON (frozen, sequenced steps).
+- **Game-rule variants** (`StarterVariant`, `HeartsVariant`) live in
+  `lib/models/`; app-wide defaults in `lib/state/default_*_variant_provider.dart`
+  (pre-loaded in `main()`); per-session values stored in `GameSession`
+  (fields `starterVariant`, `heartsVariant`, serialised as enum names).
 
 Full invariant list + the "why": [ARCHITECTURE.md §13](ARCHITECTURE.md).

@@ -207,6 +207,12 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             singleGameId: game.id,
             tooltip: 'Spelregels ${game.name}',
             flexibleTitle: true,
+            starterVariantOverride: ref.read(
+              calculatorProvider.select((s) => s.starterVariant),
+            ),
+            heartsVariantOverride: ref.read(
+              calculatorProvider.select((s) => s.heartsVariant),
+            ),
           ),
           leading: Tooltip(
             message: 'Terug',
@@ -467,7 +473,11 @@ List<Widget> _gameRulesWarnings(MiniGame game, HeartsVariant heartsVariant) {
   final section = gameSectionFor(game.id);
   if (section == null) return const [];
   final warningBlocks = section.blocks
-      .where((b) => b is Note || b is HeartsVariantNote)
+      .where(
+        (b) =>
+            b is Note ||
+            (b is VariantBlock && b.variantKind == VariantKind.hearts),
+      )
       .toList();
   if (warningBlocks.isEmpty) return const [];
   return [
@@ -476,12 +486,11 @@ List<Widget> _gameRulesWarnings(MiniGame game, HeartsVariant heartsVariant) {
       if (i > 0) const SizedBox(height: 8),
       switch (warningBlocks[i]) {
         final Note b => AmberWarningBox(label: b.label, text: b.text),
-        final HeartsVariantNote b => AmberWarningBox(
+        final VariantBlock b => AmberWarningBox(
           label: b.label,
-          text: heartsVariant == HeartsVariant.onlyAfterPlayedHeart
-              ? b.onlyAfterPlayedHeartText
-              : b.graduatedUnlockText,
+          text: b.textFor(heartsVariant),
         ),
+        // unreachable — warningBlocks is pre-filtered to Note|VariantBlock
         _ => const SizedBox.shrink(),
       },
     ],

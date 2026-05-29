@@ -144,7 +144,7 @@ abstract class MiniGame {
     required List<Player> players,
   }) {
     final counts = rawCounts(input, players);
-    final effective = <String, int>{};
+    final scores = <String, int>{};
     for (final pa in players) {
       int e = counts[pa.id] ?? 0;
       for (final pb in players) {
@@ -152,9 +152,9 @@ abstract class MiniGame {
         final m = doubles.multiplierFor(pa.id, pb.id);
         if (m > 0) e += ((counts[pa.id] ?? 0) - (counts[pb.id] ?? 0)) * m;
       }
-      effective[pa.id] = e == 0 ? 0 : e * pointsPerUnit;
+      scores[pa.id] = e * pointsPerUnit;
     }
-    return ScoreResult(scores: effective);
+    return ScoreResult(scores: scores);
   }
 }
 

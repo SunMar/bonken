@@ -23,6 +23,7 @@ import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/screens/rules_screen.dart';
+import 'package:bonken/screens/settings_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:flutter/material.dart';
@@ -136,6 +137,13 @@ void main() {
   testWidgets('RulesScreen meets a11y guidelines', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(tester, const RulesScreen());
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('SettingsScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, const SettingsScreen());
     await _expectA11y(tester);
     handle.dispose();
   });

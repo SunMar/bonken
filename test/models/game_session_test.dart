@@ -3,9 +3,11 @@ import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -256,6 +258,57 @@ void main() {
       final m = DoubleMatrix.fromJson(back.doublesJson!);
       expect(m.stateFor(pa.id, pb.id), DoubleState.redoubled);
       expect(m.initiatorFor(pa.id, pb.id), pb.id);
+    });
+
+    test('variants survive JSON roundtrip', () {
+      final now = DateTime(2024, 1, 1, 12);
+      final original = GameSession(
+        id: 'v-trip',
+        createdAt: now,
+        updatedAt: now,
+        players: testPlayers,
+        firstDealerId: pa.id,
+        rounds: const [],
+        starterVariant: StarterVariant.oppositeChooserStarts,
+        heartsVariant: HeartsVariant.graduatedUnlock,
+      );
+      final back = GameSession.fromJson(original.toJson());
+      expect(back.starterVariant, StarterVariant.oppositeChooserStarts);
+      expect(back.heartsVariant, HeartsVariant.graduatedUnlock);
+    });
+
+    test(
+      'missing starterVariant / heartsVariant fields fall back to defaults',
+      () {
+        final json = {
+          'id': 'no-variants',
+          'createdAt': '2024-01-01T00:00:00.000',
+          'updatedAt': '2024-01-01T00:00:00.000',
+          'players': [for (final p in testPlayers) p.toJson()],
+          'firstDealerId': pa.id,
+          'rounds': <dynamic>[],
+          // no 'starterVariant' or 'heartsVariant' keys
+        };
+        final session = GameSession.fromJson(json);
+        expect(session.starterVariant, StarterVariant.dealerStarts);
+        expect(session.heartsVariant, HeartsVariant.onlyAfterPlayedHeart);
+      },
+    );
+
+    test('unknown variant names fall back to defaults', () {
+      final json = {
+        'id': 'bad-variants',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': <dynamic>[],
+        'starterVariant': 'notARealVariant',
+        'heartsVariant': 'alsoNotReal',
+      };
+      final session = GameSession.fromJson(json);
+      expect(session.starterVariant, StarterVariant.dealerStarts);
+      expect(session.heartsVariant, HeartsVariant.onlyAfterPlayedHeart);
     });
 
     test('dual 7e/13e round preserves which player won which trick', () {

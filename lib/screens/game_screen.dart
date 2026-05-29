@@ -535,7 +535,14 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
 
     final notifier = ref.read(calculatorProvider.notifier);
     final newPlayers = [for (final name in names) Player(name: name)];
-    notifier.startNewGame(players: newPlayers, dealerIndex: dealerIndex);
+    notifier.startNewGame(
+      players: newPlayers,
+      dealerIndex: dealerIndex,
+      // Carry over the just-finished game's house rules so the repeated game
+      // doesn't silently reset to hardcoded defaults.
+      starterVariant: state.starterVariant,
+      heartsVariant: state.heartsVariant,
+    );
     final session = notifier.buildSession();
     if (session != null) {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);

@@ -1,17 +1,21 @@
+import 'labeled_variant.dart';
+
 const String kHeartsVariantSectionTitle = 'Extra spelregel harten';
 const String kHeartsVariantSectionSubtitle =
     'Welke extra spelregel geldt voor Harten Heer en Hartenpunten?';
 
 /// Which hearts-lead restriction applies to King of Hearts and Heart Points.
-enum HeartsVariant {
+enum HeartsVariant implements LabeledVariant {
   onlyAfterPlayedHeart,
   graduatedUnlock;
 
+  @override
   String get label => switch (this) {
     HeartsVariant.onlyAfterPlayedHeart => 'Na bijgespeelde harten',
-    HeartsVariant.graduatedUnlock => 'Gefaseerde opening',
+    HeartsVariant.graduatedUnlock => 'Gefaseerd',
   };
 
+  @override
   String get description => switch (this) {
     HeartsVariant.onlyAfterPlayedHeart =>
       'Uitkomen met harten mag pas als er al een harten is (bij)gespeeld.',

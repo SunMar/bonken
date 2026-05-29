@@ -16,10 +16,10 @@ import '../state/game_history_provider.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
-import '../widgets/hearts_variant_picker.dart';
+import '../widgets/form_section_card.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
-import '../widgets/starter_variant_picker.dart';
+import '../widgets/variant_picker.dart';
 import 'game_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
@@ -163,151 +163,53 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // ---- Player names ----
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            kPlayersSectionTitle,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          kPlayersSectionSubtitle,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        PlayerListField(
-                          controllers: _controllers,
-                          focusNodes: _focusNodes,
-                          suggestions: suggestions,
-                          onReorderItem: _handleReorder,
-                          onSubmitted: _handleFieldSubmitted,
-                        ),
-                      ],
-                    ),
+                FormSectionCard(
+                  title: kPlayersSectionTitle,
+                  subtitle: kPlayersSectionSubtitle,
+                  child: PlayerListField(
+                    controllers: _controllers,
+                    focusNodes: _focusNodes,
+                    suggestions: suggestions,
+                    onReorderItem: _handleReorder,
+                    onSubmitted: _handleFieldSubmitted,
                   ),
                 ),
 
                 const SizedBox(height: 12),
 
-                // ---- Dealer for first game ----
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            kDealerSectionTitle,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          kDealerSectionSubtitle,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        DealerDropdownField(
-                          controllers: _controllers,
-                          value: _dealerIndex,
-                          hintText: 'Willekeurige deler',
-                          allowRandomDealer: true,
-                          onChanged: (v) => setState(() => _dealerIndex = v),
-                        ),
-                      ],
-                    ),
+                FormSectionCard(
+                  title: kDealerSectionTitle,
+                  subtitle: kDealerSectionSubtitle,
+                  child: DealerDropdownField(
+                    controllers: _controllers,
+                    value: _dealerIndex,
+                    hintText: 'Willekeurige deler',
+                    allowRandomDealer: true,
+                    onChanged: (v) => setState(() => _dealerIndex = v),
                   ),
                 ),
 
                 const SizedBox(height: 12),
 
-                // ---- Starter variant ----
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            kStarterVariantSectionTitle,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          kStarterVariantSectionSubtitle,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        StarterVariantPicker(
-                          value: _starterVariant,
-                          onChanged: (v) => setState(() => _starterVariant = v),
-                        ),
-                      ],
-                    ),
+                FormSectionCard(
+                  title: kStarterVariantSectionTitle,
+                  subtitle: kStarterVariantSectionSubtitle,
+                  child: VariantPicker<StarterVariant>(
+                    values: StarterVariant.values,
+                    value: _starterVariant,
+                    onChanged: (v) => setState(() => _starterVariant = v),
                   ),
                 ),
 
                 const SizedBox(height: 12),
 
-                // ---- Hearts variant ----
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            kHeartsVariantSectionTitle,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          kHeartsVariantSectionSubtitle,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        HeartsVariantPicker(
-                          value: _heartsVariant,
-                          onChanged: (v) => setState(() => _heartsVariant = v),
-                        ),
-                      ],
-                    ),
+                FormSectionCard(
+                  title: kHeartsVariantSectionTitle,
+                  subtitle: kHeartsVariantSectionSubtitle,
+                  child: VariantPicker<HeartsVariant>(
+                    values: HeartsVariant.values,
+                    value: _heartsVariant,
+                    onChanged: (v) => setState(() => _heartsVariant = v),
                   ),
                 ),
               ],

@@ -1,5 +1,6 @@
 import 'package:bonken/models/game_mechanics.dart';
 import 'package:bonken/models/mini_game.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -9,6 +10,47 @@ void main() {
       expect(dealerIndexFor(1), 0);
       expect(dealerIndexFor(2), 1);
       expect(dealerIndexFor(3), 2);
+    });
+  });
+
+  group('starterIndexFor', () {
+    test('dealerStarts: starter == dealer == chooser − 1', () {
+      for (var chooser = 0; chooser < playerCount; chooser++) {
+        expect(
+          starterIndexFor(chooser, StarterVariant.dealerStarts),
+          dealerIndexFor(chooser),
+          reason: 'chooser $chooser',
+        );
+      }
+    });
+
+    test('oppositeChooserStarts: starter == (chooser − 2) mod 4', () {
+      expect(
+        starterIndexFor(0, StarterVariant.oppositeChooserStarts),
+        (0 - 2 + playerCount) % playerCount, // 2
+      );
+      expect(
+        starterIndexFor(1, StarterVariant.oppositeChooserStarts),
+        (1 - 2 + playerCount) % playerCount, // 3
+      );
+      expect(
+        starterIndexFor(2, StarterVariant.oppositeChooserStarts),
+        (2 - 2 + playerCount) % playerCount, // 0
+      );
+      expect(
+        starterIndexFor(3, StarterVariant.oppositeChooserStarts),
+        (3 - 2 + playerCount) % playerCount, // 1
+      );
+    });
+
+    test('the two variants always produce different starters', () {
+      for (var chooser = 0; chooser < playerCount; chooser++) {
+        expect(
+          starterIndexFor(chooser, StarterVariant.dealerStarts),
+          isNot(starterIndexFor(chooser, StarterVariant.oppositeChooserStarts)),
+          reason: 'chooser $chooser',
+        );
+      }
     });
   });
 

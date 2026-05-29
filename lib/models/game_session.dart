@@ -1,3 +1,4 @@
+import '../utils.dart';
 import 'double_matrix.dart';
 import 'games/game_catalog.dart';
 import 'hearts_variant.dart';
@@ -187,27 +188,22 @@ class GameSession {
       for (final p in json['players'] as List)
         Player.fromJson(p as Map<String, dynamic>),
     ];
-    final variantName = json['starterVariant'] as String?;
     return GameSession(
       id: json['id'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       players: players,
       firstDealerId: json['firstDealerId'] as String,
-      starterVariant: variantName == null
-          ? StarterVariant.dealerStarts
-          : StarterVariant.values.firstWhere(
-              (v) => v.name == variantName,
-              orElse: () => StarterVariant.dealerStarts,
-            ),
-      heartsVariant: () {
-        final name = json['heartsVariant'] as String?;
-        if (name == null) return HeartsVariant.onlyAfterPlayedHeart;
-        return HeartsVariant.values.firstWhere(
-          (v) => v.name == name,
-          orElse: () => HeartsVariant.onlyAfterPlayedHeart,
-        );
-      }(),
+      starterVariant: enumByName(
+        StarterVariant.values,
+        json['starterVariant'] as String?,
+        StarterVariant.dealerStarts,
+      ),
+      heartsVariant: enumByName(
+        HeartsVariant.values,
+        json['heartsVariant'] as String?,
+        HeartsVariant.onlyAfterPlayedHeart,
+      ),
       rounds: [
         for (final r in json['rounds'] as List)
           _roundFromJson(r as Map<String, dynamic>),

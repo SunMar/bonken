@@ -120,8 +120,11 @@ most of the structure exists to serve one of these.
   explicit `Semantics` (with `MergeSemantics` so each reads as one control).
   Dimmed-but-tappable overrides (doubles force tiles, played/quota game tiles)
   announce as *enabled* buttons with a hint, since the dimming is purely
-  visual. Tap targets are kept at the standard ≥48dp. `test/a11y_test.dart`
-  pumps every screen with semantics on and gates `textContrastGuideline`,
+  visual. Tap targets are kept at the standard ≥48dp. **Section and card titles
+  must be wrapped in `Semantics(header: true)`** — the `FormSectionCard` widget
+  does this automatically; hand-written cards must add it explicitly. Invisible
+  layout spacers use `ExcludeSemantics`. `test/a11y_test.dart` pumps every
+  screen with semantics on and gates `textContrastGuideline`,
   `labeledTapTargetGuideline`, and `android`/`iOSTapTargetGuideline` via the
   normal `flutter test` run (no separate CI step).
 
@@ -196,16 +199,21 @@ lib/
   state/                     Riverpod providers.
     calculator_provider.dart CalculatorState + CalculatorNotifier (the in-game state machine).
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4) + runner.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4→v5) + runner.
     theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
+    default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
+    default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
+    enum_preference_notifier.dart  Generic EnumPreferenceNotifier<T> base + loadPersistedEnum().
 
   screens/                   Full-screen routes (all use AppScaffold).
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
-    new_game_screen.dart     Enter names (with suggestions) + pick first dealer.
+    new_game_screen.dart     Enter names (with suggestions) + pick first dealer + pick variants.
     game_screen.dart         In-game hub: game selection, live scoreboard, history, edit/delete.
     round_input_screen.dart  Per-round: chooser, doubles, input form, live/final result.
-    edit_players_screen.dart Rename/reorder players + change first dealer mid-game.
-    rules_screen.dart        Renders rules content (full doc or single game).
+    edit_players_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
+    rules_screen.dart        Renders rules content (full doc or single game); accepts variant
+                             overrides to show only the active rule when opened from within a game.
+    settings_screen.dart     App-wide default settings: StarterVariant + HeartsVariant.
 
   widgets/                   Reusable UI.
     app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens).
@@ -223,12 +231,17 @@ lib/
                              _GameSymbol renderer; used by the game / round-input screens.
     app_bar_widgets.dart     Reusable AppBar building blocks: AboutIconButton
                              (leading info icon → About dialog), RulesIconButton
-                             (pushes RulesScreen, optionally scoped to one game),
-                             TitleWithRules (AppBar.title with embedded rules icon),
+                             (pushes RulesScreen, optionally scoped to one game + variant
+                             overrides), TitleWithRules (AppBar.title with embedded rules
+                             icon), SettingsIconButton (pushes SettingsScreen),
                              ThemeMenuButton (MenuAnchor cycling light/dark/system;
                              AlignmentDirectional.bottomEnd — the M3 overflow-menu
                              pattern), and resolveAboutVersionLine() /
                              openAboutDialog() (@visibleForTesting).
+    variant_picker.dart      Generic SegmentedButton<T extends LabeledVariant> for both
+                             StarterVariant and HeartsVariant pickers.
+    form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
+                             + subtitle + child); used on new-game, edit-players, settings.
     game_input/              Round-input building blocks: form, counts input, player picker.
     …                        dealer_picker_dialog.dart, dialogs.dart,
                              timed_snackbar.dart + game_deleted_snackbar.dart
@@ -238,7 +251,15 @@ lib/
                              rules_block_view.dart, drag_handle.dart,
                              incomplete_form_snackbar.dart.
 
+  models/
+    labeled_variant.dart     LabeledVariant interface (label + description) implemented by
+                             StarterVariant and HeartsVariant.
+    starter_variant.dart     StarterVariant enum (dealerStarts / oppositeChooserStarts).
+    hearts_variant.dart      HeartsVariant enum (onlyAfterPlayedHeart / graduatedUnlock).
+
   data/game_rules.dart       Static rules content (Block/Section/GameSection) for rules_screen.
+                             VariantBlock (VariantKind.starter/hearts) carries textFor() and
+                             shows a variant picker dialog via a settings icon.
   theme/app_theme_extensions.dart  ThemeExtensions: Warning/GameSuit/DoubleState/Score colors.
   services/app_updater.dart  Fire-and-forget Google Play in-app update check (Android only).
 ```
@@ -349,7 +370,8 @@ keeping `RoundRecord` a catalog-free data class.
 
 ### `GameSession` + `PendingRound` ([`game_session.dart`](lib/models/game_session.dart))
 The persisted aggregate: `id`, `createdAt`/`updatedAt`, `players`,
-`firstDealerId`, `rounds: List<RoundRecord>`, optional `pendingRound`.
+`firstDealerId`, `starterVariant`, `heartsVariant`, `rounds: List<RoundRecord>`,
+optional `pendingRound`.
 Lazily-computed (`late final`) derived getters: `isFinished` (≥ `totalRounds`
 == 12), `finalScoresByPlayer`, `winnerIds`, and the display-ordered
 `displayedPlayers` / `displayedPlayerNames` / `displayedScores` /
@@ -363,7 +385,10 @@ convert `input` to/from the uniform counts form, same as a round.
 ### `game_mechanics.dart` ([`game_mechanics.dart`](lib/models/game_mechanics.dart))
 `dealerIndexFor(chooserIndex) = (chooserIndex − 1) mod 4` (the dealer sits to the
 chooser's right; equivalently the chooser is left of the dealer).
-`starterIndexFor` currently aliases the dealer (the dealer plays the first card).
+`starterIndexFor(chooserIndex, StarterVariant)` — the seat index of the player
+who leads the first trick: `dealerStarts` → same as the dealer; `oppositeChooserStarts`
+→ `(chooserIndex − 2) mod 4`. Both seat relationships live here so this file
+remains the single home for all seat arithmetic.
 `playerCount` (4) and `doublingTurnIndex` live in `mini_game.dart`. The dealer
 for round *N* is `players[(firstDealerIndex + N − 1) mod 4]`. **Change these
 formulas here and nowhere else.**
@@ -556,6 +581,15 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   → rename + drag-reorder + change first dealer → `setPlayersAndDealer` applies
   atomically, keeping UUIDs bound to their (new) seats.
 - **Theme.** Any app bar `ThemeMenuButton` → `setMode` → persisted immediately.
+- **Settings.** `HomeScreen` → `SettingsIconButton` → `SettingsScreen`; pick
+  `StarterVariant` / `HeartsVariant` → `setVariant` on the relevant
+  `EnumPreferenceNotifier` → persisted to `SharedPreferences` immediately.
+  Both variants are also per-session: `NewGameScreen` seeds from the defaults on
+  open, `EditPlayersScreen` allows changing them mid-game. Opening rules from
+  within a game (`TitleWithRules` → `RulesIconButton`) threads the session's
+  variants into `RulesScreen` so only the active rule is shown (no "Spelregel
+  variant" alternative). The standalone rules page (home / deep link) always
+  shows both the active and the alternative text.
 
 ---
 
@@ -564,9 +598,10 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 4):** `{ "version": 4, "games": [ … ] }`.
+- **Envelope (`currentStorageVersion` = 5):** `{ "version": 5, "games": [ … ] }`.
 - `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
-  `players:[{id,name}]`, `firstDealerId`, `rounds:[…]`, `pendingRound?`.
+  `players:[{id,name}]`, `firstDealerId`, `starterVariant`, `heartsVariant`,
+  `rounds:[…]`, `pendingRound?`.
 - `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
   `scores:{playerId:int}`, `input` (the **uniform** `{"counts":[ {uuid:int}, … ]}`
   form, regardless of game shape — see below), `doublesJson?` (omitted unless a
@@ -586,7 +621,7 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 4,
+  "version": 5,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
@@ -596,6 +631,8 @@ wins 1, B doubled A):
       {"id": "c3", "name": "Carol"}, {"id": "d4", "name": "Dan"}
     ],
     "firstDealerId": "a1",
+    "starterVariant": "dealerStarts",
+    "heartsVariant": "onlyAfterPlayedHeart",
     "rounds": [{
       "roundNumber": 1,
       "gameName": "Vrouwen", "gameId": "queens",
@@ -646,6 +683,9 @@ classes), so old steps keep working as the models evolve.
 - **`_V3ToV4`** — reshapes `doublesJson` from two parallel sub-maps
   (`{pairs:{…}, initiators:{…}}`) into a flat object where each canonical pair
   key maps to a single `{"state": …, "initiator": …}` record.
+- **`_V4ToV5`** — adds `starterVariant: 'dealerStarts'` and
+  `heartsVariant: 'onlyAfterPlayedHeart'` to every game, materialising the two
+  new per-session rule fields introduced in the v5 schema.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step
@@ -666,7 +706,10 @@ delegates are registered.
   (`ScoreboardCard` per game), the "Nieuw spel" button, theme menu, rules/about.
   Handles resume (tap), delete + undo snackbar, and the storage-error screen
   (unsupported version or corrupt data — see §9).
-- **`NewGameScreen`** — local working state only; commits via `startNewGame`.
+- **`NewGameScreen`** — local working state only; seeds `StarterVariant` /
+  `HeartsVariant` from the default providers; commits via `startNewGame`.
+- **`SettingsScreen`** — app-wide default `StarterVariant` + `HeartsVariant`
+  (`RadioListTile` per value with label + description); changes persist immediately.
 - **`GameScreen`** — the in-game hub. `_GameSelectionBody` separates unplayed
   and played games per category (negative / positive); played games are hidden by
   default and can be revealed via a per-category toggle in `_SectionHeader` —
@@ -681,8 +724,12 @@ delegates are registered.
   Back to run discard/save confirmations; the app bar offers "Verwerpen" and
   "Opslaan".
 - **`EditPlayersScreen`** — atomic rename + drag-reorder + first-dealer change
-  via `setPlayersAndDealer`.
+  via `setPlayersAndDealer`; also allows changing `StarterVariant` /
+  `HeartsVariant` for the current session.
 - **`RulesScreen`** — renders `game_rules.dart` content (full or single game).
+  Accepts optional `starterVariantOverride` / `heartsVariantOverride`; when set
+  (in-game scope), variant-sensitive blocks show only the active text and suppress
+  the "Spelregel variant" alternative note.
 
 **The doubles picker** (`doubles_picker.dart`) deserves special note — it is the
 most intricate widget. Two stacked panels: an **initiator** list (the 4 players
@@ -810,7 +857,8 @@ Things to *not* break:
 - **Key everything by player UUID**, never seat index; derive indices on demand.
 - **Σ scores == `totalPoints`** for every game — the engine invariant (asserted).
 - **Seat-relationship math lives only in `game_mechanics.dart`** — don't
-  re-derive "dealer = chooser − 1" elsewhere.
+  re-derive "dealer = chooser − 1" or "starter = …" elsewhere. This includes
+  `starterIndexFor`, which takes a `StarterVariant` and lives here.
 - **Screens use `AppScaffold`** (architecture test enforces it).
 - **Icons are `Symbols.*` only** — never the legacy `Icons`.
 - **Empty-string IDs are the "not yet set" sentinel** — don't assert player
@@ -819,11 +867,16 @@ Things to *not* break:
   as fields, recompute in `copyWith` only when inputs change.
 - **`pending` is sealed** — branch with `is ActivePendingRound`; never resurrect
   the old "three nullable fields" pattern.
+- **Section and card titles use `Semantics(header: true)`** — `FormSectionCard`
+  does this automatically; hand-written cards must add it explicitly.
 - **Append a `StorageMigration` step + bump `currentStorageVersion`** when
   changing stored JSON shape (never edit an existing, frozen step).
 - **UI strings in Dutch, code identifiers in English.**
 - **Run `dart format` before committing** — CI's `verify` action fails on
   unformatted Dart (`dart format --output=none --set-exit-if-changed .`).
+- **Update CLAUDE.md / ARCHITECTURE.md as part of the change** when it affects
+  documented architecture, conventions, the storage version, the directory map,
+  or invariants — not as a follow-up.
 
 ---
 

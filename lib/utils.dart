@@ -2,6 +2,17 @@ import 'package:flutter/material.dart';
 
 import 'theme/app_theme_extensions.dart';
 
+/// Looks up an enum value by its [Enum.name], returning [fallback] when
+/// [name] is null or no value matches. Used by provider load helpers and
+/// [GameSession.fromJson] so the fallback logic is written once.
+T enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
+  if (name == null) return fallback;
+  for (final v in values) {
+    if (v.name == name) return v;
+  }
+  return fallback;
+}
+
 /// Maximum number of characters allowed in a player name.
 const int kPlayerNameMaxLength = 20;
 

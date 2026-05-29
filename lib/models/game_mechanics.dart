@@ -1,4 +1,5 @@
 import 'mini_game.dart';
+import 'starter_variant.dart';
 
 /// Derives the dealer seat index from the chooser seat index.
 ///
@@ -6,6 +7,19 @@ import 'mini_game.dart';
 /// chooser).
 int dealerIndexFor(int chooserIndex) =>
     (chooserIndex - 1 + playerCount) % playerCount;
+
+/// Derives the starter seat index from the chooser seat index and the active
+/// [StarterVariant].
+///
+/// The starter is the player who leads the first trick of the round. Both seat
+/// relationships live here so this file remains the single home for all seat
+/// arithmetic (see ARCHITECTURE.md §2 / §5).
+int starterIndexFor(int chooserIndex, StarterVariant variant) =>
+    switch (variant) {
+      StarterVariant.dealerStarts => dealerIndexFor(chooserIndex),
+      StarterVariant.oppositeChooserStarts =>
+        (chooserIndex - 2 + playerCount) % playerCount,
+    };
 
 /// Per-chooser game quota: across a whole game each chooser may pick at most
 /// this many negative / positive games. A **soft** rule — the UI surfaces it as

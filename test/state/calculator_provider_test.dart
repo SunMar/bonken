@@ -1,9 +1,13 @@
 import 'package:bonken/models/double_matrix.dart';
+import 'package:bonken/models/game_mechanics.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/input_descriptor.dart';
+import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -780,6 +784,126 @@ void main() {
         );
         n.loadSession(session);
         expect(c.read(calculatorProvider).hasMeaningfulPendingInput, isTrue);
+      },
+    );
+  });
+
+  group('StarterVariant / HeartsVariant', () {
+    test(
+      'defaults to dealerStarts / onlyAfterPlayedHeart after startNewGame',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.startNewGame(
+          players: _makePlayers(['A', 'B', 'C', 'D']),
+          dealerIndex: 0,
+        );
+        final s = c.read(calculatorProvider);
+        expect(s.starterVariant, StarterVariant.dealerStarts);
+        expect(s.heartsVariant, HeartsVariant.onlyAfterPlayedHeart);
+      },
+    );
+
+    test('startNewGame accepts explicit variant values', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(
+        players: _makePlayers(['A', 'B', 'C', 'D']),
+        dealerIndex: 0,
+        starterVariant: StarterVariant.oppositeChooserStarts,
+        heartsVariant: HeartsVariant.graduatedUnlock,
+      );
+      final s = c.read(calculatorProvider);
+      expect(s.starterVariant, StarterVariant.oppositeChooserStarts);
+      expect(s.heartsVariant, HeartsVariant.graduatedUnlock);
+    });
+
+    test('setStarterVariant / setHeartsVariant update state', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(
+        players: _makePlayers(['A', 'B', 'C', 'D']),
+        dealerIndex: 0,
+      );
+      n.setStarterVariant(StarterVariant.oppositeChooserStarts);
+      n.setHeartsVariant(HeartsVariant.graduatedUnlock);
+      final s = c.read(calculatorProvider);
+      expect(s.starterVariant, StarterVariant.oppositeChooserStarts);
+      expect(s.heartsVariant, HeartsVariant.graduatedUnlock);
+    });
+
+    test('starterIndex reflects the active StarterVariant', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      final players = _makePlayers(['A', 'B', 'C', 'D']);
+      n.startNewGame(players: players, dealerIndex: 0);
+      // Chooser is seat 1 (left of dealer 0).
+      final chooserIdx = c.read(calculatorProvider).chooserIndex;
+
+      n.setStarterVariant(StarterVariant.dealerStarts);
+      expect(
+        c.read(calculatorProvider).starterIndex,
+        dealerIndexFor(chooserIdx),
+      );
+
+      n.setStarterVariant(StarterVariant.oppositeChooserStarts);
+      expect(
+        c.read(calculatorProvider).starterIndex,
+        starterIndexFor(chooserIdx, StarterVariant.oppositeChooserStarts),
+      );
+    });
+
+    test('loadSession restores both variant fields', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      final players = _makePlayers(['A', 'B', 'C', 'D']);
+      final saved = GameSession(
+        id: 'v-load',
+        createdAt: DateTime(2024),
+        updatedAt: DateTime(2024),
+        players: players,
+        firstDealerId: players[0].id,
+        rounds: const [],
+        starterVariant: StarterVariant.oppositeChooserStarts,
+        heartsVariant: HeartsVariant.graduatedUnlock,
+      );
+      n.loadSession(saved);
+      final s = c.read(calculatorProvider);
+      expect(s.starterVariant, StarterVariant.oppositeChooserStarts);
+      expect(s.heartsVariant, HeartsVariant.graduatedUnlock);
+    });
+
+    test('buildSession preserves both variant fields', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(
+        players: _makePlayers(['A', 'B', 'C', 'D']),
+        dealerIndex: 0,
+        starterVariant: StarterVariant.oppositeChooserStarts,
+        heartsVariant: HeartsVariant.graduatedUnlock,
+      );
+      final built = n.buildSession()!;
+      expect(built.starterVariant, StarterVariant.oppositeChooserStarts);
+      expect(built.heartsVariant, HeartsVariant.graduatedUnlock);
+    });
+
+    test(
+      'starterIndex uses playerCount-safe modular arithmetic (no out-of-bounds)',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        final players = _makePlayers(['A', 'B', 'C', 'D']);
+        n.startNewGame(
+          players: players,
+          dealerIndex: 0,
+          starterVariant: StarterVariant.oppositeChooserStarts,
+        );
+        // For every chooser position the starter index must be in [0, playerCount).
+        for (var dealer = 0; dealer < playerCount; dealer++) {
+          n.setDealer(dealer);
+          final idx = c.read(calculatorProvider).starterIndex;
+          expect(idx, inInclusiveRange(0, playerCount - 1));
+        }
       },
     );
   });

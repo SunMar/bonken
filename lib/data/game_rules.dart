@@ -5,10 +5,16 @@
 // All rule text lives here. Do not duplicate any of it in widgets, README,
 // or anywhere else: link to it / reference it instead.
 //
-// The file is intentionally Flutter-free (no Material, no widgets) so the
-// content stays portable: any renderer can walk the [Block] tree and
-// translate it to its target medium.
+// The file imports the variant enums (pure Dart, no Flutter) for the
+// [VariantBlock] text maps. It imports Flutter only for [IconData] used in
+// [InlineIcon] — icon references are treated as font/glyph data, not UI logic.
 // =============================================================================
+
+import 'package:flutter/widgets.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../models/hearts_variant.dart';
+import '../models/starter_variant.dart';
 
 /// Short tagline rendered just below the rules-screen heading.
 const String kRulesTagline =
@@ -29,6 +35,29 @@ class Para extends Block {
   final String text;
 }
 
+/// Sealed base for the spans inside a [RichPara].
+sealed class InlineContent {
+  const InlineContent();
+}
+
+/// A plain text segment inside a [RichPara]. Supports `**bold**` markdown.
+class InlineText extends InlineContent {
+  const InlineText(this.text);
+  final String text;
+}
+
+/// An inline icon inside a [RichPara].
+class InlineIcon extends InlineContent {
+  const InlineIcon(this.icon);
+  final IconData icon;
+}
+
+/// Like [Para] but allows inline icons via [InlineContent] spans.
+class RichPara extends Block {
+  const RichPara(this.spans);
+  final List<InlineContent> spans;
+}
+
 class BulletList extends Block {
   const BulletList(this.items);
   final List<String> items;
@@ -36,45 +65,39 @@ class BulletList extends Block {
 
 class NumberedList extends Block {
   const NumberedList(this.items, {this.startFrom = 1});
-  final List<String> items;
-
-  /// Display offset for the first item — allows splitting a list around an
-  /// intercalated block while keeping continuous numbering.
+  final List<Object> items; // String | VariantBlock
   final int startFrom;
 }
 
-/// A step in a numbered sequence whose text depends on the active
-/// [StarterVariant]. The renderer shows the active variant's text as a regular
-/// numbered item and the inactive variant's text as a "Spelregel variant" note.
+/// Which game-rule variant a [VariantBlock] is bound to.
+enum VariantKind { starter, hearts }
+
+/// A rule-text block whose content depends on the active variant.
+///
+/// Renders the active rule text inline (in a [NumberedList] step) or as a
+/// labeled callout (when [label] is non-null). A tune icon is shown alongside
+/// the text so the reader can open the variant picker dialog.
+///
+/// [texts] maps each enum value to its rule text. The map must cover every
+/// value of the relevant variant enum (currently exactly two per kind).
 ///
 /// Pure Dart data — no Flutter imports.
-class StarterVariantBlock extends Block {
-  const StarterVariantBlock({
-    required this.stepNumber,
-    required this.dealerStartsText,
-    required this.oppositeChooserStartsText,
+class VariantBlock extends Block {
+  const VariantBlock({
+    required this.variantKind,
+    this.label,
+    required this.texts,
   });
 
-  final int stepNumber;
-  final String dealerStartsText;
-  final String oppositeChooserStartsText;
-}
+  final VariantKind variantKind;
 
-/// An "Extra spelregel" note whose text depends on the active [HeartsVariant].
-/// The renderer shows the active variant's text as the main callout and the
-/// inactive variant's text as a "Spelregel variant" sub-note.
-///
-/// Pure Dart data — no Flutter imports.
-class HeartsVariantNote extends Block {
-  const HeartsVariantNote({
-    required this.label,
-    required this.onlyAfterPlayedHeartText,
-    required this.graduatedUnlockText,
-  });
+  /// Non-null → rendered as a labeled callout.
+  final String? label;
 
-  final String label;
-  final String onlyAfterPlayedHeartText;
-  final String graduatedUnlockText;
+  /// Maps each enum value to its rule text.
+  final Map<Enum, String> texts;
+
+  String textFor(Enum variant) => texts[variant]!;
 }
 
 class TableBlock extends Block {
@@ -124,22 +147,21 @@ class GameSection {
 // Reusable text fragments
 // -----------------------------------------------------------------------------
 
-/// The "harten alleen na bijgespeelde harten" rule, shared by Harten Heer
-/// and Hartenpunten.
-const String kHeartsLeadRule =
-    'Als je niet kunt bekennen, mag je bijspelen wat je wilt, maar uitkomen en '
-    'terugkomen mag alleen met harten als er in een eerdere slag al een keer '
-    'harten is (bij)gespeeld of als harten de enige kleur is die je nog op '
-    'hand hebt.';
-
-/// The "gefaseerde opening" hearts rule — alternate to [kHeartsLeadRule].
-const String kHeartsLeadRuleGraduatedUnlock =
-    'In de eerste drie slagen mag je niet met harten uitkomen of terugkomen '
-    'en als je niet kan bekennen mag je ook geen harten bijspelen. '
-    'Vanaf de vierde slag mag je harten bijspelen als je niet kunt bekennen. '
-    'Vanaf de zesde slag mag je met harten terugkomen. '
-    'Als harten de enige kleur is die je nog op hand hebt, mag je altijd '
-    'harten bijspelen, uitkomen en terugkomen.';
+/// Hearts lead-rule texts, shared by Harten Heer and Hartenpunten.
+const Map<Enum, String> kHeartsLeadRuleTexts = {
+  HeartsVariant.onlyAfterPlayedHeart:
+      'Als je niet kunt bekennen, mag je bijspelen wat je wilt, maar uitkomen en '
+      'terugkomen mag alleen met harten als er in een eerdere slag al een keer '
+      'harten is (bij)gespeeld of als harten de enige kleur is die je nog op '
+      'hand hebt.',
+  HeartsVariant.graduatedUnlock:
+      'In de eerste drie slagen mag je niet met harten uitkomen of terugkomen '
+      'en als je niet kan bekennen mag je ook geen harten bijspelen. '
+      'Vanaf de vierde slag mag je harten bijspelen als je niet kunt bekennen. '
+      'Vanaf de zesde slag mag je met harten terugkomen. '
+      'Als harten de enige kleur is die je nog op hand hebt, mag je altijd '
+      'harten bijspelen, uitkomen en terugkomen.',
+};
 
 // -----------------------------------------------------------------------------
 // Top-of-document sections
@@ -197,6 +219,28 @@ const Section kOpzetSection = Section(
   ],
 );
 
+const Section kVariantenSection = Section(
+  title: 'Spelregel varianten',
+  blocks: [
+    Para(
+      'Bonken heeft geen vaste spelregels. Het is net als Klaverjassen een '
+      'kroegspel waarvan veel varianten bestaan. De variant in deze app speelt '
+      '12 rondes waarbij een speler iedere ronde de spelvorm kiest. Binnen die '
+      'variant zijn een paar spelregelkeuzes mogelijk.',
+    ),
+    RichPara([
+      InlineText(
+        'In deze spelregels lees je de regels die je gekozen hebt. Spelregels '
+        'waarvoor je een variant kunt kiezen herken je aan de tandwielknop (',
+      ),
+      InlineIcon(Symbols.settings),
+      InlineText(
+        ') die erachter staat. Met die knop kun je een andere variant kiezen.',
+      ),
+    ]),
+  ],
+);
+
 const Section kSpelvormenSection = Section(
   title: 'Spelvormen',
   blocks: [
@@ -231,17 +275,17 @@ const Section kVerloopSection = Section(
       'Zodra de kaarten zijn gedeeld, mogen alle spelers hun eigen kaarten bekijken.',
       'De speler links van de deler is de kiezer en kiest een spelvorm die nog niet gespeeld is (maximaal 2 negatieve en 1 positieve spelvorm per speler).',
       'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatst. De kiezer mag niet dubbelen, alleen teruggaan.',
-    ]),
-    StarterVariantBlock(
-      stepNumber: 6,
-      dealerStartsText: 'Daarna wordt gespeeld waarbij de deler uitkomt.',
-      oppositeChooserStartsText:
-          'Daarna wordt gespeeld waarbij de speler tegenover de kiezer uitkomt.',
-    ),
-    NumberedList([
+      VariantBlock(
+        variantKind: VariantKind.starter,
+        texts: {
+          StarterVariant.dealerStarts: 'Het spelen begint, de deler komt uit.',
+          StarterVariant.oppositeChooserStarts:
+              'Het spelen begint, de speler tegenover de kiezer komt uit.',
+        },
+      ),
       'De ronde wordt gescoord.',
       'De volgende speler (met de klok mee) wordt deler.',
-    ], startFrom: 7),
+    ]),
   ],
 );
 
@@ -397,10 +441,10 @@ const GameSection _kingOfHeartsSection = GameSection(
   title: 'Harten Heer (totaal -100)',
   blocks: [
     Para('**Wie de slag wint waarin de harten heer valt, krijgt -100.**'),
-    HeartsVariantNote(
+    VariantBlock(
+      variantKind: VariantKind.hearts,
       label: 'Extra spelregel',
-      onlyAfterPlayedHeartText: kHeartsLeadRule,
-      graduatedUnlockText: kHeartsLeadRuleGraduatedUnlock,
+      texts: kHeartsLeadRuleTexts,
     ),
   ],
 );
@@ -459,10 +503,10 @@ const GameSection _heartPointsSection = GameSection(
       'Hartenkaarten die zijn bijgespeeld door iemand die niet kon '
       'bekennen tellen ook mee.',
     ),
-    HeartsVariantNote(
+    VariantBlock(
+      variantKind: VariantKind.hearts,
       label: 'Extra spelregel',
-      onlyAfterPlayedHeartText: kHeartsLeadRule,
-      graduatedUnlockText: kHeartsLeadRuleGraduatedUnlock,
+      texts: kHeartsLeadRuleTexts,
     ),
     Para(
       '**Voorbeeld:** als jij 5 hartenkaarten in je gewonnen slagen '
@@ -588,6 +632,7 @@ GameSection? gameSectionFor(String gameId) {
 const List<Section> kSectionsBeforeGames = [
   kDoelSection,
   kOpzetSection,
+  kVariantenSection,
   kSpelvormenSection,
   kVerloopSection,
 ];

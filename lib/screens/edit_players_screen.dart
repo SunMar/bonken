@@ -15,10 +15,10 @@ import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
-import '../widgets/hearts_variant_picker.dart';
+import '../widgets/form_section_card.dart';
 import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
-import '../widgets/starter_variant_picker.dart';
+import '../widgets/variant_picker.dart';
 
 /// Full-screen dialog for editing the player names and the dealer of the
 /// first round.  Pushed with `fullscreenDialog: true` so the framework
@@ -260,144 +260,72 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        kPlayersSectionTitle,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
+            FormSectionCard(
+              title: kPlayersSectionTitle,
+              subtitle: kPlayersSectionSubtitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListenableBuilder(
+                    listenable: _formChanges,
+                    builder: (context, _) => PlayerListField(
+                      controllers: _controllers,
+                      focusNodes: _focusNodes,
+                      suggestions: suggestions,
+                      onReorderItem: _onReorder,
+                      onSubmitted: _handleFieldSubmitted,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      kPlayersSectionSubtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                  ),
+                  if (_gameInProgress && orderChanged) ...[
                     const SizedBox(height: 12),
-                    ListenableBuilder(
-                      listenable: _formChanges,
-                      builder: (context, _) => PlayerListField(
-                        controllers: _controllers,
-                        focusNodes: _focusNodes,
-                        suggestions: suggestions,
-                        onReorderItem: _onReorder,
-                        onSubmitted: _handleFieldSubmitted,
-                      ),
-                    ),
-                    if (_gameInProgress && orderChanged) ...[
-                      const SizedBox(height: 12),
-                      const AmberWarningBox(text: _playerOrderShortWarning),
-                    ],
+                    const AmberWarningBox(text: _playerOrderShortWarning),
                   ],
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        kDealerSectionTitle,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
+            FormSectionCard(
+              title: kDealerSectionTitle,
+              subtitle: kDealerSectionSubtitle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListenableBuilder(
+                    listenable: _formChanges,
+                    builder: (context, _) => DealerDropdownField(
+                      controllers: _controllers,
+                      value: _firstDealerIndex,
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() => _firstDealerIndex = v);
+                      },
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      kDealerSectionSubtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                  ),
+                  if (_gameInProgress && _dealerPlayerChanged) ...[
                     const SizedBox(height: 12),
-                    ListenableBuilder(
-                      listenable: _formChanges,
-                      builder: (context, _) => DealerDropdownField(
-                        controllers: _controllers,
-                        value: _firstDealerIndex,
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setState(() => _firstDealerIndex = v);
-                        },
-                      ),
-                    ),
-                    if (_gameInProgress && _dealerPlayerChanged) ...[
-                      const SizedBox(height: 12),
-                      const AmberWarningBox(text: _dealerShortWarning),
-                    ],
+                    const AmberWarningBox(text: _dealerShortWarning),
                   ],
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        kStarterVariantSectionTitle,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      kStarterVariantSectionSubtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    StarterVariantPicker(
-                      value: _starterVariant,
-                      onChanged: (v) => setState(() => _starterVariant = v),
-                    ),
-                  ],
-                ),
+            FormSectionCard(
+              title: kStarterVariantSectionTitle,
+              subtitle: kStarterVariantSectionSubtitle,
+              child: VariantPicker<StarterVariant>(
+                values: StarterVariant.values,
+                value: _starterVariant,
+                onChanged: (v) => setState(() => _starterVariant = v),
               ),
             ),
             const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        kHeartsVariantSectionTitle,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      kHeartsVariantSectionSubtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    HeartsVariantPicker(
-                      value: _heartsVariant,
-                      onChanged: (v) => setState(() => _heartsVariant = v),
-                    ),
-                  ],
-                ),
+            FormSectionCard(
+              title: kHeartsVariantSectionTitle,
+              subtitle: kHeartsVariantSectionSubtitle,
+              child: VariantPicker<HeartsVariant>(
+                values: HeartsVariant.values,
+                value: _heartsVariant,
+                onChanged: (v) => setState(() => _heartsVariant = v),
               ),
             ),
           ],

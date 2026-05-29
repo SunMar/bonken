@@ -5,6 +5,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/hearts_variant.dart';
+import '../models/starter_variant.dart';
 import '../screens/rules_screen.dart';
 import '../screens/settings_screen.dart';
 import '../state/theme_mode_provider.dart';
@@ -56,8 +58,18 @@ class AboutIconButton extends StatelessWidget {
 
 /// AppBar icon that pushes the [RulesScreen]. By default opens the
 /// full rule book; pass [singleGameId] to scope it to one mini-game.
+///
+/// When [starterVariantOverride] / [heartsVariantOverride] are set the pushed
+/// [RulesScreen] shows only the active variant text (no "Spelregel variant"
+/// alternative). Pass them when opening rules from within a game.
 class RulesIconButton extends StatelessWidget {
-  const RulesIconButton({super.key, this.singleGameId, this.tooltip});
+  const RulesIconButton({
+    super.key,
+    this.singleGameId,
+    this.tooltip,
+    this.starterVariantOverride,
+    this.heartsVariantOverride,
+  });
 
   /// When set, the pushed [RulesScreen] only shows this game's rules.
   final String? singleGameId;
@@ -66,6 +78,9 @@ class RulesIconButton extends StatelessWidget {
   /// is scoped to a specific game).
   final String? tooltip;
 
+  final StarterVariant? starterVariantOverride;
+  final HeartsVariant? heartsVariantOverride;
+
   @override
   Widget build(BuildContext context) {
     return IconButton(
@@ -73,7 +88,11 @@ class RulesIconButton extends StatelessWidget {
       tooltip: tooltip ?? 'Spelregels',
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => RulesScreen(singleGameId: singleGameId),
+          builder: (_) => RulesScreen(
+            singleGameId: singleGameId,
+            starterVariantOverride: starterVariantOverride,
+            heartsVariantOverride: heartsVariantOverride,
+          ),
         ),
       ),
     );
@@ -95,6 +114,8 @@ class TitleWithRules extends StatelessWidget {
     this.singleGameId,
     this.tooltip,
     this.flexibleTitle = false,
+    this.starterVariantOverride,
+    this.heartsVariantOverride,
   });
 
   /// The title text (or any widget). Wrap arbitrarily-long titles
@@ -111,6 +132,12 @@ class TitleWithRules extends StatelessWidget {
   /// ellipsise instead of overflowing the AppBar.
   final bool flexibleTitle;
 
+  /// Forwarded to [RulesIconButton] — see its doc for semantics.
+  final StarterVariant? starterVariantOverride;
+
+  /// Forwarded to [RulesIconButton] — see its doc for semantics.
+  final HeartsVariant? heartsVariantOverride;
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -124,7 +151,12 @@ class TitleWithRules extends StatelessWidget {
               padding: WidgetStatePropertyAll(EdgeInsets.zero),
             ),
           ),
-          child: RulesIconButton(singleGameId: singleGameId, tooltip: tooltip),
+          child: RulesIconButton(
+            singleGameId: singleGameId,
+            tooltip: tooltip,
+            starterVariantOverride: starterVariantOverride,
+            heartsVariantOverride: heartsVariantOverride,
+          ),
         ),
       ],
     );

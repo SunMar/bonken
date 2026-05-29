@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/starter_variant.dart';
+import 'enum_preference_notifier.dart';
 
-const _kDefaultStarterVariantPrefsKey = 'default_starter_variant';
+const _kKey = 'default_starter_variant';
 
 /// Default resolves to [StarterVariant.dealerStarts]. Override in
 /// `ProviderScope.overrides` with `DefaultStarterVariantNotifier(initialVariant: ...)`
@@ -14,36 +14,29 @@ final defaultStarterVariantProvider =
       DefaultStarterVariantNotifier.new,
     );
 
-class DefaultStarterVariantNotifier extends Notifier<StarterVariant> {
+class DefaultStarterVariantNotifier
+    extends EnumPreferenceNotifier<StarterVariant> {
   DefaultStarterVariantNotifier({
-    this.initialVariant = StarterVariant.dealerStarts,
-  });
-
-  /// Variant the notifier starts in. Pre-loaded from [SharedPreferences] in
-  /// `main()` and injected via `defaultStarterVariantProvider.overrideWith(...)`,
-  /// which avoids a first-frame flash.
-  final StarterVariant initialVariant;
+    StarterVariant initialVariant = StarterVariant.dealerStarts,
+  }) : super(initialValue: initialVariant);
 
   @override
-  StarterVariant build() => initialVariant;
+  String get prefsKey => _kKey;
 
-  Future<void> setVariant(StarterVariant variant) async {
-    state = variant;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kDefaultStarterVariantPrefsKey, variant.name);
-  }
+  @override
+  List<StarterVariant> get values => StarterVariant.values;
+
+  @override
+  StarterVariant get fallback => StarterVariant.dealerStarts;
 }
 
 /// Reads the persisted [StarterVariant] from [SharedPreferences].
 ///
 /// Returns [StarterVariant.dealerStarts] when no value is stored or the stored
 /// value can't be matched. Awaited in `main()` before [runApp].
-Future<StarterVariant> loadPersistedDefaultStarterVariant() async {
-  final prefs = await SharedPreferences.getInstance();
-  final value = prefs.getString(_kDefaultStarterVariantPrefsKey);
-  if (value == null) return StarterVariant.dealerStarts;
-  return StarterVariant.values.firstWhere(
-    (v) => v.name == value,
-    orElse: () => StarterVariant.dealerStarts,
-  );
-}
+Future<StarterVariant> loadPersistedDefaultStarterVariant() =>
+    loadPersistedEnum(
+      key: _kKey,
+      values: StarterVariant.values,
+      fallback: StarterVariant.dealerStarts,
+    );
