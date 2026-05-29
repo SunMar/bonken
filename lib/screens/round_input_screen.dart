@@ -309,7 +309,13 @@ class _DoublesCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Dubbels', style: Theme.of(context).textTheme.titleSmall),
+            Semantics(
+              header: true,
+              child: Text(
+                'Dubbels',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
             const SizedBox(height: 10),
             DoublesPicker(
               players: players,
@@ -341,7 +347,13 @@ class _InputFormCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Resultaat', style: Theme.of(context).textTheme.titleSmall),
+            Semantics(
+              header: true,
+              child: Text(
+                'Resultaat',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
             const SizedBox(height: 10),
             GameInputForm(
               game: game,

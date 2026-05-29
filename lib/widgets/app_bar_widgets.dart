@@ -262,11 +262,14 @@ class _AboutLink extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
-      style: const ButtonStyle(alignment: Alignment.centerLeft),
-      onPressed: onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
+    return Semantics(
+      hint: 'Opent in browser',
+      child: TextButton.icon(
+        style: const ButtonStyle(alignment: Alignment.centerLeft),
+        onPressed: onTap,
+        icon: Icon(icon, size: 16),
+        label: Text(label),
+      ),
     );
   }
 }

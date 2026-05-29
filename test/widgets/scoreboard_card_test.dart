@@ -95,15 +95,17 @@ void main() {
       // The InkWell inside ScoreboardCard internally uses FocusableActionDetector
       // which creates a MergeSemantics boundary. The outer
       // Semantics(button: true, label: tapSemanticLabel) annotation is
-      // inherited into this boundary node. Finding MergeSemantics descending
-      // from ScoreboardCard gives us that merged node reliably — exercises the
-      // a11y API (not just the widget hierarchy) by asserting on the merged
-      // semantics data.
+      // inherited into this boundary node. The chip-level MergeSemantics nodes
+      // appear deeper in the tree (inside ExcludeSemantics); .first gives us
+      // the outermost node — exercises the a11y API (not just the widget
+      // hierarchy) by asserting on the merged semantics data.
       final semantics = tester.getSemantics(
-        find.descendant(
-          of: find.byType(ScoreboardCard),
-          matching: find.byType(MergeSemantics),
-        ),
+        find
+            .descendant(
+              of: find.byType(ScoreboardCard),
+              matching: find.byType(MergeSemantics),
+            )
+            .first,
       );
       expect(
         semantics,

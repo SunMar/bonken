@@ -183,11 +183,15 @@ class _SectionHeader extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(color: color, letterSpacing: 0.5),
+          child: Semantics(
+            header: true,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: color,
+                letterSpacing: 0.5,
+              ),
+            ),
           ),
         ),
         IconButton(
@@ -575,7 +579,13 @@ class _HistoryList extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Gespeelde rondes', style: theme.textTheme.titleSmall),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Gespeelde rondes',
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
               for (final record in history.reversed) ...[
                 const Divider(height: 16),
                 _HistoryRow(
@@ -773,25 +783,28 @@ class _RoundInfoBanner extends ConsumerWidget {
             Icon(Symbols.info, size: 24, color: cs.onSecondaryContainer),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Ronde $round van ${GameSession.totalRounds}',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.bold,
+              child: Semantics(
+                liveRegion: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ronde $round van ${GameSession.totalRounds}',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: cs.onSecondaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Deler: $dealerName  ·  Kiezer: $chooserName  ·  '
-                    'Uitkomst: $starterName',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSecondaryContainer,
+                    const SizedBox(height: 2),
+                    Text(
+                      'Deler: $dealerName  ·  Kiezer: $chooserName  ·  '
+                      'Uitkomst: $starterName',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: cs.onSecondaryContainer,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

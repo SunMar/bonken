@@ -37,11 +37,16 @@ class RulesScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           children: [
-            Text(
-              isSingleGame ? (singleSection?.title ?? 'Spelregels') : 'Bonken',
-              style: tt.headlineMedium?.copyWith(
-                color: cs.primary,
-                fontWeight: FontWeight.bold,
+            Semantics(
+              header: true,
+              child: Text(
+                isSingleGame
+                    ? (singleSection?.title ?? 'Spelregels')
+                    : 'Bonken',
+                style: tt.headlineMedium?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             if (!isSingleGame) ...[
@@ -93,7 +98,10 @@ class _SectionView extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 8),
-            child: Text(section.title, style: tt.titleLarge),
+            child: Semantics(
+              header: true,
+              child: Text(section.title, style: tt.titleLarge),
+            ),
           ),
           for (final b in section.blocks) RulesBlockView(block: b),
         ],
@@ -122,7 +130,10 @@ class _GameSectionView extends StatelessWidget {
           if (!asPageTitle)
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 6),
-              child: Text(section.title, style: tt.titleMedium),
+              child: Semantics(
+                header: true,
+                child: Text(section.title, style: tt.titleMedium),
+              ),
             ),
           for (final b in section.blocks) RulesBlockView(block: b),
         ],

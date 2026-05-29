@@ -39,7 +39,10 @@ class SettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Uitkomst', style: theme.textTheme.titleSmall),
+                  Semantics(
+                    header: true,
+                    child: Text('Uitkomst', style: theme.textTheme.titleSmall),
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     'Standaard voor nieuwe spellen. Per spel aanpasbaar.',
@@ -80,9 +83,12 @@ class SettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Extra spelregel harten',
-                    style: theme.textTheme.titleSmall,
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      'Extra spelregel harten',
+                      style: theme.textTheme.titleSmall,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(

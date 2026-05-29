@@ -59,9 +59,12 @@ class ScoreResultView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (showHeader) ...[
-                Text(
-                  isPartial ? 'Voorlopige score' : 'Score',
-                  style: theme.textTheme.titleSmall,
+                Semantics(
+                  header: true,
+                  child: Text(
+                    isPartial ? 'Voorlopige score' : 'Score',
+                    style: theme.textTheme.titleSmall,
+                  ),
                 ),
                 const SizedBox(height: 8),
               ],

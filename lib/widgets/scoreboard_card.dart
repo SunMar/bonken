@@ -212,50 +212,52 @@ class _PlayerScoreChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final inner = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Column(
-        children: [
-          // Name row: trophy sits inline before the winner's name
-          // (instead of stacked above) so winner and non-winner chips
-          // share the same vertical rhythm — name and score always land
-          // on the same baselines across the row.
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (isWinner) ...[
-                Icon(
-                  Symbols.emoji_events,
-                  size: 14,
-                  color: cs.onTertiaryContainer,
-                  fill: 1,
-                  semanticLabel: 'Winnaar',
-                ),
-                const SizedBox(width: 4),
-              ],
-              Flexible(
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: isWinner ? FontWeight.bold : null,
+    final inner = MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Column(
+          children: [
+            // Name row: trophy sits inline before the winner's name
+            // (instead of stacked above) so winner and non-winner chips
+            // share the same vertical rhythm — name and score always land
+            // on the same baselines across the row.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isWinner) ...[
+                  Icon(
+                    Symbols.emoji_events,
+                    size: 14,
+                    color: cs.onTertiaryContainer,
+                    fill: 1,
+                    semanticLabel: 'Winnaar',
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(
+                    name,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: isWinner ? FontWeight.bold : null,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            formatScore(score),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: scoreColor(score, context),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              formatScore(score),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: scoreColor(score, context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 

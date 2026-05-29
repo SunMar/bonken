@@ -81,13 +81,16 @@ class HomeScreen extends ConsumerWidget {
                         if (index == 0) {
                           return Padding(
                             padding: const EdgeInsets.only(left: 4),
-                            child: Text(
-                              'Spellen',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(
-                                    color: cs.onSurfaceVariant,
-                                    letterSpacing: 0.5,
-                                  ),
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                'Spellen',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                      letterSpacing: 0.5,
+                                    ),
+                              ),
                             ),
                           );
                         }

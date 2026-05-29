@@ -616,14 +616,20 @@ class _InitiatorTile extends StatelessWidget {
     final dc = DoubleStateColors.of(context);
 
     final badge = involvedCount > 0
-        ? Badge(
-            backgroundColor: hasRedouble
-                ? dc.redoubledBackground
-                : dc.doubledBackground,
-            textColor: hasRedouble
-                ? dc.onRedoubledBackground
-                : dc.onDoubledBackground,
-            label: Text('$involvedCount'),
+        ? Semantics(
+            label:
+                'betrokken bij $involvedCount ${involvedCount == 1 ? "dubbel" : "dubbels"}',
+            child: ExcludeSemantics(
+              child: Badge(
+                backgroundColor: hasRedouble
+                    ? dc.redoubledBackground
+                    : dc.doubledBackground,
+                textColor: hasRedouble
+                    ? dc.onRedoubledBackground
+                    : dc.onDoubledBackground,
+                label: Text('$involvedCount'),
+              ),
+            ),
           )
         : null;
 

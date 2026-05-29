@@ -14,13 +14,16 @@ class DragHandle extends StatelessWidget {
   Widget build(BuildContext context) {
     return ReorderableDragStartListener(
       index: index,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.grab,
-        child: Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Icon(
-            Symbols.drag_indicator,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+      child: Tooltip(
+        message: 'Slepen',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.grab,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Icon(
+              Symbols.drag_indicator,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
