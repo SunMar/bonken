@@ -1,9 +1,11 @@
 import 'double_matrix.dart';
 import 'games/game_catalog.dart';
+import 'hearts_variant.dart';
 import 'input_descriptor.dart';
 import 'mini_game.dart';
 import 'player.dart';
 import 'round_record.dart';
+import 'starter_variant.dart';
 
 /// Resolves a [MiniGame] from its [gameId] against the catalog (falling back to
 /// the first game for unknown ids, mirroring [GameSession._roundFromJson]).
@@ -75,6 +77,8 @@ class GameSession {
     required this.firstDealerId,
     required this.rounds,
     this.pendingRound,
+    this.starterVariant = StarterVariant.dealerStarts,
+    this.heartsVariant = HeartsVariant.onlyAfterPlayedHeart,
   });
 
   /// Unique identifier – microseconds-since-epoch string generated at start.
@@ -99,6 +103,12 @@ class GameSession {
 
   /// A round that was started but not fully scored; null when none.
   final PendingRound? pendingRound;
+
+  /// Which player leads the first trick. Defaults to [StarterVariant.dealerStarts].
+  final StarterVariant starterVariant;
+
+  /// Hearts-lead restriction in effect for this game.
+  final HeartsVariant heartsVariant;
 
   // ---------------------------------------------------------------------------
   // Derived helpers
@@ -166,6 +176,8 @@ class GameSession {
     'updatedAt': updatedAt.toIso8601String(),
     'players': [for (final p in players) p.toJson()],
     'firstDealerId': firstDealerId,
+    'starterVariant': starterVariant.name,
+    'heartsVariant': heartsVariant.name,
     'rounds': [for (final r in rounds) r.toJson()],
     if (pendingRound != null) 'pendingRound': pendingRound!.toJson(),
   };
@@ -175,12 +187,27 @@ class GameSession {
       for (final p in json['players'] as List)
         Player.fromJson(p as Map<String, dynamic>),
     ];
+    final variantName = json['starterVariant'] as String?;
     return GameSession(
       id: json['id'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       players: players,
       firstDealerId: json['firstDealerId'] as String,
+      starterVariant: variantName == null
+          ? StarterVariant.dealerStarts
+          : StarterVariant.values.firstWhere(
+              (v) => v.name == variantName,
+              orElse: () => StarterVariant.dealerStarts,
+            ),
+      heartsVariant: () {
+        final name = json['heartsVariant'] as String?;
+        if (name == null) return HeartsVariant.onlyAfterPlayedHeart;
+        return HeartsVariant.values.firstWhere(
+          (v) => v.name == name,
+          orElse: () => HeartsVariant.onlyAfterPlayedHeart,
+        );
+      }(),
       rounds: [
         for (final r in json['rounds'] as List)
           _roundFromJson(r as Map<String, dynamic>),

@@ -7,11 +7,13 @@ import '../models/double_matrix.dart';
 import '../models/game_mechanics.dart';
 import '../models/game_session.dart';
 import '../models/games/game_catalog.dart';
+import '../models/hearts_variant.dart';
 import '../models/input_descriptor.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/round_record.dart';
 import '../models/score_result.dart';
+import '../models/starter_variant.dart';
 
 import 'game_history_provider.dart';
 
@@ -64,6 +66,8 @@ class CalculatorState {
     GameInput? editOriginalInput,
     DoubleMatrix? editOriginalDoubles,
     String? editOriginalChooserId,
+    StarterVariant starterVariant = StarterVariant.dealerStarts,
+    HeartsVariant heartsVariant = HeartsVariant.onlyAfterPlayedHeart,
   }) {
     final resolvedPlayers =
         players ??
@@ -95,6 +99,8 @@ class CalculatorState {
       editOriginalInput: editOriginalInput,
       editOriginalDoubles: editOriginalDoubles,
       editOriginalChooserId: editOriginalChooserId,
+      starterVariant: starterVariant,
+      heartsVariant: heartsVariant,
     );
   }
 
@@ -124,6 +130,8 @@ class CalculatorState {
     required this.editOriginalInput,
     required this.editOriginalDoubles,
     required this.editOriginalChooserId,
+    required this.starterVariant,
+    required this.heartsVariant,
   });
 
   /// Unique ID for this game session; empty until a session is started via
@@ -245,6 +253,15 @@ class CalculatorState {
   final DoubleMatrix? editOriginalDoubles;
   final String? editOriginalChooserId;
 
+  /// Which player leads the first trick of each round.
+  final StarterVariant starterVariant;
+
+  /// Hearts-lead restriction in effect for this game.
+  final HeartsVariant heartsVariant;
+
+  /// Seat index (0–3) of the player who leads the first trick.
+  int get starterIndex => starterIndexFor(chooserIndex, starterVariant);
+
   /// True when there is meaningful active input that would be lost on cancel.
   bool get hasActiveChanges {
     if (selectedGame == null) return false;
@@ -305,6 +322,8 @@ class CalculatorState {
     DoubleMatrix? editOriginalDoubles,
     String? editOriginalChooserId,
     bool clearEditState = false,
+    StarterVariant? starterVariant,
+    HeartsVariant? heartsVariant,
   }) {
     final newPlayers = players ?? this.players;
     final newFirstDealerId = firstDealerId ?? this.firstDealerId;
@@ -350,6 +369,8 @@ class CalculatorState {
       editOriginalChooserId: clearEditState
           ? null
           : (editOriginalChooserId ?? this.editOriginalChooserId),
+      starterVariant: starterVariant ?? this.starterVariant,
+      heartsVariant: heartsVariant ?? this.heartsVariant,
     );
   }
 }
@@ -699,7 +720,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Starts a brand-new game session: resets all transient state, applies the
   /// given [players] and [dealerIndex], and assigns a fresh session ID.
-  void startNewGame({required List<Player> players, required int dealerIndex}) {
+  void startNewGame({
+    required List<Player> players,
+    required int dealerIndex,
+    StarterVariant starterVariant = StarterVariant.dealerStarts,
+    HeartsVariant heartsVariant = HeartsVariant.onlyAfterPlayedHeart,
+  }) {
     final now = DateTime.now();
     state = CalculatorState(
       sessionId: '${now.microsecondsSinceEpoch}',
@@ -709,6 +735,8 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       firstDealerId: players[dealerIndex].id,
       dealerId: players[dealerIndex].id,
       chooserId: players[(dealerIndex + 1) % playerCount].id,
+      starterVariant: starterVariant,
+      heartsVariant: heartsVariant,
     );
   }
 
@@ -738,6 +766,8 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       updatedAt: state.updatedAt ?? state.createdAt ?? now,
       players: state.players,
       firstDealerId: state.firstDealerId,
+      starterVariant: state.starterVariant,
+      heartsVariant: state.heartsVariant,
       pendingRound: pendingRound,
       rounds: state.history,
     );
@@ -794,7 +824,19 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       roundNumber: nextRound,
       history: history,
       pending: pendingState,
+      starterVariant: session.starterVariant,
+      heartsVariant: session.heartsVariant,
     );
+  }
+
+  /// Updates the [StarterVariant] for the current session.
+  void setStarterVariant(StarterVariant variant) {
+    state = state.copyWith(starterVariant: variant, updatedAt: DateTime.now());
+  }
+
+  /// Updates the [HeartsVariant] for the current session.
+  void setHeartsVariant(HeartsVariant variant) {
+    state = state.copyWith(heartsVariant: variant, updatedAt: DateTime.now());
   }
 }
 

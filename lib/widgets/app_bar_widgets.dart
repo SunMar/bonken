@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../screens/rules_screen.dart';
+import '../screens/settings_screen.dart';
 import '../state/theme_mode_provider.dart';
 import '../utils.dart';
 
@@ -123,6 +124,25 @@ class TitleWithRules extends StatelessWidget {
           child: RulesIconButton(singleGameId: singleGameId, tooltip: tooltip),
         ),
       ],
+    );
+  }
+}
+
+/// AppBar action that opens the [SettingsScreen] full-screen dialog.
+class SettingsIconButton extends StatelessWidget {
+  const SettingsIconButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Symbols.settings),
+      tooltip: 'Instellingen',
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const SettingsScreen(),
+          fullscreenDialog: true,
+        ),
+      ),
     );
   }
 }

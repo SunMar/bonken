@@ -11,6 +11,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'screens/home_screen.dart';
 import 'screens/rules_screen.dart';
 import 'services/app_updater.dart';
+import 'state/default_hearts_variant_provider.dart';
+import 'state/default_starter_variant_provider.dart';
 import 'state/theme_mode_provider.dart';
 import 'theme/app_theme_extensions.dart';
 
@@ -35,16 +37,26 @@ void main() async {
   // content in a SafeArea to avoid overlap when bars ARE present.
   unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
 
-  // Pre-load the persisted theme mode before the first frame paints so
-  // the app doesn't flash the system theme on cold start when the user
-  // has chosen a specific light/dark override.
+  // Pre-load persisted settings before the first frame paints to avoid flashes.
   final initialThemeMode = await loadPersistedThemeMode();
+  final initialStarterVariant = await loadPersistedDefaultStarterVariant();
+  final initialHeartsVariant = await loadPersistedDefaultHeartsVariant();
 
   runApp(
     ProviderScope(
       overrides: [
         themeModeProvider.overrideWith(
           () => ThemeModeNotifier(initialMode: initialThemeMode),
+        ),
+        defaultStarterVariantProvider.overrideWith(
+          () => DefaultStarterVariantNotifier(
+            initialVariant: initialStarterVariant,
+          ),
+        ),
+        defaultHeartsVariantProvider.overrideWith(
+          () => DefaultHeartsVariantNotifier(
+            initialVariant: initialHeartsVariant,
+          ),
         ),
       ],
       child: const BonkenApp(),

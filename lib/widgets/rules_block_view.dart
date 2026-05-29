@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/game_rules.dart';
+import '../models/hearts_variant.dart';
+import '../models/starter_variant.dart';
+import '../state/default_hearts_variant_provider.dart';
+import '../state/default_starter_variant_provider.dart';
 
 /// Renders a single [Block] from [game_rules.dart] as Material widgets.
 ///
 /// This is the canonical Flutter renderer for the structured rules data and
 /// is shared between the full rules screen and the per-game rules screen.
 /// Anything visual about how a block looks lives here, not in the data.
-class RulesBlockView extends StatelessWidget {
+class RulesBlockView extends ConsumerWidget {
   const RulesBlockView({super.key, required this.block});
 
   final Block block;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tt = Theme.of(context).textTheme;
     return switch (block) {
       final Para b => Padding(
@@ -55,7 +60,7 @@ class RulesBlockView extends StatelessWidget {
                 child: Text.rich(
                   TextSpan(
                     children: [
-                      TextSpan(text: '${i + 1}.  '),
+                      TextSpan(text: '${b.startFrom + i}.  '),
                       _parseInline(
                         b.items[i],
                         tt.bodyMedium ?? const TextStyle(),
@@ -76,7 +81,86 @@ class RulesBlockView extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 12, top: 2),
         child: _NoteCallout(label: b.label, text: b.text),
       ),
+      final StarterVariantBlock b => _StarterVariantBlockView(
+        block: b,
+        ref: ref,
+      ),
+      final HeartsVariantNote b => _HeartsVariantNoteView(block: b, ref: ref),
     };
+  }
+}
+
+class _StarterVariantBlockView extends StatelessWidget {
+  const _StarterVariantBlockView({required this.block, required this.ref});
+
+  final StarterVariantBlock block;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final variant = ref.watch(defaultStarterVariantProvider);
+    final activeText = variant == StarterVariant.dealerStarts
+        ? block.dealerStartsText
+        : block.oppositeChooserStartsText;
+    final alternativeText = variant == StarterVariant.dealerStarts
+        ? block.oppositeChooserStartsText
+        : block.dealerStartsText;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 2, left: 4),
+          child: Text(
+            '${block.stepNumber}.  $activeText',
+            style: tt.bodyMedium,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12, top: 4),
+          child: _NoteCallout(
+            label: 'Spelregel variant',
+            text: alternativeText,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeartsVariantNoteView extends StatelessWidget {
+  const _HeartsVariantNoteView({required this.block, required this.ref});
+
+  final HeartsVariantNote block;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    final variant = ref.watch(defaultHeartsVariantProvider);
+    final activeText = variant == HeartsVariant.onlyAfterPlayedHeart
+        ? block.onlyAfterPlayedHeartText
+        : block.graduatedUnlockText;
+    final alternativeText = variant == HeartsVariant.onlyAfterPlayedHeart
+        ? block.graduatedUnlockText
+        : block.onlyAfterPlayedHeartText;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4, top: 2),
+          child: _NoteCallout(label: block.label, text: activeText),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _NoteCallout(
+            label: 'Spelregel variant',
+            text: alternativeText,
+          ),
+        ),
+      ],
+    );
   }
 }
 

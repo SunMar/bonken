@@ -639,7 +639,7 @@ void main() {
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 4);
+        expect(written['version'], 5);
         expect(written['games'], isA<List<dynamic>>());
       },
     );
@@ -692,7 +692,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 4);
+      expect(written['version'], 5);
     });
 
     test('version:2 in versioned key is migrated to current version', () async {
@@ -738,7 +738,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 4);
+      expect(written['version'], 5);
       // On disk the round input is the uniform counts list.
       final game0 =
           (written['games'] as List<dynamic>).first as Map<String, dynamic>;

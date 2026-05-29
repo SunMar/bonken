@@ -17,10 +17,15 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 4;
+const int currentStorageVersion = 5;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
-const List<StorageMigration> _migrations = [_V1ToV2(), _V2ToV3(), _V3ToV4()];
+const List<StorageMigration> _migrations = [
+  _V1ToV2(),
+  _V2ToV3(),
+  _V3ToV4(),
+  _V4ToV5(),
+];
 
 /// Applies every registered step from [fromVersion] up to
 /// [currentStorageVersion], in order, returning the upgraded games list.
@@ -365,4 +370,26 @@ class _V3ToV4 extends StorageMigration {
         e.key: <String, dynamic>{'state': e.value, 'initiator': inits[e.key]},
     };
   }
+}
+
+// =============================================================================
+// v4 → v5: add starterVariant (defaults to 'dealerStarts')
+//          add heartsVariant (defaults to 'onlyAfterPlayedHeart')
+// =============================================================================
+
+class _V4ToV5 extends StorageMigration {
+  const _V4ToV5();
+
+  @override
+  int get fromVersion => 4;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games)
+      <String, dynamic>{
+        ...(raw as Map<String, dynamic>),
+        'starterVariant': 'dealerStarts',
+        'heartsVariant': 'onlyAfterPlayedHeart',
+      },
+  ];
 }

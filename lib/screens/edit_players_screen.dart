@@ -5,16 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
+import '../models/starter_variant.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/hearts_variant_picker.dart';
 import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
+import '../widgets/starter_variant_picker.dart';
 
 /// Full-screen dialog for editing the player names and the dealer of the
 /// first round.  Pushed with `fullscreenDialog: true` so the framework
@@ -51,6 +55,10 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
   late int _firstDealerIndex;
   late final bool _gameInProgress;
   late final int _originalFirstDealerIndex;
+  late StarterVariant _starterVariant;
+  late final StarterVariant _originalStarterVariant;
+  late HeartsVariant _heartsVariant;
+  late final HeartsVariant _originalHeartsVariant;
   // Listenable that fires on any controller text change. Combined with
   // `setState`-driven dealer/reorder updates, this is what the outer
   // [ListenableBuilder] subscribes to so [PopScope.canPop] stays in sync
@@ -64,6 +72,10 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
     _firstDealerIndex = state.firstDealerIndex;
     _originalFirstDealerIndex = state.firstDealerIndex;
     _gameInProgress = state.history.isNotEmpty || state.hasPendingGame;
+    _starterVariant = state.starterVariant;
+    _originalStarterVariant = state.starterVariant;
+    _heartsVariant = state.heartsVariant;
+    _originalHeartsVariant = state.heartsVariant;
     _controllers = [
       for (final name in state.playerNames) TextEditingController(text: name),
     ];
@@ -91,7 +103,9 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
       _controllers.indexed.any(
         (e) => e.$2.text.trim() != _originalTexts[e.$1],
       ) ||
-      _firstDealerIndex != _originalFirstDealerIndex;
+      _firstDealerIndex != _originalFirstDealerIndex ||
+      _starterVariant != _originalStarterVariant ||
+      _heartsVariant != _originalHeartsVariant;
 
   @override
   void dispose() {
@@ -202,9 +216,10 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
           );
         }(),
     ];
-    ref
-        .read(calculatorProvider.notifier)
-        .setPlayersAndDealer(newPlayers, _firstDealerIndex);
+    final notifier = ref.read(calculatorProvider.notifier);
+    notifier.setPlayersAndDealer(newPlayers, _firstDealerIndex);
+    notifier.setStarterVariant(_starterVariant);
+    notifier.setHeartsVariant(_heartsVariant);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -251,18 +266,21 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Spelers',
-                      style: Theme.of(context).textTheme.titleSmall,
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        kPlayersSectionTitle,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Sleep om de volgorde te wijzigen.',
+                      kPlayersSectionSubtitle,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     ListenableBuilder(
                       listenable: _formChanges,
                       builder: (context, _) => PlayerListField(
@@ -284,15 +302,25 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
             const SizedBox(height: 12),
             Card(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Deler eerste ronde',
-                      style: Theme.of(context).textTheme.labelLarge,
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        kDealerSectionTitle,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
+                    Text(
+                      kDealerSectionSubtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     ListenableBuilder(
                       listenable: _formChanges,
                       builder: (context, _) => DealerDropdownField(
@@ -308,6 +336,66 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
                       const SizedBox(height: 12),
                       const AmberWarningBox(text: _dealerShortWarning),
                     ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        kStarterVariantSectionTitle,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      kStarterVariantSectionSubtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    StarterVariantPicker(
+                      value: _starterVariant,
+                      onChanged: (v) => setState(() => _starterVariant = v),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        kHeartsVariantSectionTitle,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      kHeartsVariantSectionSubtitle,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    HeartsVariantPicker(
+                      value: _heartsVariant,
+                      onChanged: (v) => setState(() => _heartsVariant = v),
+                    ),
                   ],
                 ),
               ),

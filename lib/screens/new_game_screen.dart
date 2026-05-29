@@ -5,15 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
+import '../models/starter_variant.dart';
 import '../state/calculator_provider.dart';
+import '../state/default_hearts_variant_provider.dart';
+import '../state/default_starter_variant_provider.dart';
 import '../state/game_history_provider.dart';
 import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/hearts_variant_picker.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
+import '../widgets/starter_variant_picker.dart';
 import 'game_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
@@ -35,9 +41,14 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   /// Dealer slot index, or null if the user wants a random dealer.
   int? _dealerIndex;
 
+  late StarterVariant _starterVariant;
+  late HeartsVariant _heartsVariant;
+
   @override
   void initState() {
     super.initState();
+    _starterVariant = ref.read(defaultStarterVariantProvider);
+    _heartsVariant = ref.read(defaultHeartsVariantProvider);
     // Always start with empty fields. Names from a previous (finished or
     // resumed) session live in the calculator provider, but surfacing them
     // here is confusing — the user reached this screen by pressing
@@ -110,7 +121,12 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     }
 
     final notifier = ref.read(calculatorProvider.notifier);
-    notifier.startNewGame(players: players, dealerIndex: dealerIndex);
+    notifier.startNewGame(
+      players: players,
+      dealerIndex: dealerIndex,
+      starterVariant: _starterVariant,
+      heartsVariant: _heartsVariant,
+    );
     final session = notifier.buildSession();
     if (session != null) {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
@@ -139,57 +155,173 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
 
     return AppScaffold(
       appBar: AppBar(title: const Text('Nieuw spel')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ---- Player names ----
-          Text('Spelers', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            'Sleep om de volgorde te wijzigen.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          // Scrollable options — players, dealer, variant
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // ---- Player names ----
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            kPlayersSectionTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          kPlayersSectionSubtitle,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        PlayerListField(
+                          controllers: _controllers,
+                          focusNodes: _focusNodes,
+                          suggestions: suggestions,
+                          onReorderItem: _handleReorder,
+                          onSubmitted: _handleFieldSubmitted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ---- Dealer for first game ----
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            kDealerSectionTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          kDealerSectionSubtitle,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        DealerDropdownField(
+                          controllers: _controllers,
+                          value: _dealerIndex,
+                          hintText: 'Willekeurige deler',
+                          allowRandomDealer: true,
+                          onChanged: (v) => setState(() => _dealerIndex = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ---- Starter variant ----
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            kStarterVariantSectionTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          kStarterVariantSectionSubtitle,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        StarterVariantPicker(
+                          value: _starterVariant,
+                          onChanged: (v) => setState(() => _starterVariant = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ---- Hearts variant ----
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            kHeartsVariantSectionTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          kHeartsVariantSectionSubtitle,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        HeartsVariantPicker(
+                          value: _heartsVariant,
+                          onChanged: (v) => setState(() => _heartsVariant = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          PlayerListField(
-            controllers: _controllers,
-            focusNodes: _focusNodes,
-            suggestions: suggestions,
-            onReorderItem: _handleReorder,
-            onSubmitted: _handleFieldSubmitted,
-          ),
 
-          const SizedBox(height: 32),
-
-          // ---- Dealer for first game ----
-          Text(
-            'Deler eerste spel',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'De speler links van de deler kiest het eerste spel.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          // Fixed Start button — always visible without scrolling
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: PrimaryActionButton(
+              icon: const Icon(Symbols.play_arrow),
+              label: const Text('Start spel'),
+              onPressed: canStart ? _handleStart : null,
             ),
-          ),
-          const SizedBox(height: 12),
-          DealerDropdownField(
-            controllers: _controllers,
-            value: _dealerIndex,
-            hintText: 'Willekeurige deler',
-            allowRandomDealer: true,
-            onChanged: (v) => setState(() => _dealerIndex = v),
-          ),
-
-          const SizedBox(height: 48),
-
-          // ---- Start button ----
-          PrimaryActionButton(
-            icon: const Icon(Symbols.play_arrow),
-            label: const Text('Start spel'),
-            onPressed: canStart ? _handleStart : null,
           ),
         ],
       ),

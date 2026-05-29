@@ -191,6 +191,14 @@ class DealerDropdownField extends StatelessWidget {
   }
 }
 
+/// Shared section strings used by NewGameScreen and EditPlayersScreen.
+/// Centralised here so both screens stay in sync — edit once, applies to both.
+const String kPlayersSectionTitle = 'Spelers';
+const String kPlayersSectionSubtitle = 'Sleep om de volgorde te wijzigen.';
+const String kDealerSectionTitle = 'Deler eerste ronde';
+const String kDealerSectionSubtitle =
+    'De speler links van de deler kiest het eerste spel.';
+
 /// Shared "Enter pressed in slot [index]" handler.
 ///
 /// If the next slot exists and is still empty, focuses it; otherwise

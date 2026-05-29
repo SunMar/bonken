@@ -41,6 +41,8 @@ Future<void> pickDealer(WidgetTester tester, String name) async {
   // DealerDropdownField uses Material 3's DropdownMenu, which renders as
   // a TextField with a trailing chevron.  Tapping the field opens the
   // overlay; tap the entry by its visible label inside the overlay.
+  await tester.ensureVisible(find.byType(DropdownMenu<int>));
+  await tester.pumpAndSettle();
   await tester.tap(find.byType(DropdownMenu<int>));
   await tester.pumpAndSettle();
   await tester.tap(find.text(name).last);

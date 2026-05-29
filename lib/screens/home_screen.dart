@@ -33,7 +33,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: const AboutIconButton(),
         title: const TitleWithRules(title: Text('Bonken')),
-        actions: const [ThemeMenuButton()],
+        actions: const [SettingsIconButton(), ThemeMenuButton()],
       ),
       body: historyAsync.when(
         skipLoadingOnReload: true,

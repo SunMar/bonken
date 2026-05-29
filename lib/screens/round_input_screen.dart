@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/game_rules.dart';
+import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/score_result.dart';
@@ -229,15 +230,18 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
   }
 }
 
-class _RoundInputBody extends StatelessWidget {
+class _RoundInputBody extends ConsumerWidget {
   const _RoundInputBody({required this.game});
 
   final MiniGame game;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isPositive = game.category == GameCategory.positive;
     final textColor = scoreColor(isPositive ? 1 : -1, context);
+    final heartsVariant = ref.watch(
+      calculatorProvider.select((s) => s.heartsVariant),
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -249,7 +253,7 @@ class _RoundInputBody extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         _ChooserSelectorCard(game: game),
-        ..._gameRulesWarnings(game),
+        ..._gameRulesWarnings(game, heartsVariant),
         const SizedBox(height: 12),
         const _DoublesCard(),
         const SizedBox(height: 12),
@@ -409,9 +413,9 @@ class _RoundInputHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final (playerNames, chooserIndex, dealerIndex) = ref.watch(
+    final (playerNames, chooserIndex, dealerIndex, starterIndex) = ref.watch(
       calculatorProvider.select(
-        (s) => (s.playerNames, s.chooserIndex, s.dealerIndex),
+        (s) => (s.playerNames, s.chooserIndex, s.dealerIndex, s.starterIndex),
       ),
     );
 
@@ -432,7 +436,8 @@ class _RoundInputHeader extends ConsumerWidget {
               const SizedBox(height: 2),
               Text(
                 'Kiezer: ${playerNames[chooserIndex]}  ·  '
-                'Deler (eerste kaart): ${playerNames[dealerIndex]}',
+                'Deler: ${playerNames[dealerIndex]}  ·  '
+                'Uitkomst: ${playerNames[starterIndex]}',
                 style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               ),
             ],
@@ -446,16 +451,27 @@ class _RoundInputHeader extends ConsumerWidget {
 /// Per-game amber warnings shown between the chooser selector and the doubles
 /// card.  Surfaces every [Note] block from the rules data so any condition or
 /// special rule is visible at the moment the player needs it.
-List<Widget> _gameRulesWarnings(MiniGame game) {
+List<Widget> _gameRulesWarnings(MiniGame game, HeartsVariant heartsVariant) {
   final section = gameSectionFor(game.id);
   if (section == null) return const [];
-  final notes = section.blocks.whereType<Note>().toList();
-  if (notes.isEmpty) return const [];
+  final warningBlocks = section.blocks
+      .where((b) => b is Note || b is HeartsVariantNote)
+      .toList();
+  if (warningBlocks.isEmpty) return const [];
   return [
     const SizedBox(height: 12),
-    for (int i = 0; i < notes.length; i++) ...[
+    for (int i = 0; i < warningBlocks.length; i++) ...[
       if (i > 0) const SizedBox(height: 8),
-      AmberWarningBox(label: notes[i].label, text: notes[i].text),
+      switch (warningBlocks[i]) {
+        final Note b => AmberWarningBox(label: b.label, text: b.text),
+        final HeartsVariantNote b => AmberWarningBox(
+          label: b.label,
+          text: heartsVariant == HeartsVariant.onlyAfterPlayedHeart
+              ? b.onlyAfterPlayedHeartText
+              : b.graduatedUnlockText,
+        ),
+        _ => const SizedBox.shrink(),
+      },
     ],
   ];
 }

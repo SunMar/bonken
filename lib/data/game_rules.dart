@@ -35,8 +35,46 @@ class BulletList extends Block {
 }
 
 class NumberedList extends Block {
-  const NumberedList(this.items);
+  const NumberedList(this.items, {this.startFrom = 1});
   final List<String> items;
+
+  /// Display offset for the first item — allows splitting a list around an
+  /// intercalated block while keeping continuous numbering.
+  final int startFrom;
+}
+
+/// A step in a numbered sequence whose text depends on the active
+/// [StarterVariant]. The renderer shows the active variant's text as a regular
+/// numbered item and the inactive variant's text as a "Spelregel variant" note.
+///
+/// Pure Dart data — no Flutter imports.
+class StarterVariantBlock extends Block {
+  const StarterVariantBlock({
+    required this.stepNumber,
+    required this.dealerStartsText,
+    required this.oppositeChooserStartsText,
+  });
+
+  final int stepNumber;
+  final String dealerStartsText;
+  final String oppositeChooserStartsText;
+}
+
+/// An "Extra spelregel" note whose text depends on the active [HeartsVariant].
+/// The renderer shows the active variant's text as the main callout and the
+/// inactive variant's text as a "Spelregel variant" sub-note.
+///
+/// Pure Dart data — no Flutter imports.
+class HeartsVariantNote extends Block {
+  const HeartsVariantNote({
+    required this.label,
+    required this.onlyAfterPlayedHeartText,
+    required this.graduatedUnlockText,
+  });
+
+  final String label;
+  final String onlyAfterPlayedHeartText;
+  final String graduatedUnlockText;
 }
 
 class TableBlock extends Block {
@@ -89,10 +127,19 @@ class GameSection {
 /// The "harten alleen na bijgespeelde harten" rule, shared by Harten Heer
 /// and Hartenpunten.
 const String kHeartsLeadRule =
-    'Als je niet kan bekennen mag je bijspelen wat je wil, maar uitkomen en '
+    'Als je niet kunt bekennen, mag je bijspelen wat je wilt, maar uitkomen en '
     'terugkomen mag alleen met harten als er in een eerdere slag al een keer '
     'harten is (bij)gespeeld of als harten de enige kleur is die je nog op '
     'hand hebt.';
+
+/// The "gefaseerde opening" hearts rule — alternate to [kHeartsLeadRule].
+const String kHeartsLeadRuleGraduatedUnlock =
+    'In de eerste drie slagen mag je niet met harten uitkomen of terugkomen '
+    'en als je niet kan bekennen mag je ook geen harten bijspelen. '
+    'Vanaf de vierde slag mag je harten bijspelen als je niet kunt bekennen. '
+    'Vanaf de zesde slag mag je met harten terugkomen. '
+    'Als harten de enige kleur is die je nog op hand hebt, mag je altijd '
+    'harten bijspelen, uitkomen en terugkomen.';
 
 // -----------------------------------------------------------------------------
 // Top-of-document sections
@@ -104,7 +151,7 @@ const Section kDoelSection = Section(
     Para(
       'Je speelt 12 rondes. Er zijn 13 mogelijke spelvormen: 8 negatieve en '
       '5 positieve. Je speelt altijd alle 8 negatieve spelvormen en 4 van de '
-      '5 positieve. Daardoor blijft vanzelf 1 positieve spelvorm over dat '
+      '5 positieve. Daardoor blijft vanzelf 1 positieve spelvorm over die '
       'niet gespeeld wordt.',
     ),
     Para('Bij negatieve spelvormen probeer je strafpunten te vermijden.'),
@@ -130,6 +177,7 @@ const Section kOpzetSection = Section(
       'één deler per ronde (draait met de klok mee)',
       'één kiezer per ronde (de speler links van de deler)',
       'weinig schudden (voor de scheve verdelingen)',
+      'iedereen speelt voor zich (geen paren)',
     ]),
     Para(
       'Over een heel spel is iedereen precies 3 keer deler en 3 keer kiezer.',
@@ -144,7 +192,7 @@ const Section kOpzetSection = Section(
       'alle 8 negatieve spelvormen worden gespeeld',
       '4 van de 5 positieve spelvormen worden gespeeld',
       '1 positieve spelvorm blijft over en vervalt vanzelf',
-      'de kiezer in laatste ronde heeft bij een negatieve spelvorm een verplichte keus (de rest is al gespeeld)',
+      'de kiezer in de laatste ronde heeft bij een negatieve spelvorm een verplichte keus (de rest is al gespeeld)',
     ]),
   ],
 );
@@ -178,20 +226,23 @@ const Section kVerloopSection = Section(
   title: 'Verloop van een ronde',
   blocks: [
     NumberedList([
-      'De deler schudt de kaarten (maar niet teveel, maximaal 3 keer heffen).',
+      'De deler schudt de kaarten (maar niet te veel, maximaal 3 keer heffen).',
       'De deler deelt alle kaarten (13 per speler) met grote stappen (bijvoorbeeld 5-4-4).',
+      'Zodra de kaarten zijn gedeeld, mogen alle spelers hun eigen kaarten bekijken.',
       'De speler links van de deler is de kiezer en kiest een spelvorm die nog niet gespeeld is (maximaal 2 negatieve en 1 positieve spelvorm per speler).',
       'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatst. De kiezer mag niet dubbelen, alleen teruggaan.',
-      'Daarna wordt gespeeld waarbij de deler uitkomt.',
+    ]),
+    StarterVariantBlock(
+      stepNumber: 6,
+      dealerStartsText: 'Daarna wordt gespeeld waarbij de deler uitkomt.',
+      oppositeChooserStartsText:
+          'Daarna wordt gespeeld waarbij de speler tegenover de kiezer uitkomt.',
+    ),
+    NumberedList([
       'De ronde wordt gescoord.',
       'De volgende speler (met de klok mee) wordt deler.',
-    ]),
+    ], startFrom: 7),
   ],
-);
-
-const Section kPositieveIntroSection = Section(
-  title: 'Positieve spelvormen',
-  blocks: [Para('Bij een positieve spelvorm wil je slagen pakken.')],
 );
 
 const Section kNegatieveIntroSection = Section(
@@ -199,6 +250,24 @@ const Section kNegatieveIntroSection = Section(
   blocks: [
     Para('Bij negatieve spelvormen probeer je strafpunten te vermijden.'),
     Para('Alle negatieve spelvormen speel je zonder troef.'),
+    Para(
+      'Bij spelvormen die draaien om het vermijden van bepaalde kaarten '
+      'eindigt de ronde zodra al die kaarten zijn gespeeld — je speelt '
+      'niet verplicht door tot de 13e slag. Bijvoorbeeld bij Vrouwen '
+      'eindigt de ronde zodra alle vier vrouwen zijn gespeeld.',
+    ),
+  ],
+);
+
+const Section kPositieveIntroSection = Section(
+  title: 'Positieve spelvormen',
+  blocks: [
+    Para('Bij positieve spelvormen wil je slagen pakken.'),
+    Para(
+      'Als je niet kunt bekennen, mag je bijspelen wat je wilt. '
+      'Je bent niet verplicht te troeven en ook niet verplicht '
+      'onder of over te troeven.',
+    ),
   ],
 );
 
@@ -216,7 +285,7 @@ const Section kDubbelenSection = Section(
       'spelers zijn, in elke combinatie die je wilt. Als je precies de 2 '
       'spelers dubbelt die niet de kiezer zijn, noem je dat een Slappe hap '
       'of Ruitenwisser. Als je alle 3 de andere spelers dubbelt, heet dat '
-      'een Zaal.',
+      'een Zaal. Als je niemand wilt dubbelen, dan pas je.',
     ),
     Para(
       'Als iemand jou heeft gedubbeld en je moet zelf nog aan de beurt komen, '
@@ -328,7 +397,11 @@ const GameSection _kingOfHeartsSection = GameSection(
   title: 'Harten Heer (totaal -100)',
   blocks: [
     Para('**Wie de slag wint waarin de harten heer valt, krijgt -100.**'),
-    Note(label: 'Extra spelregel', text: kHeartsLeadRule),
+    HeartsVariantNote(
+      label: 'Extra spelregel',
+      onlyAfterPlayedHeartText: kHeartsLeadRule,
+      graduatedUnlockText: kHeartsLeadRuleGraduatedUnlock,
+    ),
   ],
 );
 
@@ -338,10 +411,12 @@ const GameSection _kingsAndJacksSection = GameSection(
   blocks: [
     Para('**Elke heer of boer in jouw gewonnen slagen is -25.**'),
     Para(
-      'Heren en boeren die zijn bijgespeeld door iemand die niet kon bekennen tellen ook mee.',
+      'Heren en boeren die zijn bijgespeeld door iemand die niet kon '
+      'bekennen tellen ook mee.',
     ),
     Para(
-      '**Voorbeeld:** als jij 3 heren of boeren in je gewonnen slagen hebt, krijg je 3 x -25 = -75.',
+      '**Voorbeeld:** als jij 3 heren of boeren in je gewonnen slagen '
+      'hebt, krijg je 3 x -25 = -75.',
     ),
     Para('8 kaarten x -25 = -200 totaal.'),
   ],
@@ -353,10 +428,12 @@ const GameSection _queensSection = GameSection(
   blocks: [
     Para('**Elke vrouw in jouw gewonnen slagen is -45.**'),
     Para(
-      'Vrouwen die zijn bijgespeeld door iemand die niet kon bekennen tellen ook mee.',
+      'Vrouwen die zijn bijgespeeld door iemand die niet kon '
+      'bekennen tellen ook mee.',
     ),
     Para(
-      '**Voorbeeld:** als jij 2 vrouwen in je gewonnen slagen hebt, krijg je 2 x -45 = -90.',
+      '**Voorbeeld:** als jij 2 vrouwen in je gewonnen slagen '
+      'hebt, krijg je 2 x -45 = -90.',
     ),
     Para('4 kaarten x -45 = -180 totaal.'),
   ],
@@ -379,11 +456,17 @@ const GameSection _heartPointsSection = GameSection(
   blocks: [
     Para('**Elke hartenkaart in jouw gewonnen slagen is -10.**'),
     Para(
-      'Hartenkaarten die zijn bijgespeeld door iemand die niet kon bekennen tellen ook mee.',
+      'Hartenkaarten die zijn bijgespeeld door iemand die niet kon '
+      'bekennen tellen ook mee.',
     ),
-    Note(label: 'Extra spelregel', text: kHeartsLeadRule),
+    HeartsVariantNote(
+      label: 'Extra spelregel',
+      onlyAfterPlayedHeartText: kHeartsLeadRule,
+      graduatedUnlockText: kHeartsLeadRuleGraduatedUnlock,
+    ),
     Para(
-      '**Voorbeeld:** als jij 5 hartenkaarten in je gewonnen slagen hebt, krijg je 5 x -10 = -50.',
+      '**Voorbeeld:** als jij 5 hartenkaarten in je gewonnen slagen '
+      'hebt, krijg je 5 x -10 = -50.',
     ),
     Para('13 hartenkaarten x -10 = -130 totaal.'),
   ],
@@ -394,10 +477,12 @@ const GameSection _seventhAndThirteenthSection = GameSection(
   title: '7e / 13e slag (totaal -100)',
   blocks: [
     Para(
-      '**De winnaar van de 7e slag krijgt -50. De winnaar van de 13e slag krijgt ook -50.**',
+      '**De winnaar van de 7e slag krijgt -50. '
+      'De winnaar van de 13e slag krijgt ook -50.**',
     ),
     Para(
-      'Dat kan dezelfde speler zijn (dan krijgt die -100), of twee verschillende spelers (elk -50).',
+      'Dat kan dezelfde speler zijn (dan krijgt die -100), '
+      'of twee verschillende spelers (elk -50).',
     ),
   ],
 );

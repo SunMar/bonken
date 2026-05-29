@@ -743,18 +743,20 @@ class _RoundInfoBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Narrow watch: only the four derived values shown here, not the whole
+    // Narrow watch: only the five derived values shown here, not the whole
     // state — keeps the banner off the per-keystroke rebuild path.
-    final (round, dealerName, chooserName, roundsPlayed) = ref.watch(
-      calculatorProvider.select(
-        (s) => (
-          s.roundNumber,
-          s.playerNames[s.dealerIndex],
-          s.playerNames[(s.dealerIndex + 1) % playerCount],
-          s.history.length,
-        ),
-      ),
-    );
+    final (round, dealerName, chooserName, starterName, roundsPlayed) = ref
+        .watch(
+          calculatorProvider.select(
+            (s) => (
+              s.roundNumber,
+              s.playerNames[s.dealerIndex],
+              s.playerNames[(s.dealerIndex + 1) % playerCount],
+              s.playerNames[s.starterIndex],
+              s.history.length,
+            ),
+          ),
+        );
     final cs = Theme.of(context).colorScheme;
 
     // Hide once all rounds are done.
@@ -783,7 +785,8 @@ class _RoundInfoBanner extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Deler: $dealerName  ·  Kiezer: $chooserName',
+                    'Deler: $dealerName  ·  Kiezer: $chooserName  ·  '
+                    'Uitkomst: $starterName',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: cs.onSecondaryContainer,
                     ),
