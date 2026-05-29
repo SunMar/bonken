@@ -20,6 +20,9 @@ import '../utils.dart';
 /// GitHub repository URL shown as a link in the About dialog.
 const _aboutRepoUrl = 'https://github.com/SunMar/bonken';
 
+/// Privacy policy URL shown as a link in the About dialog.
+const _aboutPrivacyUrl = 'https://sunmar.github.io/bonken/privacy.html';
+
 /// Compile-time commit hash injected by the deploy-to-Pages workflow.
 /// Empty for local / store builds — see [resolveAboutVersionLine].
 @visibleForTesting
@@ -200,10 +203,18 @@ Future<void> openAboutDialog(BuildContext context) async {
     applicationIcon: Image.asset(_aboutIconAsset, width: 48, height: 48),
     children: [
       _AboutLink(
-        icon: Symbols.open_in_new,
-        label: _aboutRepoUrl,
+        icon: Symbols.code,
+        label: 'Broncode',
         onTap: () async {
           final uri = Uri.parse(_aboutRepoUrl);
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        },
+      ),
+      _AboutLink(
+        icon: Symbols.privacy_tip,
+        label: 'Privacybeleid',
+        onTap: () async {
+          final uri = Uri.parse(_aboutPrivacyUrl);
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         },
       ),
@@ -252,12 +263,10 @@ class _AboutLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextButton.icon(
+      style: const ButtonStyle(alignment: Alignment.centerLeft),
       onPressed: onTap,
       icon: Icon(icon, size: 16),
-      label: Text(
-        label,
-        style: const TextStyle(decoration: TextDecoration.underline),
-      ),
+      label: Text(label),
     );
   }
 }

@@ -46,8 +46,9 @@ void main() {
       expect(find.text('Ontwikkelversie'), findsOneWidget);
       // Icon (Image.asset) is present in the dialog header.
       expect(find.byType(Image), findsOneWidget);
-      // Custom child: the GitHub link.
-      expect(find.text('https://github.com/SunMar/bonken'), findsOneWidget);
+      // Custom children: repo and privacy links.
+      expect(find.text('Broncode'), findsOneWidget);
+      expect(find.text('Privacybeleid'), findsOneWidget);
 
       // Localized footer buttons.
       final loc = _loc(tester);
