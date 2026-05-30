@@ -218,17 +218,21 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             message: 'Terug',
             child: BackButton(onPressed: saveOrConfirmBack),
           ),
-          actions: [
-            TextButton(
-              onPressed: confirmAndCancelInput,
-              child: const Text('Verwerpen'),
-            ),
-            FilledButton(
-              onPressed: saveOrConfirmDone,
-              child: const Text('Opslaan'),
-            ),
-            const SizedBox(width: 4),
-          ],
+        ),
+        bottomBar: BottomAppBar(
+          child: Row(
+            children: [
+              TextButton(
+                onPressed: confirmAndCancelInput,
+                child: const Text('Verwerpen'),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: saveOrConfirmDone,
+                child: const Text('Opslaan'),
+              ),
+            ],
+          ),
         ),
         body: _RoundInputBody(game: game),
       ),
@@ -452,11 +456,29 @@ class _RoundInputHeader extends ConsumerWidget {
                 style: tt.bodyMedium?.copyWith(color: textColor),
               ),
               const SizedBox(height: 2),
-              Text(
-                'Kiezer: ${playerNames[chooserIndex]}  ·  '
-                'Deler: ${playerNames[dealerIndex]}  ·  '
-                'Uitkomst: ${playerNames[starterIndex]}',
-                style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+              Wrap(
+                children: [
+                  Text(
+                    'Kiezer: ${playerNames[chooserIndex]}',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  Text(
+                    'Deler: ${playerNames[dealerIndex]}',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                  Text(
+                    'Uitkomst: ${playerNames[starterIndex]}',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ),
             ],
           ),

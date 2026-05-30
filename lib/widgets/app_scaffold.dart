@@ -18,16 +18,27 @@ import 'package:flutter/material.dart';
 /// **Always prefer [AppScaffold] over [Scaffold] for full-screen routes** so
 /// new screens get the correct insets for free.
 class AppScaffold extends StatelessWidget {
-  const AppScaffold({super.key, this.appBar, required this.body});
+  const AppScaffold({
+    super.key,
+    this.appBar,
+    required this.body,
+    this.bottomBar,
+  });
 
   final PreferredSizeWidget? appBar;
   final Widget body;
+  final Widget? bottomBar;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: appBar,
-      body: SafeArea(top: appBar == null, child: body),
+      bottomNavigationBar: bottomBar,
+      body: SafeArea(
+        top: appBar == null,
+        bottom: bottomBar == null,
+        child: body,
+      ),
     );
   }
 }

@@ -248,14 +248,18 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
             tooltip: 'Verwerpen',
             onPressed: _confirmAndCancel,
           ),
-          actions: [
-            TextButton(
-              onPressed: _confirmAndCancel,
-              child: const Text('Verwerpen'),
-            ),
-            FilledButton(onPressed: _save, child: const Text('Opslaan')),
-            const SizedBox(width: 4),
-          ],
+        ),
+        bottomBar: BottomAppBar(
+          child: Row(
+            children: [
+              TextButton(
+                onPressed: _confirmAndCancel,
+                child: const Text('Verwerpen'),
+              ),
+              const Spacer(),
+              FilledButton(onPressed: _save, child: const Text('Opslaan')),
+            ],
+          ),
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),

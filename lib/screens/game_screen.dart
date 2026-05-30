@@ -803,12 +803,34 @@ class _RoundInfoBanner extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      'Deler: $dealerName  ·  Kiezer: $chooserName  ·  '
-                      'Uitkomst: $starterName',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: cs.onSecondaryContainer,
-                      ),
+                    Wrap(
+                      children: [
+                        Text(
+                          'Deler: $dealerName',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: cs.onSecondaryContainer),
+                        ),
+                        Text(
+                          '  ·  ',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: cs.onSecondaryContainer),
+                        ),
+                        Text(
+                          'Kiezer: $chooserName',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: cs.onSecondaryContainer),
+                        ),
+                        Text(
+                          '  ·  ',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: cs.onSecondaryContainer),
+                        ),
+                        Text(
+                          'Uitkomst: $starterName',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: cs.onSecondaryContainer),
+                        ),
+                      ],
                     ),
                   ],
                 ),
