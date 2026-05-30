@@ -12,11 +12,6 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/form_section_card.dart';
 import '../widgets/variant_radio_list.dart';
 
-/// Shared subtitle for every settings section: these are app-wide defaults
-/// for new games, still adjustable per game.
-const String _kDefaultSubtitle =
-    'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.';
-
 /// Full-screen dialog for configuring app-wide default settings.
 /// Pushed with `fullscreenDialog: true`.
 class SettingsScreen extends ConsumerWidget {
@@ -39,9 +34,11 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const _SettingsNote(),
+          const SizedBox(height: 12),
           FormSectionCard(
             title: kStarterVariantSectionTitle,
-            subtitle: _kDefaultSubtitle,
+            subtitle: kStarterVariantSectionSubtitle,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             childSpacing: 0,
             child: VariantRadioList<StarterVariant>(
@@ -57,7 +54,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           FormSectionCard(
             title: kHeartsVariantSectionTitle,
-            subtitle: _kDefaultSubtitle,
+            subtitle: kHeartsVariantSectionSubtitle,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             childSpacing: 0,
             child: VariantRadioList<HeartsVariant>(
@@ -71,6 +68,42 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SettingsNote extends StatelessWidget {
+  const _SettingsNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ExcludeSemantics(
+              child: Icon(
+                Symbols.info,
+                size: 20,
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

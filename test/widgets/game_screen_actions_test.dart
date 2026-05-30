@@ -1,5 +1,5 @@
 // Tests for the in-game [_LiveScoreboard] header actions on
-// [GameScreen]: the "Spel bewerken" icon pushes [EditPlayersScreen],
+// [GameScreen]: the "Spel bewerken" icon pushes [EditGameScreen],
 // and the destructive "Spel verwijderen" action drives the full
 // delete-and-undo flow (confirm dialog → delete from history →
 // navigate back to HomeScreen → snackbar with undo).
@@ -14,7 +14,7 @@ import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
-import 'package:bonken/screens/edit_players_screen.dart';
+import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
@@ -96,12 +96,12 @@ void main() {
     },
   );
 
-  testWidgets('"Spel bewerken" pushes the EditPlayersScreen', (tester) async {
+  testWidgets('"Spel bewerken" pushes the EditGameScreen', (tester) async {
     await _pumpGameScreen(tester);
-    expect(find.byType(EditPlayersScreen), findsNothing);
+    expect(find.byType(EditGameScreen), findsNothing);
     await tester.tap(find.byTooltip('Spel bewerken'));
     await tester.pumpAndSettle();
-    expect(find.byType(EditPlayersScreen), findsOneWidget);
+    expect(find.byType(EditGameScreen), findsOneWidget);
   });
 
   testWidgets('"Spel verwijderen" → confirm → game removed from history, '

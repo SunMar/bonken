@@ -191,7 +191,7 @@ class DealerDropdownField extends StatelessWidget {
   }
 }
 
-/// Shared section strings used by NewGameScreen and EditPlayersScreen.
+/// Shared section strings used by NewGameScreen and EditGameScreen.
 /// Centralised here so both screens stay in sync — edit once, applies to both.
 const String kPlayersSectionTitle = 'Spelers';
 const String kPlayersSectionSubtitle = 'Sleep om de volgorde te wijzigen.';

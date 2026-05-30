@@ -52,7 +52,7 @@ most of the structure exists to serve one of these.
   UUID at creation ([`lib/models/player.dart`](lib/models/player.dart)). Every
   per-round datum — scores, chooser, doubling pairs, input maps — is keyed by
   player UUID. *Why:* players can be **renamed and reordered** mid-game (see
-  `EditPlayersScreen`) without corrupting historical rounds. Seat indices
+  `EditGameScreen`) without corrupting historical rounds. Seat indices
   (0–3) are derived on demand from IDs and are never persisted.
 
 - **Immutable state + narrow reactivity.** `CalculatorState` is deeply
@@ -212,7 +212,7 @@ lib/
     new_game_screen.dart     Enter names (with suggestions) + pick first dealer + pick variants.
     game_screen.dart         In-game hub: game selection, live scoreboard, history, edit/delete.
     round_input_screen.dart  Per-round: chooser, doubles, input form, live/final result.
-    edit_players_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
+    edit_game_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
     rules_screen.dart        Renders rules content (full doc or single game); variant text and
                              whether the alternative is shown come from the variant providers +
                              rulesLockedProvider (overridden per-route when opened in-game).
@@ -242,14 +242,17 @@ lib/
                              AlignmentDirectional.bottomEnd — the M3 overflow-menu
                              pattern), and resolveAboutVersionLine() /
                              openAboutDialog() (@visibleForTesting).
-    variant_picker.dart      Generic SegmentedButton<T extends LabeledVariant> for both
-                             StarterVariant and HeartsVariant pickers (new-game / edit-players).
+    game_rules_expansion_card.dart  Collapsible "Spelregels" Card+ExpansionTile for new-game and
+                             edit-game; collapsed by default, expands to show StarterVariant +
+                             HeartsVariant radio sections matching the settings screen layout.
     variant_radio_list.dart  Generic RadioGroup<T extends LabeledVariant> (label + description per
-                             value); used by settings + the rules variant dialog.
+                             value); used by settings, new-game, edit-game + the rules variant dialog.
     round_meta_line.dart     Wrapping "Kiezer · Deler · Uitkomst" metadata line shared by the
                              game-screen and round-input banners.
     form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
-                             + subtitle + child); used on new-game, edit-players, settings.
+                             + subtitle + child); used on new-game, edit-game, settings.
+                             FormSectionHeader exposes the bare header (no card), reused by
+                             game_rules_expansion_card.dart.
     game_input/              Round-input building blocks: form, counts input, player picker.
     …                        dealer_picker_dialog.dart, dialogs.dart,
                              timed_snackbar.dart + game_deleted_snackbar.dart
@@ -585,7 +588,7 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   verwijderd" with "Ongedaan maken" whose action re-`saveGame`s the captured
   session. (`showGameDeletedSnackBar` also has a belt-and-suspenders timer; tests
   must drain it.)
-- **Edit players mid-game.** `GameScreen` → "Spel bewerken" → `EditPlayersScreen`
+- **Edit a game mid-play.** `GameScreen` → "Spel bewerken" → `EditGameScreen`
   → rename + drag-reorder + change first dealer → `setPlayersAndDealer` applies
   atomically, keeping UUIDs bound to their (new) seats.
 - **Theme.** Any app bar `ThemeMenuButton` → `setMode` → persisted immediately.
@@ -593,7 +596,7 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   `StarterVariant` / `HeartsVariant` → `setValue` on the relevant
   `EnumPreferenceNotifier` → persisted to `SharedPreferences` immediately.
   Both variants are also per-session: `NewGameScreen` seeds from the defaults on
-  open, `EditPlayersScreen` allows changing them mid-game. Opening rules from
+  open, `EditGameScreen` allows changing them mid-game. Opening rules from
   within a game (`TitleWithRules` → `RulesIconButton`) wraps the pushed
   `RulesScreen` in a `ProviderScope` that overrides the default-variant
   providers with the session values and sets `rulesLockedProvider` → true, so
@@ -726,14 +729,14 @@ delegates are registered.
   when visible they render disabled ("Spel al gespeeld") and offer force-replay
   on tap. Per-chooser quota disabling and pending-round blocking remain as soft
   disables. Also contains `_LiveScoreboard`, a round-history list, and
-  edit-players / delete-game actions.
+  edit-game / delete-game actions.
 - **`RoundInputScreen`** — composed of focused `ConsumerWidget` cards
   (`_ChooserSelectorCard`, `_DoublesCard`, `_InputFormCard`,
   `_ScoreResultSection`), each declaring its own narrow `select`. Game-specific
   amber warnings are pulled from the rules `Note` blocks. A `PopScope` intercepts
   Back to run discard/save confirmations; the app bar offers "Verwerpen" and
   "Opslaan".
-- **`EditPlayersScreen`** — atomic rename + drag-reorder + first-dealer change
+- **`EditGameScreen`** — atomic rename + drag-reorder + first-dealer change
   via `setPlayersAndDealer`; also allows changing `StarterVariant` /
   `HeartsVariant` for the current session.
 - **`RulesScreen`** — renders `game_rules.dart` content (full or single game).

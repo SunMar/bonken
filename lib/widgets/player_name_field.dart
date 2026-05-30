@@ -6,7 +6,7 @@ import '../utils.dart';
 /// Text field for a player's name with autocomplete from previously used names,
 /// Tab/Enter handling that advances to the next empty slot, and a max-length
 /// formatter.  Shared between the new-game [NewGameScreen] and the in-game
-/// "edit players" phase of the calculator screen.
+/// "edit game" phase of the calculator screen.
 class PlayerNameField extends StatelessWidget {
   const PlayerNameField({
     super.key,

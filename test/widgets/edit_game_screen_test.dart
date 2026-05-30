@@ -1,4 +1,4 @@
-// Widget tests for [EditPlayersScreen]. Verifies that:
+// Widget tests for [EditGameScreen]. Verifies that:
 //   * editing a name + saving propagates the new name to the calculator
 //     provider (and pops the screen);
 //   * tapping the dropdown to change the dealer shows the dealer
@@ -8,7 +8,7 @@
 
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/player.dart';
-import 'package:bonken/screens/edit_players_screen.dart';
+import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/amber_warning_box.dart';
 import 'package:flutter/material.dart';
@@ -43,7 +43,7 @@ Future<ProviderContainer> _pumpEditPlayers(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: EditPlayersScreen()),
+      child: const MaterialApp(home: EditGameScreen()),
     ),
   );
   await tester.pumpAndSettle();
@@ -66,7 +66,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(EditPlayersScreen), findsNothing);
+      expect(find.byType(EditGameScreen), findsNothing);
       expect(container.read(calculatorProvider).playerNames, [
         'Aaron',
         'Bob',
@@ -128,7 +128,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(EditPlayersScreen), findsNothing);
+      expect(find.byType(EditGameScreen), findsNothing);
     },
   );
 
@@ -148,7 +148,7 @@ void main() {
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text('Vul alle spelersnamen in'), findsOneWidget);
       // Screen did not pop.
-      expect(find.byType(EditPlayersScreen), findsOneWidget);
+      expect(find.byType(EditGameScreen), findsOneWidget);
 
       // Drain the snackbar timer so no Timer survives into teardown.
       await tester.pump(const Duration(seconds: 5));
@@ -170,7 +170,7 @@ void main() {
 
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text('Spelersnamen moeten uniek zijn'), findsOneWidget);
-      expect(find.byType(EditPlayersScreen), findsOneWidget);
+      expect(find.byType(EditGameScreen), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 5));
     },

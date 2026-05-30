@@ -16,22 +16,23 @@ import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
+import '../widgets/game_rules_expansion_card.dart';
 import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
-import '../widgets/variant_picker.dart';
 
-/// Full-screen dialog for editing the player names and the dealer of the
-/// first round.  Pushed with `fullscreenDialog: true` so the framework
-/// supplies the ✕ leading icon and (on platforms that distinguish them)
-/// the modal slide-up transition.
-class EditPlayersScreen extends ConsumerStatefulWidget {
-  const EditPlayersScreen({super.key});
+/// Full-screen dialog for editing an in-progress game: the player names and
+/// their order, the dealer of the first round, and the game-rule variants.
+/// Pushed with `fullscreenDialog: true` so the framework supplies the ✕
+/// leading icon and (on platforms that distinguish them) the modal slide-up
+/// transition.
+class EditGameScreen extends ConsumerStatefulWidget {
+  const EditGameScreen({super.key});
 
   @override
-  ConsumerState<EditPlayersScreen> createState() => _EditPlayersScreenState();
+  ConsumerState<EditGameScreen> createState() => _EditGameScreenState();
 }
 
-class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
+class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   // Short labels shown both in-line under their respective fields and
   // listed in the confirmation dialog when saving while a game is in progress.
   static const _playerOrderShortWarning =
@@ -313,24 +314,11 @@ class _EditPlayersScreenState extends ConsumerState<EditPlayersScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            FormSectionCard(
-              title: kStarterVariantSectionTitle,
-              subtitle: kStarterVariantSectionSubtitle,
-              child: VariantPicker<StarterVariant>(
-                values: StarterVariant.values,
-                value: _starterVariant,
-                onChanged: (v) => setState(() => _starterVariant = v),
-              ),
-            ),
-            const SizedBox(height: 12),
-            FormSectionCard(
-              title: kHeartsVariantSectionTitle,
-              subtitle: kHeartsVariantSectionSubtitle,
-              child: VariantPicker<HeartsVariant>(
-                values: HeartsVariant.values,
-                value: _heartsVariant,
-                onChanged: (v) => setState(() => _heartsVariant = v),
-              ),
+            GameRulesExpansionCard(
+              starterVariant: _starterVariant,
+              heartsVariant: _heartsVariant,
+              onStarterChanged: (v) => setState(() => _starterVariant = v),
+              onHeartsChanged: (v) => setState(() => _heartsVariant = v),
             ),
           ],
         ),

@@ -17,7 +17,7 @@ import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
-import 'package:bonken/screens/edit_players_screen.dart';
+import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
@@ -126,10 +126,10 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('EditPlayersScreen meets a11y guidelines', (tester) async {
+  testWidgets('EditGameScreen meets a11y guidelines', (tester) async {
     final handle = tester.ensureSemantics();
     final players = [for (final n in _names) Player(name: n)];
-    await _pump(tester, const EditPlayersScreen(), load: _session(players));
+    await _pump(tester, const EditGameScreen(), load: _session(players));
     await _expectA11y(tester);
     handle.dispose();
   });

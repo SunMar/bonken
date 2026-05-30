@@ -25,7 +25,7 @@ import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/scoreboard_card.dart';
-import 'edit_players_screen.dart';
+import 'edit_game_screen.dart';
 import 'home_screen.dart';
 import 'round_input_screen.dart';
 
@@ -429,7 +429,7 @@ class _LiveScoreboard extends ConsumerWidget {
                 unawaited(
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => const EditPlayersScreen(),
+                      builder: (_) => const EditGameScreen(),
                       fullscreenDialog: true,
                     ),
                   ),

@@ -17,7 +17,7 @@ T enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
 const int kPlayerNameMaxLength = 20;
 
 /// Body text reused by every "discard your edits" confirmation dialog
-/// (round input screen, edit-players screen, …).
+/// (round input screen, edit-game screen, …).
 const String kDiscardChangesMessage = 'Je wijzigingen gaan verloren.';
 
 /// Title used both for the "another game is still pending" info dialog

@@ -442,7 +442,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   /// Atomically applies a full player reorder + name updates + dealer change.
-  /// Called by EditPlayersScreen so that player UUIDs stay bound to the
+  /// Called by EditGameScreen so that player UUIDs stay bound to the
   /// correct seat after a drag-reorder.
   ///
   /// [firstDealerIdx] is the seat index of the player who dealt round 1.

@@ -17,9 +17,9 @@ import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
+import '../widgets/game_rules_expansion_card.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
-import '../widgets/variant_picker.dart';
 import 'game_screen.dart';
 
 /// Second screen: enter player names and pick the dealer for the first game.
@@ -191,26 +191,11 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
 
                 const SizedBox(height: 12),
 
-                FormSectionCard(
-                  title: kStarterVariantSectionTitle,
-                  subtitle: kStarterVariantSectionSubtitle,
-                  child: VariantPicker<StarterVariant>(
-                    values: StarterVariant.values,
-                    value: _starterVariant,
-                    onChanged: (v) => setState(() => _starterVariant = v),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                FormSectionCard(
-                  title: kHeartsVariantSectionTitle,
-                  subtitle: kHeartsVariantSectionSubtitle,
-                  child: VariantPicker<HeartsVariant>(
-                    values: HeartsVariant.values,
-                    value: _heartsVariant,
-                    onChanged: (v) => setState(() => _heartsVariant = v),
-                  ),
+                GameRulesExpansionCard(
+                  starterVariant: _starterVariant,
+                  heartsVariant: _heartsVariant,
+                  onStarterChanged: (v) => setState(() => _starterVariant = v),
+                  onHeartsChanged: (v) => setState(() => _heartsVariant = v),
                 ),
               ],
             ),
