@@ -204,6 +204,8 @@ lib/
     default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
     default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
     enum_preference_notifier.dart  Generic EnumPreferenceNotifier<T> base + loadPersistedEnum().
+    rules_locked_provider.dart  bool (default false); true while rules are shown for a fixed
+                             in-game rule set. Overridden by RulesIconButton for the pushed route.
 
   screens/                   Full-screen routes (all use AppScaffold).
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
@@ -211,8 +213,9 @@ lib/
     game_screen.dart         In-game hub: game selection, live scoreboard, history, edit/delete.
     round_input_screen.dart  Per-round: chooser, doubles, input form, live/final result.
     edit_players_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
-    rules_screen.dart        Renders rules content (full doc or single game); accepts variant
-                             overrides to show only the active rule when opened from within a game.
+    rules_screen.dart        Renders rules content (full doc or single game); variant text and
+                             whether the alternative is shown come from the variant providers +
+                             rulesLockedProvider (overridden per-route when opened in-game).
     settings_screen.dart     App-wide default settings: StarterVariant + HeartsVariant.
 
   widgets/                   Reusable UI.
@@ -231,15 +234,20 @@ lib/
                              _GameSymbol renderer; used by the game / round-input screens.
     app_bar_widgets.dart     Reusable AppBar building blocks: AboutIconButton
                              (leading info icon → About dialog), RulesIconButton
-                             (pushes RulesScreen, optionally scoped to one game + variant
-                             overrides), TitleWithRules (AppBar.title with embedded rules
+                             (pushes RulesScreen, optionally scoped to one game; wraps the
+                             pushed route in a ProviderScope to lock variants when given the
+                             session's values), TitleWithRules (AppBar.title with embedded rules
                              icon), SettingsIconButton (pushes SettingsScreen),
                              ThemeMenuButton (MenuAnchor cycling light/dark/system;
                              AlignmentDirectional.bottomEnd — the M3 overflow-menu
                              pattern), and resolveAboutVersionLine() /
                              openAboutDialog() (@visibleForTesting).
     variant_picker.dart      Generic SegmentedButton<T extends LabeledVariant> for both
-                             StarterVariant and HeartsVariant pickers.
+                             StarterVariant and HeartsVariant pickers (new-game / edit-players).
+    variant_radio_list.dart  Generic RadioGroup<T extends LabeledVariant> (label + description per
+                             value); used by settings + the rules variant dialog.
+    round_meta_line.dart     Wrapping "Kiezer · Deler · Uitkomst" metadata line shared by the
+                             game-screen and round-input banners.
     form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
                              + subtitle + child); used on new-game, edit-players, settings.
     game_input/              Round-input building blocks: form, counts input, player picker.
@@ -582,14 +590,16 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   atomically, keeping UUIDs bound to their (new) seats.
 - **Theme.** Any app bar `ThemeMenuButton` → `setMode` → persisted immediately.
 - **Settings.** `HomeScreen` → `SettingsIconButton` → `SettingsScreen`; pick
-  `StarterVariant` / `HeartsVariant` → `setVariant` on the relevant
+  `StarterVariant` / `HeartsVariant` → `setValue` on the relevant
   `EnumPreferenceNotifier` → persisted to `SharedPreferences` immediately.
   Both variants are also per-session: `NewGameScreen` seeds from the defaults on
   open, `EditPlayersScreen` allows changing them mid-game. Opening rules from
-  within a game (`TitleWithRules` → `RulesIconButton`) threads the session's
-  variants into `RulesScreen` so only the active rule is shown (no "Spelregel
-  variant" alternative). The standalone rules page (home / deep link) always
-  shows both the active and the alternative text.
+  within a game (`TitleWithRules` → `RulesIconButton`) wraps the pushed
+  `RulesScreen` in a `ProviderScope` that overrides the default-variant
+  providers with the session values and sets `rulesLockedProvider` → true, so
+  only the active rule is shown (no settings icon, no "Spelregel variant"
+  alternative). The standalone rules page (home / deep link) leaves both
+  unset, so it shows the app defaults plus the alternative and the icon.
 
 ---
 
@@ -727,9 +737,10 @@ delegates are registered.
   via `setPlayersAndDealer`; also allows changing `StarterVariant` /
   `HeartsVariant` for the current session.
 - **`RulesScreen`** — renders `game_rules.dart` content (full or single game).
-  Accepts optional `starterVariantOverride` / `heartsVariantOverride`; when set
-  (in-game scope), variant-sensitive blocks show only the active text and suppress
-  the "Spelregel variant" alternative note.
+  Variant-sensitive blocks read the default-variant providers and
+  `rulesLockedProvider`; when locked (the in-game scope set up by
+  `RulesIconButton`'s `ProviderScope`), they show only the active text and
+  suppress the settings icon + "Spelregel variant" alternative note.
 
 **The doubles picker** (`doubles_picker.dart`) deserves special note — it is the
 most intricate widget. Two stacked panels: an **initiator** list (the 4 players

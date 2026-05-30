@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../models/labeled_variant.dart';
 
-/// Full-width [SegmentedButton] for picking any [LabeledVariant] enum value.
+/// Full-width [SegmentedButton] for picking any [LabeledVariant] value.
 ///
 /// Used by [NewGameScreen], [EditPlayersScreen] and [SettingsScreen] for both
-/// [StarterVariant] and [HeartsVariant]. The type parameter [T] must be an
-/// [Enum] that also implements [LabeledVariant].
-class VariantPicker<T extends Enum> extends StatelessWidget {
+/// [StarterVariant] and [HeartsVariant] — the enums that implement
+/// [LabeledVariant].
+class VariantPicker<T extends LabeledVariant> extends StatelessWidget {
   const VariantPicker({
     super.key,
     required this.values,
@@ -25,7 +25,7 @@ class VariantPicker<T extends Enum> extends StatelessWidget {
     return SegmentedButton<T>(
       segments: [
         for (final v in values)
-          ButtonSegment<T>(value: v, label: Text((v as LabeledVariant).label)),
+          ButtonSegment<T>(value: v, label: Text(v.label)),
       ],
       selected: {value},
       onSelectionChanged: (selected) => onChanged(selected.first),

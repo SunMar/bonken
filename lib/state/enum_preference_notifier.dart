@@ -27,10 +27,10 @@ abstract class EnumPreferenceNotifier<T extends Enum> extends Notifier<T> {
   @override
   T build() => initialValue;
 
-  Future<void> setVariant(T variant) async {
-    state = variant;
+  Future<void> setValue(T value) async {
+    state = value;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(prefsKey, variant.name);
+    await prefs.setString(prefsKey, value.name);
   }
 }
 

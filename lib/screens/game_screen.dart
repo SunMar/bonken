@@ -23,6 +23,7 @@ import '../widgets/doubles_chips.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/primary_action_button.dart';
+import '../widgets/round_meta_line.dart';
 import '../widgets/scoreboard_card.dart';
 import 'edit_players_screen.dart';
 import 'home_screen.dart';
@@ -803,33 +804,12 @@ class _RoundInfoBanner extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Wrap(
-                      children: [
-                        Text(
-                          'Deler: $dealerName',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: cs.onSecondaryContainer),
-                        ),
-                        Text(
-                          '  ·  ',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: cs.onSecondaryContainer),
-                        ),
-                        Text(
-                          'Kiezer: $chooserName',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: cs.onSecondaryContainer),
-                        ),
-                        Text(
-                          '  ·  ',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: cs.onSecondaryContainer),
-                        ),
-                        Text(
-                          'Uitkomst: $starterName',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: cs.onSecondaryContainer),
-                        ),
+                    RoundMetaLine(
+                      color: cs.onSecondaryContainer,
+                      segments: [
+                        'Kiezer: $chooserName',
+                        'Deler: $dealerName',
+                        'Uitkomst: $starterName',
                       ],
                     ),
                   ],

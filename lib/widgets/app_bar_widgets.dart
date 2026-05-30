@@ -9,6 +9,9 @@ import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
 import '../screens/rules_screen.dart';
 import '../screens/settings_screen.dart';
+import '../state/default_hearts_variant_provider.dart';
+import '../state/default_starter_variant_provider.dart';
+import '../state/rules_locked_provider.dart';
 import '../state/theme_mode_provider.dart';
 import '../utils.dart';
 
@@ -59,9 +62,11 @@ class AboutIconButton extends StatelessWidget {
 /// AppBar icon that pushes the [RulesScreen]. By default opens the
 /// full rule book; pass [singleGameId] to scope it to one mini-game.
 ///
-/// When [starterVariantOverride] / [heartsVariantOverride] are set the pushed
-/// [RulesScreen] shows only the active variant text (no "Spelregel variant"
-/// alternative). Pass them when opening rules from within a game.
+/// When [starterVariantOverride] / [heartsVariantOverride] are set, the pushed
+/// route is wrapped in a [ProviderScope] that locks the rules to those
+/// session values: variant-sensitive blocks show only the active text and hide
+/// the settings icon / "Spelregel variant" alternative. Pass them when opening
+/// rules from within a game.
 class RulesIconButton extends StatelessWidget {
   const RulesIconButton({
     super.key,
@@ -88,10 +93,29 @@ class RulesIconButton extends StatelessWidget {
       tooltip: tooltip ?? 'Spelregels',
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => RulesScreen(
-            singleGameId: singleGameId,
-            starterVariantOverride: starterVariantOverride,
-            heartsVariantOverride: heartsVariantOverride,
+          // The pushed route is a fresh subtree, so the session's variants are
+          // injected via provider overrides scoped to it (rather than threaded
+          // through every rules widget). The overridden "default" providers
+          // resolve to the session values for the lifetime of this route only.
+          builder: (_) => ProviderScope(
+            overrides: [
+              if (starterVariantOverride != null)
+                defaultStarterVariantProvider.overrideWith(
+                  () => DefaultStarterVariantNotifier(
+                    initialVariant: starterVariantOverride!,
+                  ),
+                ),
+              if (heartsVariantOverride != null)
+                defaultHeartsVariantProvider.overrideWith(
+                  () => DefaultHeartsVariantNotifier(
+                    initialVariant: heartsVariantOverride!,
+                  ),
+                ),
+              rulesLockedProvider.overrideWithValue(
+                starterVariantOverride != null || heartsVariantOverride != null,
+              ),
+            ],
+            child: RulesScreen(singleGameId: singleGameId),
           ),
         ),
       ),

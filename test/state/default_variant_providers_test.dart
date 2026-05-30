@@ -90,25 +90,22 @@ void main() {
       );
     });
 
-    test(
-      'setVariant updates state and persists to SharedPreferences',
-      () async {
-        final c = ProviderContainer();
-        addTearDown(c.dispose);
-        await c
-            .read(defaultStarterVariantProvider.notifier)
-            .setVariant(StarterVariant.oppositeChooserStarts);
-        expect(
-          c.read(defaultStarterVariantProvider),
-          StarterVariant.oppositeChooserStarts,
-        );
-        final prefs = await SharedPreferences.getInstance();
-        expect(
-          prefs.getString('default_starter_variant'),
-          'oppositeChooserStarts',
-        );
-      },
-    );
+    test('setValue updates state and persists to SharedPreferences', () async {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      await c
+          .read(defaultStarterVariantProvider.notifier)
+          .setValue(StarterVariant.oppositeChooserStarts);
+      expect(
+        c.read(defaultStarterVariantProvider),
+        StarterVariant.oppositeChooserStarts,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString('default_starter_variant'),
+        'oppositeChooserStarts',
+      );
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -132,21 +129,18 @@ void main() {
       );
     });
 
-    test(
-      'setVariant updates state and persists to SharedPreferences',
-      () async {
-        final c = ProviderContainer();
-        addTearDown(c.dispose);
-        await c
-            .read(defaultHeartsVariantProvider.notifier)
-            .setVariant(HeartsVariant.graduatedUnlock);
-        expect(
-          c.read(defaultHeartsVariantProvider),
-          HeartsVariant.graduatedUnlock,
-        );
-        final prefs = await SharedPreferences.getInstance();
-        expect(prefs.getString('default_hearts_variant'), 'graduatedUnlock');
-      },
-    );
+    test('setValue updates state and persists to SharedPreferences', () async {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      await c
+          .read(defaultHeartsVariantProvider.notifier)
+          .setValue(HeartsVariant.graduatedUnlock);
+      expect(
+        c.read(defaultHeartsVariantProvider),
+        HeartsVariant.graduatedUnlock,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('default_hearts_variant'), 'graduatedUnlock');
+    });
   });
 }

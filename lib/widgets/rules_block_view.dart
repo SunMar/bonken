@@ -9,6 +9,8 @@ import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
+import '../state/rules_locked_provider.dart';
+import 'variant_radio_list.dart';
 
 /// Renders a single [Block] from [game_rules.dart] as Material widgets.
 ///
@@ -16,37 +18,32 @@ import '../state/default_starter_variant_provider.dart';
 /// is shared between the full rules screen and the per-game rules screen.
 /// Anything visual about how a block looks lives here, not in the data.
 ///
-/// Pass [starterVariantOverride] / [heartsVariantOverride] to lock the
-/// variant displayed (used when rules are opened from within a game). When
-/// both are null the widget reads the app-wide default providers.
-/// When an override is present, variant-sensitive blocks show only the active
-/// text — the "Spelregel variant" alternative note is hidden (the player is
-/// committed to one rule set for their session).
+/// The active variant for each kind comes from the default-variant providers,
+/// and [rulesLockedProvider] decides whether variant-sensitive blocks expose
+/// the settings icon and "Spelregel variant" alternative. `RulesIconButton`
+/// overrides both (scoped to the pushed route) when rules are opened from
+/// within a game, so the player sees only their committed rule set.
 class RulesBlockView extends ConsumerWidget {
-  const RulesBlockView({
-    super.key,
-    required this.block,
-    this.starterVariantOverride,
-    this.heartsVariantOverride,
-  });
+  const RulesBlockView({super.key, required this.block});
 
   final Block block;
-
-  /// When non-null, overrides the app default for starter-variant display.
-  final StarterVariant? starterVariantOverride;
-
-  /// When non-null, overrides the app default for hearts-variant display.
-  final HeartsVariant? heartsVariantOverride;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tt = Theme.of(context).textTheme;
-    // Resolve both variants before the switch. The override wins when set;
-    // otherwise the app-wide default provider is used.
-    final StarterVariant resolvedStarter =
-        starterVariantOverride ?? ref.watch(defaultStarterVariantProvider);
-    final HeartsVariant resolvedHearts =
-        heartsVariantOverride ?? ref.watch(defaultHeartsVariantProvider);
+    final StarterVariant resolvedStarter = ref.watch(
+      defaultStarterVariantProvider,
+    );
+    final HeartsVariant resolvedHearts = ref.watch(
+      defaultHeartsVariantProvider,
+    );
+    final bool locked = ref.watch(rulesLockedProvider);
+    // Resolve the active variant for a kind once, so the per-block branches
+    // below don't repeat the kind switch.
+    Enum resolvedFor(VariantKind kind) => switch (kind) {
+      VariantKind.starter => resolvedStarter,
+      VariantKind.hearts => resolvedHearts,
+    };
     return switch (block) {
       final Para b => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -109,40 +106,30 @@ class RulesBlockView extends ConsumerWidget {
                 child: Text.rich(
                   TextSpan(
                     children: [
-                      TextSpan(text: '${b.startFrom + i}.  '),
+                      TextSpan(text: '${i + 1}.  '),
                       switch (b.items[i]) {
-                        final String s => _parseInline(
-                          s,
+                        final TextItem item => _parseInline(
+                          item.text,
                           tt.bodyMedium ?? const TextStyle(),
                         ),
-                        final VariantBlock v => TextSpan(
+                        final VariantItem item => TextSpan(
                           children: [
                             TextSpan(
-                              text: v.textFor(switch (v.variantKind) {
-                                VariantKind.starter => resolvedStarter,
-                                VariantKind.hearts => resolvedHearts,
-                              }),
+                              text: item.block.textFor(
+                                resolvedFor(item.block.variantKind),
+                              ),
                             ),
-                            if (switch (v.variantKind) {
-                              VariantKind.starter =>
-                                starterVariantOverride == null,
-                              VariantKind.hearts =>
-                                heartsVariantOverride == null,
-                            })
+                            if (!locked)
                               WidgetSpan(
                                 alignment: PlaceholderAlignment.middle,
                                 child: _SettingsIconButton(
-                                  variantKind: v.variantKind,
-                                  resolvedVariant: switch (v.variantKind) {
-                                    VariantKind.starter => resolvedStarter,
-                                    VariantKind.hearts => resolvedHearts,
-                                  },
+                                  variantKind: item.block.variantKind,
+                                  resolvedVariant: resolvedFor(
+                                    item.block.variantKind,
+                                  ),
                                 ),
                               ),
                           ],
-                        ),
-                        _ => throw StateError(
-                          'Unexpected NumberedList item: ${b.items[i].runtimeType}',
                         ),
                       },
                     ],
@@ -163,14 +150,8 @@ class RulesBlockView extends ConsumerWidget {
       ),
       final VariantBlock b => _VariantBlockView(
         block: b,
-        resolvedVariant: switch (b.variantKind) {
-          VariantKind.starter => resolvedStarter,
-          VariantKind.hearts => resolvedHearts,
-        },
-        hasOverride: switch (b.variantKind) {
-          VariantKind.starter => starterVariantOverride != null,
-          VariantKind.hearts => heartsVariantOverride != null,
-        },
+        resolvedVariant: resolvedFor(b.variantKind),
+        hasOverride: locked,
       ),
     };
   }
@@ -186,14 +167,14 @@ class _VariantBlockView extends StatelessWidget {
   final VariantBlock block;
   final Enum resolvedVariant;
 
-  /// When true the tune icon is hidden (in-game scope: variant is fixed).
+  /// When true the settings icon is hidden (in-game scope: variant is fixed).
   final bool hasOverride;
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final String text = block.textFor(resolvedVariant);
-    final tuneIcon = hasOverride
+    final settingsIcon = hasOverride
         ? null
         : _SettingsIconButton(
             variantKind: block.variantKind,
@@ -205,7 +186,7 @@ class _VariantBlockView extends StatelessWidget {
             child: _NoteCallout(
               label: block.label!,
               text: text,
-              trailing: tuneIcon,
+              trailing: settingsIcon,
             ),
           )
         : Padding(
@@ -213,7 +194,7 @@ class _VariantBlockView extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(child: Text(text, style: tt.bodyMedium)),
-                ?tuneIcon,
+                ?settingsIcon,
               ],
             ),
           );
@@ -222,8 +203,8 @@ class _VariantBlockView extends StatelessWidget {
 
 /// Material 3 highlighted callout used to render [Note] and labeled
 /// [VariantBlock] blocks. When [trailing] is provided the label is rendered on
-/// its own row alongside the widget (e.g. a tune icon), followed by [text] on
-/// the next line. Without [trailing] the label and text are rendered inline.
+/// its own row alongside the widget (e.g. a settings icon), followed by [text]
+/// on the next line. Without [trailing] the label and text are rendered inline.
 class _NoteCallout extends StatelessWidget {
   const _NoteCallout({required this.label, required this.text, this.trailing});
 
@@ -345,41 +326,15 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
       title: const Text('Spelregel variant'),
       content: SingleChildScrollView(
         child: switch (widget.variantKind) {
-          VariantKind.starter => RadioGroup<StarterVariant>(
-            groupValue: _pending as StarterVariant,
-            onChanged: (v) {
-              if (v != null) setState(() => _pending = v);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final v in StarterVariant.values)
-                  RadioListTile<StarterVariant>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(v.label),
-                    subtitle: Text(v.description),
-                    value: v,
-                  ),
-              ],
-            ),
+          VariantKind.starter => VariantRadioList<StarterVariant>(
+            values: StarterVariant.values,
+            value: _pending as StarterVariant,
+            onChanged: (v) => setState(() => _pending = v),
           ),
-          VariantKind.hearts => RadioGroup<HeartsVariant>(
-            groupValue: _pending as HeartsVariant,
-            onChanged: (v) {
-              if (v != null) setState(() => _pending = v);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final v in HeartsVariant.values)
-                  RadioListTile<HeartsVariant>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(v.label),
-                    subtitle: Text(v.description),
-                    value: v,
-                  ),
-              ],
-            ),
+          VariantKind.hearts => VariantRadioList<HeartsVariant>(
+            values: HeartsVariant.values,
+            value: _pending as HeartsVariant,
+            onChanged: (v) => setState(() => _pending = v),
           ),
         },
       ),
@@ -399,13 +354,13 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
         unawaited(
           ref
               .read(defaultStarterVariantProvider.notifier)
-              .setVariant(_pending as StarterVariant),
+              .setValue(_pending as StarterVariant),
         );
       case VariantKind.hearts:
         unawaited(
           ref
               .read(defaultHeartsVariantProvider.notifier)
-              .setVariant(_pending as HeartsVariant),
+              .setValue(_pending as HeartsVariant),
         );
     }
     Navigator.of(context).pop();

@@ -64,9 +64,25 @@ class BulletList extends Block {
 }
 
 class NumberedList extends Block {
-  const NumberedList(this.items, {this.startFrom = 1});
-  final List<Object> items; // String | VariantBlock
-  final int startFrom;
+  const NumberedList(this.items);
+  final List<NumberedItem> items;
+}
+
+/// One step in a [NumberedList]: either plain text or a variant-dependent step.
+sealed class NumberedItem {
+  const NumberedItem();
+}
+
+/// A plain-text numbered step. Supports `**bold**` markdown.
+class TextItem extends NumberedItem {
+  const TextItem(this.text);
+  final String text;
+}
+
+/// A numbered step whose text depends on the active variant.
+class VariantItem extends NumberedItem {
+  const VariantItem(this.block);
+  final VariantBlock block;
 }
 
 /// Which game-rule variant a [VariantBlock] is bound to.
@@ -75,13 +91,14 @@ enum VariantKind { starter, hearts }
 /// A rule-text block whose content depends on the active variant.
 ///
 /// Renders the active rule text inline (in a [NumberedList] step) or as a
-/// labeled callout (when [label] is non-null). A tune icon is shown alongside
-/// the text so the reader can open the variant picker dialog.
+/// labeled callout (when [label] is non-null). A settings (gear) icon is shown
+/// alongside the text so the reader can open the variant picker dialog.
 ///
 /// [texts] maps each enum value to its rule text. The map must cover every
 /// value of the relevant variant enum (currently exactly two per kind).
 ///
-/// Pure Dart data — no Flutter imports.
+/// No Flutter widgets / UI logic here — icon references (see the file header)
+/// aside, this stays plain rule data.
 class VariantBlock extends Block {
   const VariantBlock({
     required this.variantKind,
@@ -270,21 +287,34 @@ const Section kVerloopSection = Section(
   title: 'Verloop van een ronde',
   blocks: [
     NumberedList([
-      'De deler schudt de kaarten (maar niet te veel, maximaal 3 keer heffen).',
-      'De deler deelt alle kaarten (13 per speler) met grote stappen (bijvoorbeeld 5-4-4).',
-      'Zodra de kaarten zijn gedeeld, mogen alle spelers hun eigen kaarten bekijken.',
-      'De speler links van de deler is de kiezer en kiest een spelvorm die nog niet gespeeld is (maximaal 2 negatieve en 1 positieve spelvorm per speler).',
-      'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatst. De kiezer mag niet dubbelen, alleen teruggaan.',
-      VariantBlock(
-        variantKind: VariantKind.starter,
-        texts: {
-          StarterVariant.dealerStarts: 'Het spelen begint, de deler komt uit.',
-          StarterVariant.oppositeChooserStarts:
-              'Het spelen begint, de speler tegenover de kiezer komt uit.',
-        },
+      TextItem(
+        'De deler schudt de kaarten (maar niet te veel, maximaal 3 keer heffen).',
       ),
-      'De ronde wordt gescoord.',
-      'De volgende speler (met de klok mee) wordt deler.',
+      TextItem(
+        'De deler deelt alle kaarten (13 per speler) met grote stappen (bijvoorbeeld 5-4-4).',
+      ),
+      TextItem(
+        'Zodra de kaarten zijn gedeeld, mogen alle spelers hun eigen kaarten bekijken.',
+      ),
+      TextItem(
+        'De speler links van de deler is de kiezer en kiest een spelvorm die nog niet gespeeld is (maximaal 2 negatieve en 1 positieve spelvorm per speler).',
+      ),
+      TextItem(
+        'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatst. De kiezer mag niet dubbelen, alleen teruggaan.',
+      ),
+      VariantItem(
+        VariantBlock(
+          variantKind: VariantKind.starter,
+          texts: {
+            StarterVariant.dealerStarts:
+                'Het spelen begint, de deler komt uit.',
+            StarterVariant.oppositeChooserStarts:
+                'Het spelen begint, de speler tegenover de kiezer komt uit.',
+          },
+        ),
+      ),
+      TextItem('De ronde wordt gescoord.'),
+      TextItem('De volgende speler (met de klok mee) wordt deler.'),
     ]),
   ],
 );
@@ -562,14 +592,26 @@ const GameSection _dominoesSection = GameSection(
     ),
     Para('Het verloop is als volgt:'),
     NumberedList([
-      'De deler begint.',
-      'Iedere kleur begint met de 8. Een kleur komt pas op tafel zodra iemand de 8 van die kleur speelt.',
-      'Ligt een kleur al op tafel, dan mag je in die kleur alleen 1 hoger of 1 lager aanleggen.',
-      'De eerste Aas mag óf omhoog aan de Heer worden aangelegd, óf omlaag aan de 2 worden aangelegd. De andere drie azen moeten daarna in dezelfde richting als de eerste Aas aangelegd worden.',
-      'Kun je aanleggen bij een kleur die al op tafel ligt, dan moet je eerst aanleggen.',
-      'Kun je niet aanleggen, maar heb je wel een 8 op hand, dan moet je een 8 spelen. Heb je meerdere achten, dan mag je kiezen welke je speelt.',
-      'Passen mag alleen als je niet kunt aanleggen en ook geen 8 op hand hebt.',
-      'Wie als laatste uit is krijgt -100.',
+      TextItem('De deler begint.'),
+      TextItem(
+        'Iedere kleur begint met de 8. Een kleur komt pas op tafel zodra iemand de 8 van die kleur speelt.',
+      ),
+      TextItem(
+        'Ligt een kleur al op tafel, dan mag je in die kleur alleen 1 hoger of 1 lager aanleggen.',
+      ),
+      TextItem(
+        'De eerste Aas mag óf omhoog aan de Heer worden aangelegd, óf omlaag aan de 2 worden aangelegd. De andere drie azen moeten daarna in dezelfde richting als de eerste Aas aangelegd worden.',
+      ),
+      TextItem(
+        'Kun je aanleggen bij een kleur die al op tafel ligt, dan moet je eerst aanleggen.',
+      ),
+      TextItem(
+        'Kun je niet aanleggen, maar heb je wel een 8 op hand, dan moet je een 8 spelen. Heb je meerdere achten, dan mag je kiezen welke je speelt.',
+      ),
+      TextItem(
+        'Passen mag alleen als je niet kunt aanleggen en ook geen 8 op hand hebt.',
+      ),
+      TextItem('Wie als laatste uit is krijgt -100.'),
     ]),
   ],
 );

@@ -18,6 +18,7 @@ import '../widgets/doubles_picker.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_input/game_input_form.dart';
 import '../widgets/incomplete_form_snackbar.dart';
+import '../widgets/round_meta_line.dart';
 import '../widgets/score_result_view.dart';
 
 // Confirmation body shown when the user tries to save a round whose score
@@ -456,28 +457,12 @@ class _RoundInputHeader extends ConsumerWidget {
                 style: tt.bodyMedium?.copyWith(color: textColor),
               ),
               const SizedBox(height: 2),
-              Wrap(
-                children: [
-                  Text(
-                    'Kiezer: ${playerNames[chooserIndex]}',
-                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  Text(
-                    '  ·  ',
-                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  Text(
-                    'Deler: ${playerNames[dealerIndex]}',
-                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  Text(
-                    '  ·  ',
-                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  Text(
-                    'Uitkomst: ${playerNames[starterIndex]}',
-                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
+              RoundMetaLine(
+                color: cs.onSurfaceVariant,
+                segments: [
+                  'Kiezer: ${playerNames[chooserIndex]}',
+                  'Deler: ${playerNames[dealerIndex]}',
+                  'Uitkomst: ${playerNames[starterIndex]}',
                 ],
               ),
             ],

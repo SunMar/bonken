@@ -10,6 +10,12 @@ import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/form_section_card.dart';
+import '../widgets/variant_radio_list.dart';
+
+/// Shared subtitle for every settings section: these are app-wide defaults
+/// for new games, still adjustable per game.
+const String _kDefaultSubtitle =
+    'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.';
 
 /// Full-screen dialog for configuring app-wide default settings.
 /// Pushed with `fullscreenDialog: true`.
@@ -35,60 +41,32 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           FormSectionCard(
             title: kStarterVariantSectionTitle,
-            subtitle:
-                'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.',
+            subtitle: _kDefaultSubtitle,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             childSpacing: 0,
-            child: RadioGroup<StarterVariant>(
-              groupValue: starterVariant,
-              onChanged: (selected) {
-                if (selected == null) return;
-                unawaited(
-                  ref
-                      .read(defaultStarterVariantProvider.notifier)
-                      .setVariant(selected),
-                );
-              },
-              child: Column(
-                children: [
-                  for (final v in StarterVariant.values)
-                    RadioListTile<StarterVariant>(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(v.label),
-                      subtitle: Text(v.description),
-                      value: v,
-                    ),
-                ],
+            child: VariantRadioList<StarterVariant>(
+              values: StarterVariant.values,
+              value: starterVariant,
+              onChanged: (selected) => unawaited(
+                ref
+                    .read(defaultStarterVariantProvider.notifier)
+                    .setValue(selected),
               ),
             ),
           ),
           const SizedBox(height: 12),
           FormSectionCard(
             title: kHeartsVariantSectionTitle,
-            subtitle:
-                'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.',
+            subtitle: _kDefaultSubtitle,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             childSpacing: 0,
-            child: RadioGroup<HeartsVariant>(
-              groupValue: heartsVariant,
-              onChanged: (selected) {
-                if (selected == null) return;
-                unawaited(
-                  ref
-                      .read(defaultHeartsVariantProvider.notifier)
-                      .setVariant(selected),
-                );
-              },
-              child: Column(
-                children: [
-                  for (final v in HeartsVariant.values)
-                    RadioListTile<HeartsVariant>(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(v.label),
-                      subtitle: Text(v.description),
-                      value: v,
-                    ),
-                ],
+            child: VariantRadioList<HeartsVariant>(
+              values: HeartsVariant.values,
+              value: heartsVariant,
+              onChanged: (selected) => unawaited(
+                ref
+                    .read(defaultHeartsVariantProvider.notifier)
+                    .setValue(selected),
               ),
             ),
           ),
