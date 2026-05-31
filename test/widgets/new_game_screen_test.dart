@@ -1,4 +1,6 @@
+import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/player.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/player_name_field.dart';
@@ -305,6 +307,78 @@ void main() {
 
       // Dropdown's selected item still shows Carol.
       expect(find.text('Carol'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'changing rule variants in the Spelregels sheet commits them on Start',
+    (tester) async {
+      // Tall surface so the whole bottom sheet (both variant sections) is on
+      // screen and its radios are tappable without scrolling.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final container = await pumpSetup(tester);
+      await enterName(tester, 0, 'Alice');
+      await enterName(tester, 1, 'Bob');
+      await enterName(tester, 2, 'Carol');
+      await enterName(tester, 3, 'Dan');
+      await tester.pumpAndSettle();
+
+      await pickDealer(tester, 'Carol');
+
+      // Open the rules sheet and switch both variants away from their
+      // defaults (dealerStarts / onlyAfterPlayedHeart).
+      await tester.tap(find.text('Spelregels'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(StarterVariant.oppositeChooserStarts.label));
+      await tester.tap(find.text(HeartsVariant.graduatedUnlock.label));
+      await tester.pumpAndSettle();
+
+      // Dismiss the sheet so the Start button is reachable again.
+      await tester.tap(find.byTooltip('Sluiten'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tester.pumpAndSettle();
+
+      final s = container.read(calculatorProvider);
+      expect(
+        s.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(s.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
+    },
+  );
+
+  testWidgets(
+    'rules card shows the default note, then the deviation once a variant changes',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await pumpSetup(tester);
+
+      // Seeded from the configured default, so nothing deviates yet.
+      expect(find.text('Je speelt met je standaardregels.'), findsOneWidget);
+
+      // Switch the starter variant in the sheet.
+      await tester.tap(find.text('Spelregels'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(StarterVariant.oppositeChooserStarts.label));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Sluiten'));
+      await tester.pumpAndSettle();
+
+      // The card now summarises the deviation and drops the default note.
+      expect(
+        find.text(
+          '$kStarterVariantSectionTitle → '
+          '${StarterVariant.oppositeChooserStarts.label}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Je speelt met je standaardregels.'), findsNothing);
     },
   );
 }

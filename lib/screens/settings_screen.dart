@@ -4,13 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../models/hearts_variant.dart';
-import '../models/starter_variant.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/form_section_card.dart';
-import '../widgets/variant_radio_list.dart';
+import '../widgets/game_rules_card.dart';
 
 /// Full-screen dialog for configuring app-wide default settings.
 /// Pushed with `fullscreenDialog: true`.
@@ -36,35 +33,14 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           const _SettingsNote(),
           const SizedBox(height: 12),
-          FormSectionCard(
-            title: kStarterVariantSectionTitle,
-            subtitle: kStarterVariantSectionSubtitle,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            childSpacing: 0,
-            child: VariantRadioList<StarterVariant>(
-              values: StarterVariant.values,
-              value: starterVariant,
-              onChanged: (selected) => unawaited(
-                ref
-                    .read(defaultStarterVariantProvider.notifier)
-                    .setValue(selected),
-              ),
+          GameRulesSections(
+            starterVariant: starterVariant,
+            heartsVariant: heartsVariant,
+            onStarterChanged: (v) => unawaited(
+              ref.read(defaultStarterVariantProvider.notifier).setValue(v),
             ),
-          ),
-          const SizedBox(height: 12),
-          FormSectionCard(
-            title: kHeartsVariantSectionTitle,
-            subtitle: kHeartsVariantSectionSubtitle,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            childSpacing: 0,
-            child: VariantRadioList<HeartsVariant>(
-              values: HeartsVariant.values,
-              value: heartsVariant,
-              onChanged: (selected) => unawaited(
-                ref
-                    .read(defaultHeartsVariantProvider.notifier)
-                    .setValue(selected),
-              ),
+            onHeartsChanged: (v) => unawaited(
+              ref.read(defaultHeartsVariantProvider.notifier).setValue(v),
             ),
           ),
         ],

@@ -7,6 +7,7 @@ import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/models/rule_variants.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -269,33 +270,38 @@ void main() {
         players: testPlayers,
         firstDealerId: pa.id,
         rounds: const [],
-        starterVariant: StarterVariant.oppositeChooserStarts,
-        heartsVariant: HeartsVariant.graduatedUnlock,
+        ruleVariants: const RuleVariants(
+          starterVariant: StarterVariant.oppositeChooserStarts,
+          heartsVariant: HeartsVariant.graduatedUnlock,
+        ),
       );
       final back = GameSession.fromJson(original.toJson());
-      expect(back.starterVariant, StarterVariant.oppositeChooserStarts);
-      expect(back.heartsVariant, HeartsVariant.graduatedUnlock);
+      expect(
+        back.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(back.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     });
 
-    test(
-      'missing starterVariant / heartsVariant fields fall back to defaults',
-      () {
-        final json = {
-          'id': 'no-variants',
-          'createdAt': '2024-01-01T00:00:00.000',
-          'updatedAt': '2024-01-01T00:00:00.000',
-          'players': [for (final p in testPlayers) p.toJson()],
-          'firstDealerId': pa.id,
-          'rounds': <dynamic>[],
-          // no 'starterVariant' or 'heartsVariant' keys
-        };
-        final session = GameSession.fromJson(json);
-        expect(session.starterVariant, StarterVariant.dealerStarts);
-        expect(session.heartsVariant, HeartsVariant.onlyAfterPlayedHeart);
-      },
-    );
+    test('missing ruleVariants object falls back to defaults', () {
+      final json = {
+        'id': 'no-variants',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': <dynamic>[],
+        // no 'ruleVariants' key
+      };
+      final session = GameSession.fromJson(json);
+      expect(session.ruleVariants.starterVariant, StarterVariant.dealerStarts);
+      expect(
+        session.ruleVariants.heartsVariant,
+        HeartsVariant.onlyAfterPlayedHeart,
+      );
+    });
 
-    test('unknown variant names fall back to defaults', () {
+    test('unknown variant names inside ruleVariants fall back to defaults', () {
       final json = {
         'id': 'bad-variants',
         'createdAt': '2024-01-01T00:00:00.000',
@@ -303,12 +309,17 @@ void main() {
         'players': [for (final p in testPlayers) p.toJson()],
         'firstDealerId': pa.id,
         'rounds': <dynamic>[],
-        'starterVariant': 'notARealVariant',
-        'heartsVariant': 'alsoNotReal',
+        'ruleVariants': {
+          'starterVariant': 'notARealVariant',
+          'heartsVariant': 'alsoNotReal',
+        },
       };
       final session = GameSession.fromJson(json);
-      expect(session.starterVariant, StarterVariant.dealerStarts);
-      expect(session.heartsVariant, HeartsVariant.onlyAfterPlayedHeart);
+      expect(session.ruleVariants.starterVariant, StarterVariant.dealerStarts);
+      expect(
+        session.ruleVariants.heartsVariant,
+        HeartsVariant.onlyAfterPlayedHeart,
+      );
     });
 
     test('dual 7e/13e round preserves which player won which trick', () {

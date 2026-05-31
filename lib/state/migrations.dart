@@ -17,7 +17,7 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 5;
+const int currentStorageVersion = 6;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
 const List<StorageMigration> _migrations = [
@@ -25,6 +25,7 @@ const List<StorageMigration> _migrations = [
   _V2ToV3(),
   _V3ToV4(),
   _V4ToV5(),
+  _V5ToV6(),
 ];
 
 /// Applies every registered step from [fromVersion] up to
@@ -392,4 +393,40 @@ class _V4ToV5 extends StorageMigration {
         'heartsVariant': 'onlyAfterPlayedHeart',
       },
   ];
+}
+
+// =============================================================================
+// v5 → v6: group the two top-level rule-variant keys under one `ruleVariants`
+//          map, so future rule variants stay grouped instead of cluttering the
+//          game root.
+//          { starterVariant, heartsVariant } → { ruleVariants: { … } }
+// =============================================================================
+//
+// v5 always carried both keys at the game root (the _V4ToV5 step injects them
+// and the v5-era writer emitted them). This step moves them verbatim into a
+// nested map and drops the old keys; absent values fall back to the v5 defaults
+// this step was frozen against.
+
+class _V5ToV6 extends StorageMigration {
+  const _V5ToV6();
+
+  @override
+  int get fromVersion => 5;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games) _migrateGame(raw as Map<String, dynamic>),
+  ];
+
+  static Map<String, dynamic> _migrateGame(Map<String, dynamic> game) {
+    return <String, dynamic>{
+      for (final e in game.entries)
+        if (e.key != 'starterVariant' && e.key != 'heartsVariant')
+          e.key: e.value,
+      'ruleVariants': <String, dynamic>{
+        'starterVariant': game['starterVariant'] ?? 'dealerStarts',
+        'heartsVariant': game['heartsVariant'] ?? 'onlyAfterPlayedHeart',
+      },
+    };
+  }
 }

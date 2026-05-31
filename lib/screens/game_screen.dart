@@ -541,8 +541,7 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
       dealerIndex: dealerIndex,
       // Carry over the just-finished game's house rules so the repeated game
       // doesn't silently reset to hardcoded defaults.
-      starterVariant: state.starterVariant,
-      heartsVariant: state.heartsVariant,
+      ruleVariants: state.ruleVariants,
     );
     final session = notifier.buildSession();
     if (session != null) {

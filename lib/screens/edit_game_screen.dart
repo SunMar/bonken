@@ -16,7 +16,7 @@ import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
-import '../widgets/game_rules_expansion_card.dart';
+import '../widgets/game_rules_card.dart';
 import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
 
@@ -73,10 +73,10 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     _firstDealerIndex = state.firstDealerIndex;
     _originalFirstDealerIndex = state.firstDealerIndex;
     _gameInProgress = state.history.isNotEmpty || state.hasPendingGame;
-    _starterVariant = state.starterVariant;
-    _originalStarterVariant = state.starterVariant;
-    _heartsVariant = state.heartsVariant;
-    _originalHeartsVariant = state.heartsVariant;
+    _starterVariant = state.ruleVariants.starterVariant;
+    _originalStarterVariant = state.ruleVariants.starterVariant;
+    _heartsVariant = state.ruleVariants.heartsVariant;
+    _originalHeartsVariant = state.ruleVariants.heartsVariant;
     _controllers = [
       for (final name in state.playerNames) TextEditingController(text: name),
     ];
@@ -314,7 +314,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            GameRulesExpansionCard(
+            GameRulesCard(
               starterVariant: _starterVariant,
               heartsVariant: _heartsVariant,
               onStarterChanged: (v) => setState(() => _starterVariant = v),

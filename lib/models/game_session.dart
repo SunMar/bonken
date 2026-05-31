@@ -1,12 +1,10 @@
-import '../utils.dart';
 import 'double_matrix.dart';
 import 'games/game_catalog.dart';
-import 'hearts_variant.dart';
 import 'input_descriptor.dart';
 import 'mini_game.dart';
 import 'player.dart';
 import 'round_record.dart';
-import 'starter_variant.dart';
+import 'rule_variants.dart';
 
 /// Resolves a [MiniGame] from its [gameId] against the catalog (falling back to
 /// the first game for unknown ids, mirroring [GameSession._roundFromJson]).
@@ -78,8 +76,7 @@ class GameSession {
     required this.firstDealerId,
     required this.rounds,
     this.pendingRound,
-    this.starterVariant = StarterVariant.dealerStarts,
-    this.heartsVariant = HeartsVariant.onlyAfterPlayedHeart,
+    this.ruleVariants = const RuleVariants(),
   });
 
   /// Unique identifier – microseconds-since-epoch string generated at start.
@@ -105,11 +102,8 @@ class GameSession {
   /// A round that was started but not fully scored; null when none.
   final PendingRound? pendingRound;
 
-  /// Which player leads the first trick. Defaults to [StarterVariant.dealerStarts].
-  final StarterVariant starterVariant;
-
-  /// Hearts-lead restriction in effect for this game.
-  final HeartsVariant heartsVariant;
+  /// The per-game rule variants (starter + hearts) chosen for this session.
+  final RuleVariants ruleVariants;
 
   // ---------------------------------------------------------------------------
   // Derived helpers
@@ -177,8 +171,7 @@ class GameSession {
     'updatedAt': updatedAt.toIso8601String(),
     'players': [for (final p in players) p.toJson()],
     'firstDealerId': firstDealerId,
-    'starterVariant': starterVariant.name,
-    'heartsVariant': heartsVariant.name,
+    'ruleVariants': ruleVariants.toJson(),
     'rounds': [for (final r in rounds) r.toJson()],
     if (pendingRound != null) 'pendingRound': pendingRound!.toJson(),
   };
@@ -194,15 +187,8 @@ class GameSession {
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       players: players,
       firstDealerId: json['firstDealerId'] as String,
-      starterVariant: enumByName(
-        StarterVariant.values,
-        json['starterVariant'] as String?,
-        StarterVariant.dealerStarts,
-      ),
-      heartsVariant: enumByName(
-        HeartsVariant.values,
-        json['heartsVariant'] as String?,
-        HeartsVariant.onlyAfterPlayedHeart,
+      ruleVariants: RuleVariants.fromJson(
+        (json['ruleVariants'] as Map<String, dynamic>?) ?? const {},
       ),
       rounds: [
         for (final r in json['rounds'] as List)

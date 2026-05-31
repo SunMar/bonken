@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -639,7 +641,7 @@ void main() {
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 5);
+        expect(written['version'], 6);
         expect(written['games'], isA<List<dynamic>>());
       },
     );
@@ -692,7 +694,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 5);
+      expect(written['version'], 6);
     });
 
     test('version:2 in versioned key is migrated to current version', () async {
@@ -738,7 +740,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 5);
+      expect(written['version'], 6);
       // On disk the round input is the uniform counts list.
       final game0 =
           (written['games'] as List<dynamic>).first as Map<String, dynamic>;
@@ -812,7 +814,7 @@ void main() {
     );
 
     test(
-      'version:4 injects starterVariant and heartsVariant with default values',
+      'version:4 migrates to current version with default rule variants',
       () async {
         final players = [
           for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
@@ -839,19 +841,79 @@ void main() {
 
         expect(list.length, 1);
         final session = list.first;
-        expect(session.starterVariant.name, 'dealerStarts');
-        expect(session.heartsVariant.name, 'onlyAfterPlayedHeart');
+        expect(session.ruleVariants.starterVariant.name, 'dealerStarts');
+        expect(session.ruleVariants.heartsVariant.name, 'onlyAfterPlayedHeart');
 
-        // Verify the written JSON also contains the new fields.
+        // Verify the written JSON nests the variants under `ruleVariants`.
         final prefs = await SharedPreferences.getInstance();
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 5);
+        expect(written['version'], 6);
         final game =
             (written['games'] as List<dynamic>).first as Map<String, dynamic>;
-        expect(game['starterVariant'], 'dealerStarts');
-        expect(game['heartsVariant'], 'onlyAfterPlayedHeart');
+        expect(game.containsKey('starterVariant'), isFalse);
+        expect(game.containsKey('heartsVariant'), isFalse);
+        final ruleVariants = game['ruleVariants'] as Map<String, dynamic>;
+        expect(ruleVariants['starterVariant'], 'dealerStarts');
+        expect(ruleVariants['heartsVariant'], 'onlyAfterPlayedHeart');
+      },
+    );
+
+    test(
+      'version:5 nests top-level rule variants under ruleVariants',
+      () async {
+        final players = [
+          for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
+        ];
+        final ids = [for (final p in players) p.id];
+        // A genuine v5 record: rule variants live at the game root, with
+        // non-default values that must survive the move into `ruleVariants`.
+        SharedPreferences.setMockInitialValues({
+          'game_history': jsonEncode({
+            'version': 5,
+            'games': [
+              {
+                'id': 'v5sess',
+                'createdAt': '2024-01-01T00:00:00.000',
+                'updatedAt': '2024-01-01T00:00:00.000',
+                'players': [for (final p in players) p.toJson()],
+                'firstDealerId': ids[0],
+                'starterVariant': 'oppositeChooserStarts',
+                'heartsVariant': 'graduatedUnlock',
+                'rounds': <dynamic>[],
+              },
+            ],
+          }),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        expect(list.length, 1);
+        final session = list.first;
+        expect(
+          session.ruleVariants.starterVariant,
+          StarterVariant.oppositeChooserStarts,
+        );
+        expect(
+          session.ruleVariants.heartsVariant,
+          HeartsVariant.graduatedUnlock,
+        );
+
+        // On disk the old top-level keys are gone and the values are nested.
+        final prefs = await SharedPreferences.getInstance();
+        final written =
+            jsonDecode(prefs.getString('game_history')!)
+                as Map<String, dynamic>;
+        expect(written['version'], 6);
+        final game =
+            (written['games'] as List<dynamic>).first as Map<String, dynamic>;
+        expect(game.containsKey('starterVariant'), isFalse);
+        expect(game.containsKey('heartsVariant'), isFalse);
+        final ruleVariants = game['ruleVariants'] as Map<String, dynamic>;
+        expect(ruleVariants['starterVariant'], 'oppositeChooserStarts');
+        expect(ruleVariants['heartsVariant'], 'graduatedUnlock');
       },
     );
   });

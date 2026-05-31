@@ -26,7 +26,7 @@ void main() {
   ) async {
     await _pump(tester);
     expect(find.text('Uitkomst'), findsOneWidget);
-    expect(find.text('Extra spelregel harten'), findsOneWidget);
+    expect(find.text('Extra spelregel HH/HP'), findsOneWidget);
   });
 
   testWidgets('shows radio labels for all StarterVariant values', (

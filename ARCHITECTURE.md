@@ -191,6 +191,7 @@ lib/
     score_result.dart        ScoreResult: {playerId: pointsThisRound}.
     round_record.dart        RoundRecord: one completed round (in-memory + toJson).
     game_session.dart        GameSession aggregate + PendingRound; derived totals/winners; JSON.
+    rule_variants.dart       RuleVariants: per-game StarterVariant + HeartsVariant, grouped + JSON.
     games/
       game_catalog.dart      allGames — the single ordered list of all 13 mini-games.
       positive_games.dart    PositiveGame base + Clubs/Diamonds/Hearts/Spades/NoTrump.
@@ -199,7 +200,7 @@ lib/
   state/                     Riverpod providers.
     calculator_provider.dart CalculatorState + CalculatorNotifier (the in-game state machine).
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4→v5) + runner.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4→v5→v6) + runner.
     theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
     default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
     default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
@@ -242,17 +243,20 @@ lib/
                              AlignmentDirectional.bottomEnd — the M3 overflow-menu
                              pattern), and resolveAboutVersionLine() /
                              openAboutDialog() (@visibleForTesting).
-    game_rules_expansion_card.dart  Collapsible "Spelregels" Card+ExpansionTile for new-game and
-                             edit-game; collapsed by default, expands to show StarterVariant +
-                             HeartsVariant radio sections matching the settings screen layout.
+    game_rules_card.dart     Tappable "Spelregels" card for new-game and edit-game; summarises
+                             how the per-game rules deviate from the player's configured
+                             defaults (one row per differing rule, else a "standaardregels"
+                             note — there is no canonical rule set). Opens a modal bottom sheet
+                             (content-height, drag handle, X close, scrim/swipe/back also
+                             dismiss) with the same two FormSectionCard variant sections as
+                             SettingsScreen. Selections update the caller's local state
+                             immediately; persisted only on Start spel / Opslaan.
     variant_radio_list.dart  Generic RadioGroup<T extends LabeledVariant> (label + description per
                              value); used by settings, new-game, edit-game + the rules variant dialog.
     round_meta_line.dart     Wrapping "Kiezer · Deler · Uitkomst" metadata line shared by the
                              game-screen and round-input banners.
     form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
                              + subtitle + child); used on new-game, edit-game, settings.
-                             FormSectionHeader exposes the bare header (no card), reused by
-                             game_rules_expansion_card.dart.
     game_input/              Round-input building blocks: form, counts input, player picker.
     …                        dealer_picker_dialog.dart, dialogs.dart,
                              timed_snackbar.dart + game_deleted_snackbar.dart
@@ -381,7 +385,8 @@ keeping `RoundRecord` a catalog-free data class.
 
 ### `GameSession` + `PendingRound` ([`game_session.dart`](lib/models/game_session.dart))
 The persisted aggregate: `id`, `createdAt`/`updatedAt`, `players`,
-`firstDealerId`, `starterVariant`, `heartsVariant`, `rounds: List<RoundRecord>`,
+`firstDealerId`, `ruleVariants` (a `RuleVariants` grouping the per-game
+`starterVariant` + `heartsVariant`), `rounds: List<RoundRecord>`,
 optional `pendingRound`.
 Lazily-computed (`late final`) derived getters: `isFinished` (≥ `totalRounds`
 == 12), `finalScoresByPlayer`, `winnerIds`, and the display-ordered
@@ -503,6 +508,7 @@ emits it via `onChanged` → `updateDoubles`:
 | current slot | `selectedGame`, `input`, `doubles`, `result`, `partialResult` | the round being entered |
 | stash | `pending: PendingRoundState` | sealed: `NoPendingRound` \| `ActivePendingRound{game,input,doubles}` |
 | edit | `editingRoundIndex`, `editOriginal{Input,Doubles,ChooserId}` | non-null while re-editing a past round |
+| rules | `ruleVariants: RuleVariants` | per-game `starterVariant` + `heartsVariant`, grouped (mirrors `GameSession`); `starterIndex` getter reads it |
 
 Helper getters: `hasPendingGame`, `hasMeaningfulPendingInput`, `inputState`
 (`InputState{none,partial,complete}` via the descriptor), `isEditingExistingRound`,
@@ -515,7 +521,7 @@ preview** shown while a counts game is partway entered (0 < sum < total).
 `partialResult`; none → clear both. It skips emitting when the value is unchanged.
 
 **Notifier methods (the transitions):**
-- `startNewGame({players, dealerIndex})` — fresh session id + reset.
+- `startNewGame({players, dealerIndex, ruleVariants})` — fresh session id + reset.
 - `loadSession(session)` — restore a saved game; reconstructs `dealerId`/
   `chooserId`/`roundNumber` from `firstDealerId` + history length, and rehydrates
   any `pendingRound` into an `ActivePendingRound`.
@@ -534,6 +540,8 @@ preview** shown while a counts game is partway entered (0 < sum < total).
   untouched until re-saved); captures originals for change detection.
 - `deleteLastRound` / `rollbackLastRound` — drop the most recent round.
 - `setPlayersAndDealer` / `setDealer` / `setPlayerName` — player + dealer edits.
+- `setStarterVariant` / `setHeartsVariant` — update one field of `ruleVariants`
+  (via `RuleVariants.copyWith`) for the current session.
 - `buildSession()` — snapshot state → `GameSession` (or `null` if no session id).
 - `reset()` — clear the in-game slot (called after the active session is deleted,
   so the provider returns to the "no active game" idle state).
@@ -611,10 +619,11 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 5):** `{ "version": 5, "games": [ … ] }`.
+- **Envelope (`currentStorageVersion` = 6):** `{ "version": 6, "games": [ … ] }`.
 - `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
-  `players:[{id,name}]`, `firstDealerId`, `starterVariant`, `heartsVariant`,
-  `rounds:[…]`, `pendingRound?`.
+  `players:[{id,name}]`, `firstDealerId`,
+  `ruleVariants:{starterVariant, heartsVariant}` (enum names), `rounds:[…]`,
+  `pendingRound?`.
 - `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
   `scores:{playerId:int}`, `input` (the **uniform** `{"counts":[ {uuid:int}, … ]}`
   form, regardless of game shape — see below), `doublesJson?` (omitted unless a
@@ -634,7 +643,7 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 5,
+  "version": 6,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
@@ -644,8 +653,10 @@ wins 1, B doubled A):
       {"id": "c3", "name": "Carol"}, {"id": "d4", "name": "Dan"}
     ],
     "firstDealerId": "a1",
-    "starterVariant": "dealerStarts",
-    "heartsVariant": "onlyAfterPlayedHeart",
+    "ruleVariants": {
+      "starterVariant": "dealerStarts",
+      "heartsVariant": "onlyAfterPlayedHeart"
+    },
     "rounds": [{
       "roundNumber": 1,
       "gameName": "Vrouwen", "gameId": "queens",
@@ -699,6 +710,9 @@ classes), so old steps keep working as the models evolve.
 - **`_V4ToV5`** — adds `starterVariant: 'dealerStarts'` and
   `heartsVariant: 'onlyAfterPlayedHeart'` to every game, materialising the two
   new per-session rule fields introduced in the v5 schema.
+- **`_V5ToV6`** — moves the two top-level `starterVariant` / `heartsVariant`
+  keys into a single nested `ruleVariants` object, so the persisted shape mirrors
+  the `RuleVariants` value class and future rule variants stay grouped.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step

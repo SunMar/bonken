@@ -209,10 +209,10 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             tooltip: 'Spelregels ${game.name}',
             flexibleTitle: true,
             starterVariantOverride: ref.read(
-              calculatorProvider.select((s) => s.starterVariant),
+              calculatorProvider.select((s) => s.ruleVariants.starterVariant),
             ),
             heartsVariantOverride: ref.read(
-              calculatorProvider.select((s) => s.heartsVariant),
+              calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
             ),
           ),
           leading: Tooltip(
@@ -251,7 +251,7 @@ class _RoundInputBody extends ConsumerWidget {
     final isPositive = game.category == GameCategory.positive;
     final textColor = scoreColor(isPositive ? 1 : -1, context);
     final heartsVariant = ref.watch(
-      calculatorProvider.select((s) => s.heartsVariant),
+      calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
     );
 
     return ListView(

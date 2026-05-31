@@ -105,6 +105,19 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('NewGameScreen rules sheet meets a11y guidelines', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, const NewGameScreen());
+    // Open the "Spelregels" bottom sheet — its chrome (header, drag handle,
+    // close button) is only built once the card is tapped.
+    await tester.tap(find.text('Spelregels'));
+    await tester.pumpAndSettle();
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
   testWidgets('GameScreen meets a11y guidelines', (tester) async {
     final handle = tester.ensureSemantics();
     final players = [for (final n in _names) Player(name: n)];

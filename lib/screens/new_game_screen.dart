@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
+import '../models/rule_variants.dart';
 import '../models/starter_variant.dart';
 import '../state/calculator_provider.dart';
 import '../state/default_hearts_variant_provider.dart';
@@ -17,7 +18,7 @@ import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
-import '../widgets/game_rules_expansion_card.dart';
+import '../widgets/game_rules_card.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
 import 'game_screen.dart';
@@ -124,8 +125,10 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     notifier.startNewGame(
       players: players,
       dealerIndex: dealerIndex,
-      starterVariant: _starterVariant,
-      heartsVariant: _heartsVariant,
+      ruleVariants: RuleVariants(
+        starterVariant: _starterVariant,
+        heartsVariant: _heartsVariant,
+      ),
     );
     final session = notifier.buildSession();
     if (session != null) {
@@ -191,7 +194,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
 
                 const SizedBox(height: 12),
 
-                GameRulesExpansionCard(
+                GameRulesCard(
                   starterVariant: _starterVariant,
                   heartsVariant: _heartsVariant,
                   onStarterChanged: (v) => setState(() => _starterVariant = v),

@@ -53,9 +53,9 @@ map, or invariants — not as a follow-up.
   `test/a11y_test.dart` gates four guidelines.
 - **UI strings Dutch, code identifiers English.**
 - **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored JSON (frozen, sequenced steps).
-- **Game-rule variants** (`StarterVariant`, `HeartsVariant`) live in
-  `lib/models/`; app-wide defaults in `lib/state/default_*_variant_provider.dart`
-  (pre-loaded in `main()`); per-session values stored in `GameSession`
-  (fields `starterVariant`, `heartsVariant`, serialised as enum names).
+- **Game-rule variants** live in `lib/models/` (one enum each), grouped into a
+  `RuleVariants` (`lib/models/rule_variants.dart`) carried by `GameSession` +
+  `CalculatorState`; per-variant app-wide defaults in
+  `lib/state/default_*_variant_provider.dart`, pre-loaded in `main()`.
 
 Full invariant list + the "why": [ARCHITECTURE.md §13](ARCHITECTURE.md).

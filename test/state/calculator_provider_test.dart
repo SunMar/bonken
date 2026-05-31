@@ -7,6 +7,7 @@ import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
+import 'package:bonken/models/rule_variants.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
@@ -799,8 +800,11 @@ void main() {
           dealerIndex: 0,
         );
         final s = c.read(calculatorProvider);
-        expect(s.starterVariant, StarterVariant.dealerStarts);
-        expect(s.heartsVariant, HeartsVariant.onlyAfterPlayedHeart);
+        expect(s.ruleVariants.starterVariant, StarterVariant.dealerStarts);
+        expect(
+          s.ruleVariants.heartsVariant,
+          HeartsVariant.onlyAfterPlayedHeart,
+        );
       },
     );
 
@@ -810,12 +814,17 @@ void main() {
       n.startNewGame(
         players: _makePlayers(['A', 'B', 'C', 'D']),
         dealerIndex: 0,
-        starterVariant: StarterVariant.oppositeChooserStarts,
-        heartsVariant: HeartsVariant.graduatedUnlock,
+        ruleVariants: const RuleVariants(
+          starterVariant: StarterVariant.oppositeChooserStarts,
+          heartsVariant: HeartsVariant.graduatedUnlock,
+        ),
       );
       final s = c.read(calculatorProvider);
-      expect(s.starterVariant, StarterVariant.oppositeChooserStarts);
-      expect(s.heartsVariant, HeartsVariant.graduatedUnlock);
+      expect(
+        s.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(s.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     });
 
     test('setStarterVariant / setHeartsVariant update state', () {
@@ -828,8 +837,11 @@ void main() {
       n.setStarterVariant(StarterVariant.oppositeChooserStarts);
       n.setHeartsVariant(HeartsVariant.graduatedUnlock);
       final s = c.read(calculatorProvider);
-      expect(s.starterVariant, StarterVariant.oppositeChooserStarts);
-      expect(s.heartsVariant, HeartsVariant.graduatedUnlock);
+      expect(
+        s.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(s.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     });
 
     test('starterIndex reflects the active StarterVariant', () {
@@ -864,13 +876,18 @@ void main() {
         players: players,
         firstDealerId: players[0].id,
         rounds: const [],
-        starterVariant: StarterVariant.oppositeChooserStarts,
-        heartsVariant: HeartsVariant.graduatedUnlock,
+        ruleVariants: const RuleVariants(
+          starterVariant: StarterVariant.oppositeChooserStarts,
+          heartsVariant: HeartsVariant.graduatedUnlock,
+        ),
       );
       n.loadSession(saved);
       final s = c.read(calculatorProvider);
-      expect(s.starterVariant, StarterVariant.oppositeChooserStarts);
-      expect(s.heartsVariant, HeartsVariant.graduatedUnlock);
+      expect(
+        s.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(s.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     });
 
     test('buildSession preserves both variant fields', () {
@@ -879,12 +896,17 @@ void main() {
       n.startNewGame(
         players: _makePlayers(['A', 'B', 'C', 'D']),
         dealerIndex: 0,
-        starterVariant: StarterVariant.oppositeChooserStarts,
-        heartsVariant: HeartsVariant.graduatedUnlock,
+        ruleVariants: const RuleVariants(
+          starterVariant: StarterVariant.oppositeChooserStarts,
+          heartsVariant: HeartsVariant.graduatedUnlock,
+        ),
       );
       final built = n.buildSession()!;
-      expect(built.starterVariant, StarterVariant.oppositeChooserStarts);
-      expect(built.heartsVariant, HeartsVariant.graduatedUnlock);
+      expect(
+        built.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(built.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     });
 
     test(
@@ -896,7 +918,9 @@ void main() {
         n.startNewGame(
           players: players,
           dealerIndex: 0,
-          starterVariant: StarterVariant.oppositeChooserStarts,
+          ruleVariants: const RuleVariants(
+            starterVariant: StarterVariant.oppositeChooserStarts,
+          ),
         );
         // For every chooser position the starter index must be in [0, playerCount).
         for (var dealer = 0; dealer < playerCount; dealer++) {

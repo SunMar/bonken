@@ -5,9 +5,10 @@ import '../models/labeled_variant.dart';
 /// Vertical [RadioGroup] of [RadioListTile]s — one per [LabeledVariant] value,
 /// each showing the value's label as title and description as subtitle.
 ///
-/// Used by [SettingsScreen] (app-wide defaults) and the rules variant dialog,
-/// for both [StarterVariant] and [HeartsVariant]. Null selections (a tile
-/// tapped while already selected) are ignored.
+/// Used by [GameRulesSections] (the shared rule sections on settings, new-game
+/// and edit-game) and the rules variant dialog in `rules_block_view.dart`, for
+/// both [StarterVariant] and [HeartsVariant]. Null selections (a tile tapped
+/// while already selected) are ignored.
 class VariantRadioList<T extends LabeledVariant> extends StatelessWidget {
   const VariantRadioList({
     super.key,

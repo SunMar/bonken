@@ -1,6 +1,6 @@
 import 'labeled_variant.dart';
 
-const String kHeartsVariantSectionTitle = 'Extra spelregel harten';
+const String kHeartsVariantSectionTitle = 'Extra spelregel HH/HP';
 const String kHeartsVariantSectionSubtitle =
     'Welke extra spelregel geldt voor Harten Heer en Hartenpunten?';
 

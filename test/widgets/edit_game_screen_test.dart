@@ -7,7 +7,9 @@
 //     confirm dialog, and choosing "Verwerpen" pops the screen.
 
 import 'package:bonken/models/games/positive_games.dart';
+import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/player.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/amber_warning_box.dart';
@@ -173,6 +175,40 @@ void main() {
       expect(find.byType(EditGameScreen), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'changing rule variants in the Spelregels sheet commits them on Opslaan',
+    (tester) async {
+      // Tall surface so the whole bottom sheet (both variant sections) is on
+      // screen and its radios are tappable without scrolling.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final container = await _pumpEditPlayers(tester);
+
+      // Open the rules sheet and switch both variants away from their
+      // defaults (dealerStarts / onlyAfterPlayedHeart).
+      await tester.tap(find.text('Spelregels'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(StarterVariant.oppositeChooserStarts.label));
+      await tester.tap(find.text(HeartsVariant.graduatedUnlock.label));
+      await tester.pumpAndSettle();
+
+      // Dismiss the sheet, then commit.
+      await tester.tap(find.byTooltip('Sluiten'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(EditGameScreen), findsNothing);
+      final s = container.read(calculatorProvider);
+      expect(
+        s.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(s.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     },
   );
 }
