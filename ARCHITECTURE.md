@@ -871,7 +871,16 @@ flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 - **Fonts:** Roboto + DejaVu Sans are bundled under versioned asset paths with
   runtime fetching disabled (offline + deterministic suit glyphs). Upgrade via
   `tool/update_fonts.sh` (bumps the version, asset paths, and `.ttf`s atomically).
-- **Launcher icons:** `dart run flutter_launcher_icons` (config in `pubspec.yaml`).
+- **Launcher icons:** `./tool/generate_icons.sh` — renders the SVG sources to
+  PNGs, runs `flutter_launcher_icons` (config in `pubspec.yaml`), then overwrites
+  the PWA maskable icons with `icon_bonken_maskable.svg` (which has a larger
+  viewBox so the card sits well inside the maskable safe zone). Do not run
+  `dart run flutter_launcher_icons` directly: it produces incorrect PWA maskable
+  icons (no safe-zone padding) and skips the intermediate 1024 px PNGs.
+  **Coupled setting:** `adaptive_icon_foreground_inset` in `pubspec.yaml` and
+  the viewBox of `assets/icon/icon_bonken_maskable.svg` must be kept in sync —
+  both control the same visual card-to-background ratio and changing one without
+  the other will make the PWA and native icons look different.
 - **Updates:** `services/app_updater.dart` checks Google Play for a newer build
   (Android only; no-op on web/iOS/sideloaded; never blocks startup).
 

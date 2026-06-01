@@ -96,9 +96,20 @@ rsvg-convert -w 1024 assets/icon/icon_bonken.svg              -o assets/icon/ico
 rsvg-convert -w 1024 assets/icon/icon_bonken_launcher.svg     -o assets/icon/icon_bonken_launcher.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o assets/icon/icon_bonken_adaptive_fg.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_bg.svg  -o assets/icon/icon_bonken_adaptive_bg.png
+rsvg-convert -w 1024 assets/icon/icon_bonken_maskable.svg     -o assets/icon/icon_bonken_maskable.png
 
 echo "==> Generating Android + web launcher icons"
 dart run flutter_launcher_icons
+
+echo "==> Rendering PWA maskable icons (overrides flutter_launcher_icons output)"
+# flutter_launcher_icons has no separate maskable_image_path for web, so we
+# render icon_bonken_maskable.svg directly.  Its larger viewBox places the card
+# at ~40% of canvas width, matching the visual weight of the native adaptive
+# icon (which uses adaptive_icon_foreground_inset: 10 in pubspec.yaml).
+# If that inset value changes, update icon_bonken_maskable.svg's viewBox to
+# match — the two must stay in sync.  See ARCHITECTURE.md §12 for details.
+rsvg-convert -w 192 assets/icon/icon_bonken_maskable.svg -o web/icons/Icon-maskable-192.png
+rsvg-convert -w 512 assets/icon/icon_bonken_maskable.svg -o web/icons/Icon-maskable-512.png
 
 echo "==> Rendering web favicon (32px)"
 rsvg-convert -w 32 assets/icon/icon_bonken.svg -o web/favicon.png
