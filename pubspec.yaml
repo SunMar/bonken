@@ -75,10 +75,11 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/icon_bonken_launcher.png"
+  image_path_ios: "assets/icon/icon_bonken.png"
   min_sdk_android: 21
   adaptive_icon_background: "assets/icon/icon_bonken_adaptive_bg.png"
   adaptive_icon_foreground: "assets/icon/icon_bonken_adaptive_fg.png"
-  adaptive_icon_foreground_inset: 10 # keep in sync with viewBox in assets/icon/icon_bonken_maskable.svg
+  adaptive_icon_foreground_inset: 10 # corners ~8-10px inside adaptive safe zone (36dp); keep in sync with icon_bonken_maskable.svg viewBox — see ARCHITECTURE.md §12
   web:
     generate: true
     image_path: "assets/icon/icon_bonken.png"

@@ -873,14 +873,38 @@ flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
   `tool/update_fonts.sh` (bumps the version, asset paths, and `.ttf`s atomically).
 - **Launcher icons:** `./tool/generate_icons.sh` — renders the SVG sources to
   PNGs, runs `flutter_launcher_icons` (config in `pubspec.yaml`), then overwrites
-  the PWA maskable icons with `icon_bonken_maskable.svg` (which has a larger
-  viewBox so the card sits well inside the maskable safe zone). Do not run
+  the PWA maskable icons with `icon_bonken_maskable.svg`. Do not run
   `dart run flutter_launcher_icons` directly: it produces incorrect PWA maskable
   icons (no safe-zone padding) and skips the intermediate 1024 px PNGs.
-  **Coupled setting:** `adaptive_icon_foreground_inset` in `pubspec.yaml` and
-  the viewBox of `assets/icon/icon_bonken_maskable.svg` must be kept in sync —
-  both control the same visual card-to-background ratio and changing one without
-  the other will make the PWA and native icons look different.
+  **Safe-zone calibration:** `icon_bonken_maskable.svg` and
+  `icon_bonken_adaptive_fg.svg` both use viewBox `−128 −128 1280 1280` (card at
+  50 % of canvas). The native `android:inset="10%"` (`adaptive_icon_foreground_inset`
+  in `pubspec.yaml`) shrinks the foreground to 80 % of the 108 dp canvas, so
+  adaptive corners are ~8–10 px inside the 36 dp safe zone (at 3–4× DPI). The
+  PWA maskable corners are ~7 px inside the 40 %×1280 = 512 SVG-unit safe zone
+  on the 512 px icon file. If `adaptive_icon_foreground_inset` or the card
+  geometry changes, recalculate both margins.
+  **Why the card isn't larger (do not "fix" the visible gap):** the card corner
+  reaches 1.545× its half-width (rounded-rect geometry), so at the current sizing
+  it already sits at ~93 % (adaptive 36 dp safe zone) / ~96.6 % (maskable 40 %
+  radius) of the *circle* safe-zone edge — i.e. near the maximum that guarantees
+  no corner-clipping under a **circle** mask. On generous masks (Samsung/OneUI &
+  Apple squircles, MIUI rounded-square) the card looks small with a visible gap to
+  the edge, because a squircle bulges past the inscribed circle the card is sized
+  for. That gap is intrinsic: closing it (enlarging the card) pushes the corners
+  outside the circle and clips them for every **circle-shape** user — stock
+  Android/Pixel default, and Samsung/OneUI when the user selects the circle icon
+  shape. The exact circle-safe maxima are inset 6.9 % / viewBox 1236 (only ~9 % /
+  ~3.6 % bigger — marginal), so the gap cannot be meaningfully reduced without
+  sacrificing the no-clip guarantee. This was a deliberate decision; keep it.
+  (**iOS is not bound by this** — iOS only rounds the corners, no circle mask, so
+  its full-bleed icon is sized fuller: `image_path_ios` points at `icon_bonken.png`
+  (`icon_bonken.svg`, 62.5 % card) — the same source the PWA `apple-touch-icon`
+  uses — so the iOS-native and iOS-PWA icons render at the same size. At 62.5 % the
+  card still clears the iOS corner squircle. iOS rejects alpha, so `remove_alpha_ios`
+  flattens onto `background_color_ios` (`#283593`); the source is already opaque.
+  Generating the iOS `AppIcon.appiconset` (the `flutter_launcher_icons` iOS pass)
+  needs the `ios/` Runner project present and runs only on macOS/Xcode.)
 - **Updates:** `services/app_updater.dart` checks Google Play for a newer build
   (Android only; no-op on web/iOS/sideloaded; never blocks startup).
 

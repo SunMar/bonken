@@ -1,10 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-288 -288 1600 1600">
-  <!-- PWA maskable icon.  The larger viewBox places the card at ~40% of
-       canvas width, matching the visual weight of the native Android
-       adaptive icon (which achieves the same via android:inset="10%"
-       on the foreground layer).  Card corners are at ~520 SVG units from
-       centre; the maskable safe-zone radius is 40% × 1600 = 640 units,
-       so there is ample margin for any launcher mask shape. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 1280 1280">
+  <!-- PWA maskable icon.  viewBox matches icon_bonken_adaptive_fg.svg:
+       card at 50% of canvas (640/1280 units).  Card corners (rounded
+       rect, rx=64) are at ~495 SVG units from centre; maskable safe-zone
+       radius = 40% × 1280 = 512 units → ~17 units (~7 px on the 512 px
+       icon) inside the safe-zone boundary.  The native adaptive icon with
+       android:inset="10%" puts corners ~8–10 px inside its 36 dp safe
+       zone.  If the inset value or card geometry changes, recalculate
+       both margins (see ARCHITECTURE.md §12). -->
   <defs>
     <radialGradient id="bg" cx="50%" cy="40%" r="75%">
       <stop offset="0%" stop-color="#5C6BC0"/>
@@ -22,7 +24,7 @@
     </filter>
   </defs>
 
-  <rect x="-288" y="-288" width="1600" height="1600" fill="url(#bg)"/>
+  <rect x="-128" y="-128" width="1280" height="1280" fill="url(#bg)"/>
 
   <!-- ===== shared card + suit geometry (keep in sync across icon_bonken*.svg) ===== -->
   <g filter="url(#cardShadow)">
