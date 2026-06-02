@@ -42,7 +42,7 @@ runs:
       run: flutter test
 
     - name: Scan for vulnerabilities (OSV)
-      uses: google/osv-scanner-action@v2.3.8
+      uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
       with:
         scan-args: |-
           --lockfile=pubspec.lock
