@@ -235,6 +235,39 @@ void main() {
       expect(s.selectedGame, isNull);
       expect(s.hasPendingGame, isFalse);
     });
+
+    test(
+      'discardGame clears pending when discarding a resumed pending game',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        final ps = c.read(calculatorProvider).players;
+        n.selectGame(const Clubs());
+        n.updateInput(CountsInput(_t(ps, [3, 0, 0, 0])));
+        n.deselectGame(); // stash as pending
+        expect(c.read(calculatorProvider).hasPendingGame, isTrue);
+        n.selectGame(const Clubs()); // resume
+        n.discardGame(); // discard the pending round
+        expect(c.read(calculatorProvider).hasPendingGame, isFalse);
+      },
+    );
+  });
+
+  group('exitPendingSlot', () {
+    test('exitPendingSlot preserves pending stash with latest input', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      final ps = c.read(calculatorProvider).players;
+      n.selectGame(const Clubs());
+      n.updateInput(CountsInput(_t(ps, [3, 2, 0, 0])));
+      n.exitPendingSlot();
+      final s = c.read(calculatorProvider);
+      expect(s.selectedGame, isNull);
+      expect(s.hasPendingGame, isTrue);
+      final p = s.pending as ActivePendingRound;
+      expect(p.game.id, 'clubs');
+      expect((p.input! as CountsInput).counts, _t(ps, [3, 2, 0, 0]));
+    });
   });
 
   group('Resuming pending game', () {
@@ -249,7 +282,8 @@ void main() {
       n.selectGame(const Clubs()); // resume
       final s = c.read(calculatorProvider);
       expect((s.input! as CountsInput).counts, _t(ps, [3, 2, 0, 0]));
-      expect(s.hasPendingGame, isFalse);
+      // pending stash is kept while actively editing — hasPendingGame stays true
+      expect(s.hasPendingGame, isTrue);
     });
 
     test('selecting a different game does NOT restore pending input', () {
@@ -265,6 +299,32 @@ void main() {
         (s.input! as CountsInput).counts.values.every((v) => v == 0),
         isTrue,
       );
+    });
+
+    test('updateInput writes through to ActivePendingRound.input', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      final ps = c.read(calculatorProvider).players;
+      n.selectGame(const Clubs());
+      n.updateInput(CountsInput(_t(ps, [3, 2, 0, 0])));
+      final p = c.read(calculatorProvider).pending as ActivePendingRound;
+      expect((p.input! as CountsInput).counts, _t(ps, [3, 2, 0, 0]));
+    });
+
+    test('updateDoubles writes through to ActivePendingRound.doubles', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      final ps = c.read(calculatorProvider).players;
+      n.selectGame(const Clubs());
+      final dm = const DoubleMatrix().withPair(
+        ps[0].id,
+        ps[1].id,
+        DoubleState.doubled,
+        initiator: ps[0].id,
+      );
+      n.updateDoubles(dm);
+      final p = c.read(calculatorProvider).pending as ActivePendingRound;
+      expect(p.doubles, dm);
     });
   });
 
@@ -357,7 +417,6 @@ void main() {
       n.updateInput(CountsInput(_t(ps, [1, 1, 1, 1])));
       expect(c.read(calculatorProvider).inputState, isNot(InputState.complete));
       expect(c.read(calculatorProvider).isEditingLastRound, isFalse);
-      expect(c.read(calculatorProvider).canRollbackWithPartial, isFalse);
 
       n.cancelEditRound();
       final s = c.read(calculatorProvider);
@@ -365,34 +424,6 @@ void main() {
       expect((s.history[0].input as CountsInput).counts, _t(ps, [4, 4, 2, 3]));
       expect((s.history[1].input as CountsInput).counts, _t(ps, [4, 3, 5, 1]));
     });
-
-    test(
-      'editing the LAST round + rollbackLastRound only removes that round',
-      () {
-        final c = makeContainer();
-        final n = c.read(calculatorProvider.notifier);
-        final ps = c.read(calculatorProvider).players;
-        n.setDealer(0);
-        n.selectGame(const Clubs());
-        n.updateInput(CountsInput(_t(ps, [4, 4, 2, 3])));
-        n.deselectGame();
-        n.selectGame(const Duck());
-        n.updateInput(CountsInput(_t(ps, [4, 3, 5, 1])));
-        n.deselectGame();
-
-        final duckRound = c.read(calculatorProvider).history.last;
-        n.restoreRound(duckRound);
-        expect(c.read(calculatorProvider).isEditingLastRound, isTrue);
-        expect(c.read(calculatorProvider).canRollbackWithPartial, isTrue);
-        n.updateInput(CountsInput(_t(ps, [0, 0, 0, 0]))); // make incomplete
-        n.rollbackLastRound();
-        final s = c.read(calculatorProvider);
-        expect(s.history.length, 1);
-        expect(s.history.first.game.id, 'clubs');
-        expect(s.roundNumber, 2);
-        expect(s.dealerIndex, 1);
-      },
-    );
 
     test('pending game survives an edit of any round', () {
       final c = makeContainer();

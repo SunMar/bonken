@@ -461,7 +461,7 @@ class _LiveScoreboard extends ConsumerWidget {
   Future<void> _deleteGame(BuildContext context, WidgetRef ref) async {
     final confirm = await showConfirmDialog(
       context,
-      title: 'Spel verwijderen?',
+      title: 'Spel verwijderen',
       contentText: 'Dit spel wordt permanent verwijderd uit de geschiedenis.',
       confirmLabel: 'Verwijderen',
       destructive: true,
@@ -734,7 +734,7 @@ class _HistoryRow extends StatelessWidget {
                 onPressed: () async {
                   final confirm = await showConfirmDialog(
                     context,
-                    title: 'Ronde verwijderen?',
+                    title: 'Ronde verwijderen',
                     contentText:
                         'Ronde ${record.roundNumber} (${record.game.name}) '
                         'wordt permanent verwijderd.',

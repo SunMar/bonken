@@ -15,7 +15,7 @@ void main() {
             onPressed: () async {
               result = await showConfirmDialog(
                 ctx,
-                title: 'Verwijderen?',
+                title: 'Verwijderen',
                 contentText: 'Weet je het zeker?',
                 confirmLabel: 'Ja',
               );
@@ -26,7 +26,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      expect(find.text('Verwijderen?'), findsOneWidget);
+      expect(find.text('Verwijderen'), findsOneWidget);
       await tester.tap(find.text('Ja'));
       await tester.pumpAndSettle();
       expect(result, isTrue);

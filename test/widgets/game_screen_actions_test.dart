@@ -120,7 +120,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Confirm dialog.
-    expect(find.text('Spel verwijderen?'), findsOneWidget);
+    expect(find.text('Spel verwijderen'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Verwijderen'));
     await tester.pumpAndSettle();
 

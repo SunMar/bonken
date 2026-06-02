@@ -211,7 +211,7 @@ class _StorageErrorScreen extends ConsumerWidget {
               onPressed: () async {
                 final confirmed = await showConfirmDialog(
                   context,
-                  title: 'Geschiedenis wissen?',
+                  title: 'Geschiedenis wissen',
                   contentText:
                       'Alle gespeelde spellen worden permanent verwijderd. '
                       'Dit kan niet ongedaan worden gemaakt.',

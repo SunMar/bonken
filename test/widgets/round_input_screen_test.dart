@@ -151,8 +151,7 @@ void main() {
       );
       notifier.deselectGame();
       // Round 2 — Diamonds, valid input, commit. Now there are two
-      // rounds in history, so editing round 1 is editing a non-last
-      // round (canRollbackWithPartial is false).
+      // rounds in history, so editing round 1 is a non-last-round edit.
       notifier.selectGame(const Diamonds());
       notifier.updateInput(
         CountsInput({ps[0].id: 4, ps[1].id: 3, ps[2].id: 5, ps[3].id: 1}),
@@ -169,10 +168,6 @@ void main() {
         container.read(calculatorProvider).inputState,
         isNot(InputState.complete),
       );
-      expect(
-        container.read(calculatorProvider).canRollbackWithPartial,
-        isFalse,
-      );
       await tester.pump(const Duration(milliseconds: 500));
 
       await tester.pumpWidget(
@@ -183,10 +178,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Opslaan is enabled; tap it.
+      // Opslaan looks disabled (onPressed null), but tapping still shows the
+      // snackbar via the GestureDetector overlay.
       final opslaan = find.widgetWithText(FilledButton, 'Opslaan');
-      expect(tester.widget<FilledButton>(opslaan).onPressed, isNotNull);
-      await tester.tap(opslaan);
+      expect(tester.widget<FilledButton>(opslaan).onPressed, isNull);
+      await tester.tap(opslaan, warnIfMissed: false);
       await tester.pump(); // schedule snackbar
       await tester.pump(const Duration(milliseconds: 100)); // animate in
 
@@ -201,6 +197,42 @@ void main() {
       // Drain the snackbar timer + autosave debounce so no Timer
       // survives into teardown.
       await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'back on a pending round preserves the pending stash with latest input',
+    (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(calculatorProvider.notifier);
+      notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
+      final ps = container.read(calculatorProvider).players;
+      notifier.selectGame(const Clubs());
+      notifier.updateInput(
+        CountsInput({ps[0].id: 3, ps[1].id: 2, ps[2].id: 0, ps[3].id: 0}),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      await tester.pumpWidget(_wrapWithNavigator(container));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Terug'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoundInputScreen), findsNothing);
+      final s = container.read(calculatorProvider);
+      expect(s.hasPendingGame, isTrue);
+      final p = s.pending as ActivePendingRound;
+      expect(p.game.id, 'clubs');
+      expect((p.input! as CountsInput).counts, {
+        ps[0].id: 3,
+        ps[1].id: 2,
+        ps[2].id: 0,
+        ps[3].id: 0,
+      });
+      await tester.pump(const Duration(milliseconds: 500));
     },
   );
 

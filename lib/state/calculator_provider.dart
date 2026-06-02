@@ -242,9 +242,6 @@ class CalculatorState {
   bool get isEditingLastRound =>
       editingRoundIndex != null && editingRoundIndex == history.length - 1;
 
-  /// True when an incomplete save during edit is allowed.
-  bool get canRollbackWithPartial => isEditingLastRound;
-
   /// Original input/doubles/chooser captured at the start of an edit, used to
   /// detect whether anything actually changed (see [hasActiveChanges]).
   final GameInput? editOriginalInput;
@@ -477,7 +474,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
         selectedGame: game,
         input: p.input,
         doubles: p.doubles,
-        pending: const NoPendingRound(),
       );
       _recalculate();
       return;
@@ -492,7 +488,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       doubles: const DoubleMatrix(),
       clearResult: true,
       clearPartialResult: true,
-      pending: const NoPendingRound(),
+      pending: ActivePendingRound(game: game, input: defaults),
     );
   }
 
@@ -504,7 +500,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     CalculatorState s, {
     required List<RoundRecord> newHistory,
     bool historyChanged = false,
-    ActivePendingRound? overridePending,
+    PendingRoundState? overridePending,
   }) {
     // Next dealer is always derived from the initial dealer + completed rounds,
     // so this remains correct whether we're cancelling an edit of an older
@@ -518,7 +514,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       history: newHistory,
       dealerId: nextDealerId,
       roundNumber: nextRound,
-      chooserId: overridePending != null
+      chooserId: (overridePending ?? s.pending) is ActivePendingRound
           ? s.chooserId
           : s.players[nextChooserIdx].id,
       clearSelectedGame: true,
@@ -567,7 +563,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     }
 
     if (s.result != null) {
-      // New round, completed: append.
+      // New round, completed: append and clear the pending stash.
       final appended = [
         ...s.history,
         RoundRecord(
@@ -579,45 +575,48 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
           doubles: s.doubles,
         ),
       ];
-      state = _exitSlot(s, newHistory: appended, historyChanged: true);
-      return;
-    }
-
-    if (s.selectedGame != null) {
-      // New round, incomplete: stash slot as pending and keep chooser.
       state = _exitSlot(
         s,
-        newHistory: s.history,
+        newHistory: appended,
         historyChanged: true,
-        overridePending: ActivePendingRound(
-          game: s.selectedGame!,
-          input: s.input,
-          doubles: s.doubles,
-        ),
+        overridePending: const NoPendingRound(),
       );
       return;
     }
 
-    state = _exitSlot(s, newHistory: s.history, historyChanged: true);
+    if (s.selectedGame != null) {
+      // Pending round, incomplete: pending.input is already synced via
+      // write-through in updateInput/updateDoubles, so just exit the slot.
+      state = _exitSlot(s, newHistory: s.history, overridePending: s.pending);
+      return;
+    }
+
+    state = _exitSlot(s, newHistory: s.history);
   }
 
-  /// Discards any in-progress input and returns to the game selection phase
-  /// without saving pending input. Used by the Cancel button for new rounds.
+  /// Discards the in-progress input and returns to game selection.
+  /// When editing a pending round, also clears the [ActivePendingRound] so
+  /// the user can switch to a different game. When editing a completed round
+  /// (via [restoreRound]), the history is left unchanged.
   void discardGame() {
-    state = _exitSlot(state, newHistory: state.history);
+    final s = state;
+    final p = s.pending;
+    final clearPending =
+        p is ActivePendingRound && s.selectedGame?.id == p.game.id;
+    state = _exitSlot(
+      s,
+      newHistory: s.history,
+      overridePending: clearPending ? const NoPendingRound() : null,
+    );
   }
 
-  /// Saves an incomplete edit of the last round by simply deleting that round.
-  void rollbackLastRound() {
+  /// Exits the live slot without saving or discarding the pending round.
+  /// Used by the back button when editing a pending round. [updateInput] and
+  /// [updateDoubles] already write through to [ActivePendingRound], so the
+  /// stash is always current and no extra copy is needed here.
+  void exitPendingSlot() {
     final s = state;
-    assert(
-      s.isEditingLastRound,
-      'rollbackLastRound called outside last-round edit (editingRoundIndex='
-      '${s.editingRoundIndex}, history.length=${s.history.length})',
-    );
-    if (!s.isEditingLastRound) return;
-    final newHistory = s.history.sublist(0, s.history.length - 1);
-    state = _exitSlot(s, newHistory: newHistory, historyChanged: true);
+    state = _exitSlot(s, newHistory: s.history, overridePending: s.pending);
   }
 
   /// Deletes the last completed round from history, rolling dealer/round back.
@@ -629,13 +628,35 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   void updateInput(GameInput input) {
     if (state.input == input) return;
-    state = state.copyWith(input: input);
+    final s = state;
+    final p = s.pending;
+    state = p is ActivePendingRound && s.selectedGame?.id == p.game.id
+        ? s.copyWith(
+            input: input,
+            pending: ActivePendingRound(
+              game: p.game,
+              input: input,
+              doubles: p.doubles,
+            ),
+          )
+        : s.copyWith(input: input);
     _recalculate();
   }
 
   void updateDoubles(DoubleMatrix doubles) {
     if (state.doubles == doubles) return;
-    state = state.copyWith(doubles: doubles);
+    final s = state;
+    final p = s.pending;
+    state = p is ActivePendingRound && s.selectedGame?.id == p.game.id
+        ? s.copyWith(
+            doubles: doubles,
+            pending: ActivePendingRound(
+              game: p.game,
+              input: p.input,
+              doubles: doubles,
+            ),
+          )
+        : s.copyWith(doubles: doubles);
     _recalculate();
   }
 

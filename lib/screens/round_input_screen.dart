@@ -21,27 +21,8 @@ import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/score_result_view.dart';
 
-// Confirmation body shown when the user tries to save a round whose score
-// fields are not (yet) fully entered.
-const _incompleteScoreSavePrompt =
-    'De score is nog niet compleet. Wil je toch doorgaan met opslaan?';
-
 /// Standard confirmation dialog used whenever the user is about to abandon
 /// unsaved edits. Returns true if the user confirms the discard.
-Future<bool> _confirmDiscardChanges(
-  BuildContext context, {
-  String title = 'Wijzigingen verwerpen',
-  String contentText = kDiscardChangesMessage,
-}) async {
-  final confirm = await showConfirmDialog(
-    context,
-    title: title,
-    contentText: contentText,
-    confirmLabel: 'Verwerpen',
-    destructive: true,
-  );
-  return confirm == true;
-}
 
 /// Per-round score input destination.
 ///
@@ -72,6 +53,9 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
     final isEditing = ref.watch(
       calculatorProvider.select((s) => s.isEditingExistingRound),
     );
+    final isComplete = ref.watch(
+      calculatorProvider.select((s) => s.inputState == InputState.complete),
+    );
 
     void popIfMounted() {
       if (context.mounted && Navigator.of(context).canPop()) {
@@ -94,105 +78,79 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
       );
       if (hasChanges) {
         if (!context.mounted) return;
-        final confirmed = await _confirmDiscardChanges(
-          context,
-          title: isEditing ? 'Wijzigingen verwerpen' : 'Invoer verwerpen',
-          contentText: isEditing
-              ? kDiscardChangesMessage
-              : 'Je ingevoerde gegevens gaan verloren.',
-        );
+        final confirmed =
+            await showConfirmDialog(
+              context,
+              title:
+                  isEditing ? 'Wijzigingen verwerpen' : 'Ronde verwerpen',
+              contentText:
+                  isEditing
+                      ? kDiscardChangesMessage
+                      : 'De dubbels en scores van de huidige ronde worden verworpen.',
+              confirmLabel: 'Verwerpen',
+              destructive: true,
+            ) ==
+            true;
         if (!confirmed) return;
       }
       cancelInputPhase();
     }
 
     Future<void> saveOrConfirmBack() async {
-      final state = ref.read(calculatorProvider);
-
-      if (!state.hasActiveChanges) {
+      if (!isEditing) {
+        // Pending round: back is non-blocking; input is already autosaved.
+        ref.read(calculatorProvider.notifier).exitPendingSlot();
+        popIfMounted();
+        return;
+      }
+      // Editing a completed round: block navigation if there are unsaved changes.
+      final hasChanges = ref.read(
+        calculatorProvider.select((s) => s.hasActiveChanges),
+      );
+      if (!hasChanges) {
         cancelInputPhase();
         return;
       }
-
       await showInfoDialog(
         context,
-        title: state.isEditingExistingRound
-            ? 'Scores aangepast'
-            : 'Scores ingevoerd',
-        contentText: state.isEditingExistingRound
-            ? 'Je aanpassingen zijn nog niet opgeslagen. '
-                  'Sla de scores op of verwerp ze om terug te gaan.'
-            : 'Je ingevoerde scores zijn nog niet opgeslagen. '
-                  'Sla de scores op of verwerp ze om terug te gaan.',
+        title: 'Scores aangepast',
+        contentText:
+            'Je aanpassingen zijn nog niet opgeslagen. '
+            'Sla de scores op of verwerp ze om terug te gaan.',
       );
     }
 
+    // Only called when isComplete (button is enabled only then).
     Future<void> saveOrConfirmDone() async {
-      final state = ref.read(calculatorProvider);
-      if (state.result != null) {
-        if (state.hasActiveChanges) {
-          if (!context.mounted) return;
-          final dispPlayers = state.displayedPlayers;
-          final dispChooser = state.displayedChooserIndex;
-          final confirm = await showConfirmDialog(
-            context,
-            title: 'Score',
-            content: SingleChildScrollView(
-              child: ScoreResultView(
-                result: state.result!,
-                game: state.selectedGame!,
-                players: dispPlayers,
-                doubles: state.doubles,
-                chooserIndex: dispChooser,
-                showHeader: false,
-              ),
+      final s = ref.read(calculatorProvider);
+      if (s.hasActiveChanges) {
+        if (!context.mounted) return;
+        final confirm = await showConfirmDialog(
+          context,
+          title: 'Score',
+          content: SingleChildScrollView(
+            child: ScoreResultView(
+              result: s.result!,
+              game: s.selectedGame!,
+              players: s.displayedPlayers,
+              doubles: s.doubles,
+              chooserIndex: s.displayedChooserIndex,
+              showHeader: false,
             ),
-            confirmLabel: 'Opslaan',
-          );
-          if (confirm != true) return;
-        }
-        // Fully scored — save.
-        ref.read(calculatorProvider.notifier).deselectGame();
-        popIfMounted();
-        return;
-      }
-      if (state.isEditingExistingRound) {
-        if (state.canRollbackWithPartial) {
-          if (!context.mounted) return;
-          final confirm = await showConfirmDialog(
-            context,
-            title: 'Score niet compleet',
-            contentText: _incompleteScoreSavePrompt,
-            confirmLabel: 'Opslaan',
-          );
-          if (confirm != true) return;
-          ref.read(calculatorProvider.notifier).rollbackLastRound();
-          popIfMounted();
-          return;
-        }
-        showIncompleteFormSnackBar(
-          ScaffoldMessenger.of(context),
-          message: 'Vul de score volledig in om op te slaan',
+          ),
+          confirmLabel: 'Opslaan',
         );
-        return;
+        if (confirm != true) return;
       }
-      if (!state.hasActiveChanges) {
-        // Nothing entered — treat as discard, no confirmation needed.
-        ref.read(calculatorProvider.notifier).discardGame();
-        popIfMounted();
-        return;
-      }
-      // hasActiveChanges is true — always confirm before saving as pending.
-      if (!context.mounted) return;
-      final confirm = await showConfirmDialog(
-        context,
-        title: 'Score niet compleet',
-        contentText: _incompleteScoreSavePrompt,
-        confirmLabel: 'Opslaan',
-      );
-      if (confirm != true) return;
       ref.read(calculatorProvider.notifier).deselectGame();
       popIfMounted();
+    }
+
+    void showSaveIncompleteSnackbar() {
+      showIncompleteFormSnackBar(
+        ScaffoldMessenger.of(context),
+        message: 'Vul de score volledig in om op te slaan',
+      );
     }
 
     return PopScope(
@@ -228,9 +186,28 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
                 child: const Text('Verwerpen'),
               ),
               const Spacer(),
-              FilledButton(
-                onPressed: saveOrConfirmDone,
-                child: const Text('Opslaan'),
+              // Truly disabled when incomplete so native disabled colours
+              // are used (WCAG-exempt). A transparent GestureDetector on
+              // top catches taps when disabled and shows a snackbar
+              // explaining what's still missing, so users understand why
+              // the button isn't active yet.
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  FilledButton(
+                    onPressed: isComplete ? saveOrConfirmDone : null,
+                    child: const Text('Opslaan'),
+                  ),
+                  if (!isComplete)
+                    Positioned.fill(
+                      child: ExcludeSemantics(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: showSaveIncompleteSnackbar,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
