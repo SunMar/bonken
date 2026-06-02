@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write   # needed to create the GitHub Release
+  security-events: write
 
 jobs:
   # =====================================================================

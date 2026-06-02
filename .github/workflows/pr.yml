@@ -1,0 +1,25 @@
+name: PR
+
+# Run the full verify suite (format → analyze → dart fix → test → OSV scan)
+# on every pull request so issues are caught before merge.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: pr-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-build
+
+      - uses: ./.github/actions/verify

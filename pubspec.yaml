@@ -11,12 +11,6 @@ version: 0.0.0+0
 environment:
   sdk: ^3.12.0
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
 dependencies:
   flutter:
     sdk: flutter
@@ -37,8 +31,10 @@ dependencies:
   # path below, and replaces the bundled .ttf files in one step.
   google_fonts: 8.1.0
 
-  # Persistent local storage (used for future game tracking)
+  # Play Store in-app update prompts (flexible + immediate update flows).
   in_app_update: ^4.2.5
+
+  # Persistent local storage for settings and game state.
   shared_preferences: ^2.5.5
 
   # Read app version/build info at runtime (shown in the About dialog).

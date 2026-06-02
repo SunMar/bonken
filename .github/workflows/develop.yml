@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 concurrency:
   group: develop
