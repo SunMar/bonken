@@ -22,6 +22,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/doubles_chips.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_deleted_snackbar.dart';
+import '../widgets/info_banner.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/scoreboard_card.dart';
@@ -781,39 +782,27 @@ class _RoundInfoBanner extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return Card(
-      color: cs.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
+    return InfoBanner(
+      child: Semantics(
+        liveRegion: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Symbols.info, size: 24, color: cs.onSecondaryContainer),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Semantics(
-                liveRegion: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Ronde $round van ${GameSession.totalRounds}',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: cs.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    RoundMetaLine(
-                      color: cs.onSecondaryContainer,
-                      segments: [
-                        'Kiezer: $chooserName',
-                        'Deler: $dealerName',
-                        'Uitkomst: $starterName',
-                      ],
-                    ),
-                  ],
-                ),
+            Text(
+              'Ronde $round van ${GameSession.totalRounds}',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: cs.onSecondaryContainer,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+            const SizedBox(height: 2),
+            RoundMetaLine(
+              color: cs.onSecondaryContainer,
+              segments: [
+                'Kiezer: $chooserName',
+                'Deler: $dealerName',
+                'Uitkomst: $starterName',
+              ],
             ),
           ],
         ),

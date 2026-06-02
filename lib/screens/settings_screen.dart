@@ -8,6 +8,7 @@ import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/game_rules_card.dart';
+import '../widgets/info_banner.dart';
 
 /// Full-screen dialog for configuring app-wide default settings.
 /// Pushed with `fullscreenDialog: true`.
@@ -54,32 +55,13 @@ class _SettingsNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      color: theme.colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ExcludeSemantics(
-              child: Icon(
-                Symbols.info,
-                size: 20,
-                color: theme.colorScheme.onSecondaryContainer,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSecondaryContainer,
-                ),
-              ),
-            ),
-          ],
-        ),
+    final cs = Theme.of(context).colorScheme;
+    return InfoBanner(
+      child: Text(
+        'Kies de standaard voor nieuwe spellen. Per spel aanpasbaar.',
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: cs.onSecondaryContainer),
       ),
     );
   }

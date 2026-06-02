@@ -46,6 +46,7 @@ map, or invariants — not as a follow-up.
 - **Seat math only in `lib/models/game_mechanics.dart`** (`dealerIndexFor`,
   `starterIndexFor` — the only home for seat arithmetic).
 - **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`).
+- **Bottom sheets use `showAppBottomSheet`** (`lib/widgets/app_bottom_sheet.dart`), never `showModalBottomSheet` directly.
 - **Accessible by default** ([ARCHITECTURE.md §2](ARCHITECTURE.md)): interactive
   tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout
   spacers use `ExcludeSemantics`; **section titles wrapped in

@@ -8,6 +8,7 @@ import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
+import 'app_bottom_sheet.dart';
 import 'form_section_card.dart';
 import 'variant_radio_list.dart';
 
@@ -39,11 +40,9 @@ class GameRulesCard extends ConsumerWidget {
 
   void _openSheet(BuildContext context) {
     unawaited(
-      showModalBottomSheet<void>(
+      showAppBottomSheet<void>(
         context: context,
-        isScrollControlled: true,
         showDragHandle: true,
-        useSafeArea: true,
         builder: (_) => _GameRulesSheet(
           starterVariant: starterVariant,
           heartsVariant: heartsVariant,

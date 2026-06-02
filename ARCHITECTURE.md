@@ -102,6 +102,13 @@ most of the structure exists to serve one of these.
   body in `SafeArea` for edge-to-edge mode). Enforced by a test —
   [`test/architecture_test.dart`](test/architecture_test.dart).
 
+- **Bottom sheets are guarded.** All modal bottom sheets call
+  `showAppBottomSheet` (wraps content in a `Padding` sized to
+  `MediaQuery.viewPaddingOf.bottom`, clearing the system navigation bar;
+  always enables `isScrollControlled` and `useSafeArea`). Direct calls to
+  `showModalBottomSheet` are forbidden and caught by the same test in
+  [`test/architecture_test.dart`](test/architecture_test.dart).
+
 - **Guide with the rules, don't hard-enforce them.** The app *surfaces* the
   game's rules (amber `Note` callouts, disabled-looking affordances) but lets
   players override them — *what happens at the physical table is authoritative,
@@ -221,6 +228,9 @@ lib/
 
   widgets/                   Reusable UI.
     app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens).
+    app_bottom_sheet.dart    showAppBottomSheet — viewPadding-aware
+                             showModalBottomSheet wrapper (mandatory for all
+                             modal bottom sheets).
     scoreboard_card.dart     The player/score grid used on home + game screens.
     score_result_view.dart   Per-player score outcome card (final or partial);
                              trophy Opacity for stable layout, doubles chips.
@@ -255,6 +265,8 @@ lib/
                              value); used by settings, new-game, edit-game + the rules variant dialog.
     round_meta_line.dart     Wrapping "Kiezer · Deler · Uitkomst" metadata line shared by the
                              game-screen and round-input banners.
+    info_banner.dart         Shared secondaryContainer Card with info icon + arbitrary child;
+                             used by _RoundInfoBanner (game screen) and _SettingsNote (settings).
     form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
                              + subtitle + child); used on new-game, edit-game, settings.
     game_input/              Round-input building blocks: form, counts input, player picker.
@@ -792,8 +804,10 @@ Run with `flutter test`. Layout mirrors `lib/`:
   (incl. migration, corrupt data, and unsupported-version handling).
 - **`test/widgets/`** — one file per screen/widget.
 - **Guards:** `architecture_test.dart` fails the build if any screen uses raw
-  `Scaffold` instead of `AppScaffold`; `license_assets_test.dart` verifies the
-  bundled-license registration from `main.dart`; `a11y_test.dart` pumps every
+  `Scaffold` instead of `AppScaffold`, or if any file calls
+  `showModalBottomSheet` directly instead of `showAppBottomSheet`;
+  `license_assets_test.dart` verifies the bundled-license registration from
+  `main.dart`; `a11y_test.dart` pumps every
   screen and gates `textContrastGuideline`, `labeledTapTargetGuideline`, and
   `android`/`iOSTapTargetGuideline` (see §2 for the full a11y posture).
 
@@ -921,6 +935,8 @@ Things to *not* break:
   re-derive "dealer = chooser − 1" or "starter = …" elsewhere. This includes
   `starterIndexFor`, which takes a `StarterVariant` and lives here.
 - **Screens use `AppScaffold`** (architecture test enforces it).
+- **Bottom sheets use `showAppBottomSheet`**, never `showModalBottomSheet`
+  directly (architecture test enforces it).
 - **Icons are `Symbols.*` only** — never the legacy `Icons`.
 - **Empty-string IDs are the "not yet set" sentinel** — don't assert player
   lookups on them (`_indexOf` already guards this).

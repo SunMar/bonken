@@ -1,12 +1,16 @@
-// Architectural guard: every screen MUST use [AppScaffold] (which wraps the
-// body in a SafeArea so content never draws under the system navigation bar)
-// rather than the raw Material [Scaffold].
+// Architectural guards:
 //
-// The app runs in [SystemUiMode.edgeToEdge], so a bare Scaffold body would
-// draw under the bottom gesture/nav bar.  See lib/widgets/app_scaffold.dart.
+// 1. Every screen MUST use [AppScaffold] (which wraps the body in a SafeArea
+//    so content never draws under the system navigation bar) rather than the
+//    raw Material [Scaffold].
 //
-// If you legitimately need a raw Scaffold (e.g. for a Material modal that
-// already handles insets), add the file to the [allowList] below.
+// 2. Every modal bottom sheet MUST use [showAppBottomSheet] (which adds the
+//    system navigation bar inset as bottom padding) rather than the raw
+//    [showModalBottomSheet].
+//
+// The app runs in [SystemUiMode.edgeToEdge], so unguarded surfaces draw
+// behind system bars.  See lib/widgets/app_scaffold.dart and
+// lib/widgets/app_bottom_sheet.dart.
 
 import 'dart:io';
 
@@ -44,4 +48,37 @@ void main() {
           'system navigation bar.',
     );
   });
+
+  test(
+    'all bottom sheets use showAppBottomSheet instead of showModalBottomSheet',
+    () {
+      const allowList = <String>{
+        'lib/widgets/app_bottom_sheet.dart', // the wrapper itself
+      };
+
+      final libDir = Directory('lib');
+      expect(libDir.existsSync(), isTrue, reason: 'lib not found');
+
+      final offenders = <String>[];
+      for (final entity in libDir.listSync(recursive: true)) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        if (allowList.contains(entity.path)) continue;
+        final source = entity.readAsStringSync();
+        if (source.contains('showModalBottomSheet')) {
+          offenders.add(entity.path);
+        }
+      }
+
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'These files call showModalBottomSheet instead of '
+            'showAppBottomSheet:\n'
+            '  ${offenders.join('\n  ')}\n'
+            'Use showAppBottomSheet from lib/widgets/app_bottom_sheet.dart\n'
+            'so the system navigation bar inset is handled consistently.',
+      );
+    },
+  );
 }
