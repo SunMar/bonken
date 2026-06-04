@@ -5,12 +5,21 @@
 #
 # Requires:
 #   - rsvg-convert  (apt: librsvg2-bin)
-#   - flutter / dart
+#   - fc-match, fc-query  (apt: fontconfig)
+#   - fvm  (local); CI passes --ci and uses PATH dart directly
 #
 # Usage:
-#   ./tool/generate_icons.sh
-#
+#   ./tool/generate_icons.sh        # local (requires fvm)
+#   ./tool/generate_icons.sh --ci   # CI (uses PATH dart, no fvm)
 set -euo pipefail
+
+ci=false
+for arg in "$@"; do
+  case "$arg" in
+    --ci) ci=true ;;
+    *) echo "error: unknown argument '$arg'" >&2; exit 2 ;;
+  esac
+done
 
 # Resolve the script's real location (follows symlinks) so the script
 # works no matter where it's invoked from or how it's linked.
@@ -21,21 +30,34 @@ if ! command -v rsvg-convert >/dev/null 2>&1; then
   echo "error: rsvg-convert not found (install with: sudo apt install librsvg2-bin)" >&2
   exit 1
 fi
+if ! command -v fc-match >/dev/null 2>&1 || ! command -v fc-query >/dev/null 2>&1; then
+  echo "error: fc-match/fc-query not found (install with: sudo apt install fontconfig)" >&2
+  exit 1
+fi
+
+# Local: always use fvm so the pinned SDK version is respected.
+# CI: pass --ci; flutter-action puts the pinned SDK directly in PATH.
+if $ci; then
+  dart_cmd=(dart)
+elif command -v fvm >/dev/null 2>&1; then
+  dart_cmd=(fvm dart)
+else
+  echo "error: fvm not found — install fvm or pass --ci if running in CI" >&2
+  exit 1
+fi
 
 # Build a self-contained fontconfig that exposes ONLY the fonts we ship
 # with the project, so rsvg-convert renders deterministically regardless
 # of which fonts happen to be installed system-wide:
 #
-#   - assets/google_fonts/<version>/  -> Roboto Regular/Medium/Bold/Light
-#                                        (the same TTFs the Flutter app
-#                                        loads via the google_fonts pkg)
-#   - assets/dejavu/<version>/        -> DejaVuSans.ttf for the suit
-#                                        symbols (♠ ♥ ♦ ♣) used in the
-#                                        icon SVGs (same .ttf the runtime
-#                                        app loads via pubspec fonts:)
+#   - assets/google_fonts/<version>/  -> Roboto (Regular/Medium/Bold)
+#                                        for the wordmark plus Arimo for the
+#                                        suit symbols (♠ ♥ ♦ ♣) used in the
+#                                        icon SVGs — the same TTFs the
+#                                        Flutter app loads via google_fonts.
 #
 # Setting FONTCONFIG_FILE replaces the system fontconfig entirely, so any
-# font NOT in these two dirs will not resolve.  That is the point: it
+# font NOT in this dir will not resolve.  That is the point: it
 # guarantees byte-identical PNGs across machines and CI.
 
 # Discover the bundled google_fonts asset dir from pubspec.yaml so this
@@ -50,17 +72,6 @@ if [[ -z "$GFONTS_REL" || ! -d "$REPO/$GFONTS_REL" ]]; then
 fi
 GFONTS_DIR="$REPO/$GFONTS_REL"
 
-# Same pattern for DejaVu — read the versioned dir from the `fonts:`
-# block in pubspec.yaml so tool/update_fonts.sh has a single source of
-# truth for the version (the asset path under flutter.fonts).
-DEJAVU_REL="$(sed 's/#.*//' pubspec.yaml | grep -oE 'assets/dejavu/[^/[:space:]]+' | head -1)"
-if [[ -z "$DEJAVU_REL" || ! -d "$REPO/$DEJAVU_REL" ]]; then
-  echo "error: could not locate dejavu asset dir from pubspec.yaml" >&2
-  echo "       (looked for an 'assets/dejavu/<version>/' path)" >&2
-  exit 1
-fi
-DEJAVU_DIR="$REPO/$DEJAVU_REL"
-
 mkdir -p build
 FONTCONFIG_DIR="$REPO/build/fontconfig"
 mkdir -p "$FONTCONFIG_DIR/cache"
@@ -69,27 +80,34 @@ cat > "$FONTCONFIG_DIR/fonts.conf" <<EOF
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <dir>$GFONTS_DIR</dir>
-  <dir>$DEJAVU_DIR</dir>
   <cachedir>$FONTCONFIG_DIR/cache</cachedir>
 </fontconfig>
 EOF
 export FONTCONFIG_FILE="$FONTCONFIG_DIR/fonts.conf"
 
-# Sanity-check the two families the SVGs reference actually resolve to
-# files inside the repo.  fc-match prints the matched font filename.
-if command -v fc-match >/dev/null 2>&1; then
-  for family in "Roboto" "Roboto:weight=200" "DejaVu Sans"; do
-    matched="$(fc-match -f '%{file}' "$family")"
-    case "$matched" in
-      "$REPO"/*) ;;
-      *)
-        echo "error: font '$family' resolved to '$matched' (outside repo)" >&2
-        echo "       The bundled fontconfig at $FONTCONFIG_FILE is misconfigured." >&2
-        exit 1
-        ;;
-    esac
-  done
-fi
+# Sanity-check that EVERY font we bundle under assets/google_fonts/<version>/
+# resolves, through the sandbox fontconfig above, back to itself — never a
+# system fallback. This is keyed on the files we actually ship (not on which
+# weights the SVGs happen to use), so it stays exhaustive as cuts are added
+# or removed. Each file is resolved by its own family + weight + slant; in a
+# sandbox that exposes only these fonts, the match must be that same file.
+#
+# Tradeoff: this is asset-driven, so it does NOT verify that the families the
+# SVGs *reference* are bundled — a future SVG naming an unbundled family/weight
+# would silently fall back rather than erroring here. The SVGs currently use
+# only Roboto and Arimo at weight 400 (both bundled); keep new glyphs within
+# the shipped cuts. (See ARCHITECTURE.md §12 "Launcher icons → Font sandbox".)
+for ttf in "$GFONTS_DIR"/*.ttf; do
+  query="$(fc-query -f '%{family[0]}:weight=%{weight[0]}:slant=%{slant[0]}' "$ttf")"
+  matched="$(fc-match -f '%{file}' "$query")"
+  if [[ "$matched" != "$ttf" ]]; then
+    echo "error: bundled font '$ttf'" >&2
+    echo "       resolved to '$matched' (expected itself)." >&2
+    echo "       The sandbox fontconfig at $FONTCONFIG_FILE is misconfigured," >&2
+    echo "       or a font outside the repo is shadowing it." >&2
+    exit 1
+  fi
+done
 
 echo "==> Rendering source SVGs to 1024px PNGs"
 rsvg-convert -w 1024 assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken.png
@@ -99,7 +117,7 @@ rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_bg.svg  -o assets/icon/ico
 rsvg-convert -w 1024 assets/icon/icon_bonken_maskable.svg     -o assets/icon/icon_bonken_maskable.png
 
 echo "==> Generating Android + web launcher icons"
-dart run flutter_launcher_icons
+"${dart_cmd[@]}" run flutter_launcher_icons
 
 echo "==> Rendering PWA maskable icons (overrides flutter_launcher_icons output)"
 # flutter_launcher_icons has no separate maskable_image_path for web, so we

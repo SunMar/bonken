@@ -32,17 +32,17 @@
     <rect x="192" y="102" width="640" height="820" rx="64" ry="64"
           fill="none" stroke="#1A237E" stroke-opacity="0.10" stroke-width="4"/>
   </g>
-  <!-- Suit symbols rendered as <text> using DejaVu Sans
-       (vendored at assets/dejavu/<version>/DejaVuSans.ttf, exposed to
+  <!-- Suit symbols rendered as <text> using Arimo
+       (bundled at assets/google_fonts/<version>/Arimo-Regular.ttf, exposed to
        rsvg-convert via the bundled fontconfig in
        tool/generate_icons.sh).  Browser previews need
-       DejaVu Sans installed (default on most Linux);
+       Arimo installed (an Arial-metric font);
        PNG generation is deterministic regardless. -->
-  <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+  <g font-family="Arimo" text-anchor="middle" font-size="165">
     <text x="290" y="270" fill="#0D2B4E">&#x2660;</text>
     <text x="425" y="270" fill="#B52424">&#x2665;</text>
   </g>
-  <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+  <g font-family="Arimo" text-anchor="middle" font-size="165">
     <text x="599" y="855" fill="#CC6600">&#x2666;</text>
     <text x="734" y="855" fill="#3A3A3A">&#x2663;</text>
   </g>

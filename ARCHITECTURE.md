@@ -184,7 +184,8 @@ schedules a 400 ms debounced autosave → `buildSession()` → `saveGame()` →
 ```
 lib/
   main.dart                  Entry: theme, forced-nl localization, routing/deep links,
-                             license registration, edge-to-edge, Android update check.
+                             bundled-font license registration (Arimo SIL OFL via
+                             registerBundledLicenses()), edge-to-edge, Android update check.
   utils.dart                 Cross-cutting helpers: formatDate/formatScore, scoreColor,
                              disabledOnSurface, reorder index math, shared string constants.
 
@@ -301,7 +302,7 @@ lib/
 Abstract base for all 13 games (declares `id`, `name`, `symbol`, `category`,
 `pointsPerUnit`, `totalPoints`). It supplies the shared **`calculateScores`**
 engine (§6) and defines `GameSymbol` (sealed: `TextSymbol` short label,
-`SuitSymbol` ♠♥♦♣ in bundled DejaVu Sans, `IconSymbol` Material Symbol).
+`SuitSymbol` ♠♥♦♣ in bundled Arimo, `IconSymbol` Material Symbol).
 
 Concrete games never extend `MiniGame` directly — they extend one of **two
 intermediate bases, one per input shape** (mirroring the sealed `GameInput` /
@@ -869,33 +870,57 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
   `develop` and `release` workflows) enforces **three** gates, in order:
   `dart format --output=none --set-exit-if-changed .`, `flutter analyze
   --fatal-infos`, and `flutter test`. Run all three locally before pushing.
-  **Coding agents:** `flutter analyze` and `flutter test` are not enough — also
-  run `dart format .` (formatting drift fails CI just like an analyzer error).
-- **The analyzer is intentionally strict** ([`analysis_options.yaml`](analysis_options.yaml)):
-  `strict-casts` / `strict-inference` / `strict-raw-types` plus
-  `require_trailing_commas`, `always_declare_return_types`,
-  `avoid_dynamic_calls`, `avoid_type_to_string`, and `unawaited_futures`. On top
-  of those, a set of *preventive* lints: const correctness
-  (`prefer_const_constructors` / `_declarations` / `_literals_to_create_immutables`),
-  `prefer_final_locals`, `directives_ordering`, `discarded_futures`,
-  `avoid_catches_without_on_clauses` (every `catch` must declare `on …`), plus
-  `unnecessary_parenthesis` / `_lambdas` / `_breaks`, `avoid_redundant_argument_values`,
-  `combinators_ordering`, and `sized_box_shrink_expand`. Write explicit types,
-  declare return types, wrap fire-and-forget futures in `unawaited(...)`, and
-  let `dart format` add the trailing commas.
+  **Coding agents:** `fvm flutter analyze` and `fvm flutter test` are not enough — also
+  run `fvm dart format .` (formatting drift fails CI just like an analyzer error).
+- **The analyzer is intentionally strict — a deliberate design choice, not
+  inherited defaults.** Static analysis is used as an active quality gate so
+  coding discipline is enforced by the toolchain instead of left to reviewer
+  vigilance: it pushes whole error classes to analyze-time (e.g. unguarded
+  `dynamic` / cast bugs at the JSON boundary), forces deliberate choices (every
+  `catch` names what it handles; stray futures must be awaited or explicitly
+  discarded), and keeps the code uniform (explicit types and return types,
+  stable formatting). The full rule set — each entry with a short note on what it
+  does — is in [`analysis_options.yaml`](analysis_options.yaml). In practice:
+  write explicit types and return types, and wrap fire-and-forget futures in
+  `unawaited(...)`.
 - **`dart fix --dry-run` is part of `verify`** — CI fails if the analyzer
-  proposes any auto-fix. Run `dart fix --apply` locally to clear drift before
+  proposes any auto-fix. Run `fvm dart fix --apply` locally to clear drift before
   pushing.
 - **Versioning:** `pubspec.yaml` is a sentinel `0.0.0+0`; CI passes
   `--build-name` / `--build-number` from the git tag / run number.
-- **Fonts:** Roboto + DejaVu Sans are bundled under versioned asset paths with
-  runtime fetching disabled (offline + deterministic suit glyphs). Upgrade via
-  `tool/update_fonts.sh` (bumps the version, asset paths, and `.ttf`s atomically).
+- **Fonts:** Roboto (text) + Arimo (suit glyphs ♠♥♦♣, which Roboto lacks) are
+  bundled under `assets/google_fonts/<version>/` and loaded via the google_fonts
+  package with runtime fetching disabled (offline + deterministic suit glyphs).
+  The Arimo SIL OFL license is bundled alongside the `.ttf` as
+  `Arimo-LICENSE.txt` and registered via `registerBundledLicenses()` in
+  `main.dart` so it surfaces in `showLicensePage()`. Roboto's license is already
+  covered by the Flutter engine NOTICES (it is Flutter's default font).
+  Upgrade all bundled fonts via `fvm dart run tool/update_fonts.dart` — it bumps the
+  `google_fonts` pin, downloads matching `.ttf`s + the Arimo license, and
+  rewrites the `pubspec.yaml` asset path atomically.
+- **Dependency updates:** `fvm dart run tool/update_deps.dart` runs `fvm flutter pub
+  upgrade` and rewrites every caret constraint in `pubspec.yaml` to match the
+  resolved version from `pubspec.lock` (the manifest-rewriting half that `pub
+  upgrade` deliberately omits). Non-caret Dart pins (e.g. `google_fonts`) are
+  left untouched.
 - **Launcher icons:** `./tool/generate_icons.sh` — renders the SVG sources to
   PNGs, runs `flutter_launcher_icons` (config in `pubspec.yaml`), then overwrites
-  the PWA maskable icons with `icon_bonken_maskable.svg`. Do not run
-  `dart run flutter_launcher_icons` directly: it produces incorrect PWA maskable
-  icons (no safe-zone padding) and skips the intermediate 1024 px PNGs.
+  the PWA maskable icons with `icon_bonken_maskable.svg`. Requires
+  `rsvg-convert` (`apt install librsvg2-bin`) and `fc-match`/`fc-query`
+  (`apt install fontconfig`); CI installs both in `setup-build`. Locally the
+  script requires `fvm`; CI passes `--ci` so it uses PATH `dart` directly.
+  Do not run `fvm dart run flutter_launcher_icons` directly: it produces
+  incorrect PWA maskable icons (no safe-zone padding) and skips the intermediate
+  1024 px PNGs.
+  **Font sandbox:** the script builds a throwaway `FONTCONFIG_FILE` exposing
+  *only* `assets/google_fonts/<version>/`, so the suit/word glyphs rasterise
+  from the same `.ttf`s the app ships (no system-font drift). Its sanity check
+  is **asset-driven**: every bundled `.ttf` must resolve, through the sandbox,
+  back to itself. That stays exhaustive as font cuts change, but it deliberately
+  does **not** verify that the families the SVGs *reference* are bundled — so a
+  future SVG that names an unbundled family/weight would silently fall back
+  rather than erroring. Today the SVGs reference only `Roboto` and `Arimo` at
+  weight 400, both bundled; keep new SVG glyphs within the shipped cuts.
   **Safe-zone calibration:** `icon_bonken_maskable.svg` and
   `icon_bonken_adaptive_fg.svg` both use viewBox `−128 −128 1280 1280` (card at
   50 % of canvas). The native `android:inset="10%"` (`adaptive_icon_foreground_inset`

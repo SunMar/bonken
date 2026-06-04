@@ -32,11 +32,11 @@
     <rect x="192" y="102" width="640" height="820" rx="64" ry="64"
           fill="none" stroke="#1A237E" stroke-opacity="0.10" stroke-width="4"/>
   </g>
-  <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+  <g font-family="Arimo" text-anchor="middle" font-size="165">
     <text x="290" y="270" fill="#0D2B4E">&#x2660;</text>
     <text x="425" y="270" fill="#B52424">&#x2665;</text>
   </g>
-  <g font-family="DejaVu Sans" text-anchor="middle" font-size="135">
+  <g font-family="Arimo" text-anchor="middle" font-size="165">
     <text x="599" y="855" fill="#CC6600">&#x2666;</text>
     <text x="734" y="855" fill="#3A3A3A">&#x2663;</text>
   </g>

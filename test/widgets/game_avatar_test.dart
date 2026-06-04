@@ -9,23 +9,24 @@ void main() {
   group('GameAvatar SuitSymbol rendering', () {
     // The SuitSymbol arm in `_GameSymbol` has two non-trivial design
     // decisions that aren't otherwise compile-time enforced:
-    //   1. The glyph must be rendered with the bundled DejaVu Sans font
-    //      (not the platform default), so suits match the launcher
-    //      icons and Android can't substitute a colored emoji.
-    //   2. The font size is multiplied by 1.4 to compensate for DejaVu
-    //      Sans' suit glyphs not filling the em-box.
+    //   1. The glyph must be rendered with the bundled Arimo font (via
+    //      GoogleFonts.arimo(), not the platform default), so suits match
+    //      the launcher icons and Android can't substitute a colored
+    //      emoji. GoogleFonts encodes the family as 'Arimo_<variant>'.
+    //   2. The font size is multiplied by 2.0 to scale the suit glyphs up
+    //      so they visually fill the avatar.
     // These tests guard against either being silently dropped.
 
-    testWidgets('Hearts renders ♥ in DejaVu Sans at 1.4× the nominal size', (
+    testWidgets('Hearts renders ♥ in Arimo at 2.0× the nominal size', (
       tester,
     ) async {
       await pumpHost(tester, const GameAvatar(game: Hearts(), radius: 24));
 
       final text = tester.widget<Text>(find.text('♥'));
-      expect(text.style?.fontFamily, 'DejaVu Sans');
+      expect(text.style?.fontFamily, contains('Arimo'));
       // GameAvatar passes fontSize: 16 to _GameSymbol; SuitSymbol scales
-      // by 1.4.
-      expect(text.style?.fontSize, closeTo(16 * 1.4, 0.001));
+      // by 2.0.
+      expect(text.style?.fontSize, closeTo(16 * 2.0, 0.001));
       expect(text.style?.fontWeight, FontWeight.normal);
     });
 
@@ -43,8 +44,8 @@ void main() {
         final text = tester.widget<Text>(find.text(glyph));
         expect(
           text.style?.fontFamily,
-          'DejaVu Sans',
-          reason: 'suit glyph $glyph must use bundled DejaVu Sans',
+          contains('Arimo'),
+          reason: 'suit glyph $glyph must use bundled Arimo',
         );
       }
     });

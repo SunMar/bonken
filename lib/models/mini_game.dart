@@ -41,8 +41,8 @@ class TextSymbol extends GameSymbol {
   final String text;
 }
 
-/// A card-suit glyph (♠ ♥ ♦ ♣) rendered with the bundled `DejaVu
-/// Sans` font at regular weight — the same font the icon SVGs use, so
+/// A card-suit glyph (♠ ♥ ♦ ♣) rendered with the bundled `Arimo`
+/// font at regular weight — the same font the icon SVGs use, so
 /// on-screen suits and launcher icons match. Bundling the font also
 /// stops Android from substituting colored emoji for these codepoints.
 class SuitSymbol extends GameSymbol {
@@ -95,7 +95,7 @@ abstract class MiniGame {
   final String name;
 
   /// Avatar contents shown for this game in the UI: a [TextSymbol] (short
-  /// bold label), a [SuitSymbol] (♠ ♥ ♦ ♣ in DejaVu Sans), or an
+  /// bold label), a [SuitSymbol] (♠ ♥ ♦ ♣ in Arimo), or an
   /// [IconSymbol] (vector glyph). The [GameSymbol] sealed class enforces
   /// this union at compile time.
   final GameSymbol symbol;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/mini_game.dart';
 import '../theme/app_theme_extensions.dart';
@@ -24,6 +25,8 @@ class GameAvatar extends StatelessWidget {
     final isPositive = game.category == GameCategory.positive;
     final textColor = scoreColor(isPositive ? 1 : -1, context);
     final symbolColor = suits.forGameId(game.id) ?? textColor;
+    // [CircleAvatar] wraps its child in [MediaQuery.withNoTextScaling], so
+    // the avatar and its contents do not scale with the accessibility text scale.
     return CircleAvatar(
       radius: radius,
       backgroundColor: symbolColor.withValues(alpha: disabled ? 0.06 : 0.12),
@@ -37,11 +40,11 @@ class GameAvatar extends StatelessWidget {
 }
 
 /// Renders a [GameSymbol]: a [TextSymbol] renders as bold text, a
-/// [SuitSymbol] renders as a card-suit glyph in DejaVu Sans (so the
+/// [SuitSymbol] renders as a card-suit glyph in Arimo (so the
 /// glyph matches the launcher icons and isn't substituted for a colored
 /// emoji on Android), and an [IconSymbol] renders as a Material Symbols
-/// vector glyph sized to roughly match the cap height of adjacent text.
-/// The `switch` arms below are intentionally ordered to match this doc.
+/// vector glyph. Both [SuitSymbol] and [IconSymbol] are scaled above
+/// [fontSize] so their ink fills the avatar.
 class _GameSymbol extends StatelessWidget {
   const _GameSymbol({
     required this.symbol,
@@ -70,35 +73,46 @@ class _GameSymbol extends StatelessWidget {
       ),
       IconSymbol(:final icon) => Icon(
         icon,
-        // Icon size matches the cap height of adjacent letters. Unlike
-        // [Text], [Icon] does not honor the user's accessibility text
-        // scale automatically, so we apply [MediaQuery.textScalerOf]
-        // manually to keep icon and text avatars visually consistent.
-        size: MediaQuery.textScalerOf(context).scale(fontSize) * 1.1,
+        // [Icon.size] is the full bounding box; Material Symbols glyphs don't
+        // fill it edge-to-edge. Scale above [fontSize] so the icon visually
+        // fills the avatar rather than reading as a smaller inline glyph.
+        size: fontSize * 1.35,
         color: color,
         // `fill: 1` renders Material Symbols (a variable font) in their
         // filled variant.
         fill: 1,
       ),
-      SuitSymbol(:final text) => Text(
-        text,
-        style: TextStyle(
-          color: color,
-          // Bundled DejaVu Sans, regular weight — matches the suits in
-          // the launcher icons (rendered from the same .ttf by
-          // tool/generate_icons.sh) and avoids Android substituting
-          // colored emoji for these codepoints.
-          fontFamily: 'DejaVu Sans',
-          fontWeight: FontWeight.normal,
-          // The suit glyphs in DejaVu Sans don't fill the em-box the way
-          // letter glyphs do, so they look noticeably smaller than the
-          // text variants at the same nominal size. Scale up so suit
-          // glyphs read at the same visual weight as letter glyphs at
-          // the same nominal `fontSize`. The user's accessibility text
-          // scale is still applied automatically by [Text] on top of
-          // this static design multiplier.
-          fontSize: fontSize * 1.4,
-        ),
+      SuitSymbol(:final text) => Builder(
+        builder: (context) {
+          // Arimo's suit glyphs don't fill the em-box the way letter glyphs
+          // do, so they look noticeably smaller at the same nominal size.
+          // Scale up so the suit visually fills the avatar.
+          final suitFontSize = fontSize * 2.0;
+          return Transform.translate(
+            // Suit glyphs are shorter than capitals (ink heights 1122–1231 vs
+            // cap height 1409 in Arimo, upem 2048). Both sit on the baseline,
+            // so the height difference pushes the suit's ink centre below the
+            // line-box centre. Font metric analysis predicts ~0.05; pixel
+            // measurements confirm 0.10 is correct. The ~2× gap is likely due
+            // to Flutter's line-box height exceeding what sTypo metrics alone
+            // predict, shifting the baseline further from the widget centre.
+            offset: Offset(0, -suitFontSize * 0.10),
+            child: Text(
+              text,
+              // Bundled Arimo, regular weight — loaded offline via the
+              // google_fonts package (same mechanism as the app's Roboto
+              // text theme). Matches the suits in the launcher icons
+              // (rendered from the same .ttf by tool/generate_icons.sh) and
+              // avoids Android substituting colored emoji for these
+              // codepoints.
+              style: GoogleFonts.arimo(
+                color: color,
+                fontWeight: FontWeight.normal,
+                fontSize: suitFontSize,
+              ),
+            ),
+          );
+        },
       ),
     };
   }

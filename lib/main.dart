@@ -19,17 +19,15 @@ import 'theme/app_theme_extensions.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Fonts are bundled as local assets (assets/google_fonts/<version>/).
-  // Runtime fetching is disabled so the app works fully offline.
+  // Fonts (Roboto for text, Arimo for the suit glyphs) are bundled as
+  // local assets under assets/google_fonts/<version>/ and loaded via the
+  // google_fonts package. Runtime fetching is disabled so the app works
+  // fully offline.
   GoogleFonts.config.allowRuntimeFetching = false;
 
-  // Pub packages' LICENSE files are auto-registered with the
-  // [LicenseRegistry], but locally bundled assets are not (Flutter only
-  // walks pub dependencies). Register them explicitly so they surface in
-  // `showLicensePage()` — the Bitstream Vera + DejaVu addendum requires
-  // the copyright notices to be reachable wherever the font is
-  // redistributed. The root app's own AGPL LICENSE is surfaced via
-  // Flutter's build-time NOTICES aggregation (not registered here).
+  // Pub packages' LICENSE files are auto-registered with [LicenseRegistry],
+  // but locally bundled assets are not (Flutter only walks pub dependencies).
+  // The root app AGPL LICENSE also surfaces via Flutter's build-time NOTICES.
   registerBundledLicenses();
 
   // Edge-to-edge: draw behind system bars so users without a visible
@@ -66,25 +64,6 @@ void main() async {
   // Fire-and-forget: ask Google Play whether a newer version is available.
   // No-op on web / iOS / sideloaded builds.  Never blocks startup.
   unawaited(checkForAndroidUpdate());
-}
-
-/// Registers LICENSE files for assets that Flutter does not auto-register
-/// (locally bundled fonts). The root app's AGPL LICENSE surfaces via
-/// Flutter's build-time NOTICES aggregation instead.
-///
-/// Exposed for tests so they can verify the entries appear without
-/// running [main].
-@visibleForTesting
-void registerBundledLicenses() {
-  _registerBundledLicense('assets/dejavu/2.37/LICENSE', 'DejaVu Sans');
-}
-
-void _registerBundledLicense(String assetPath, String packageName) {
-  LicenseRegistry.addLicense(() async* {
-    yield LicenseEntryWithLineBreaks([
-      packageName,
-    ], await rootBundle.loadString(assetPath));
-  });
 }
 
 class BonkenApp extends ConsumerWidget {
@@ -193,3 +172,28 @@ final ActionIconThemeData _symbolsActionIconTheme = ActionIconThemeData(
   drawerButtonIconBuilder: (_) => const Icon(Symbols.menu),
   endDrawerButtonIconBuilder: (_) => const Icon(Symbols.menu),
 );
+
+/// Registers LICENSE files for locally bundled fonts that Flutter does not
+/// auto-register (only pub package LICENSEs are walked automatically).
+///
+/// Arimo is registered explicitly so its SIL OFL attribution surfaces in
+/// [showLicensePage]. Roboto is Flutter's default font and is already covered
+/// by the engine's NOTICES aggregation.
+///
+/// Exposed for tests so they can verify the entry appears without running
+/// [main].
+@visibleForTesting
+void registerBundledLicenses() {
+  _registerBundledLicense(
+    'assets/google_fonts/8.1.0/Arimo-LICENSE.txt',
+    'Arimo',
+  );
+}
+
+void _registerBundledLicense(String assetPath, String packageName) {
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      packageName,
+    ], await rootBundle.loadString(assetPath));
+  });
+}

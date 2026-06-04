@@ -27,7 +27,7 @@ dependencies:
   # allowRuntimeFetching is disabled so the app works fully offline.
   # Version is pinned (no caret) so `flutter pub upgrade` won't bump it
   # without also re-downloading the matching font hashes.  To upgrade,
-  # run `tool/update_fonts.sh` — it bumps this version, the asset
+  # run `dart run tool/update_fonts.dart` — it bumps this version, the asset
   # path below, and replaces the bundled .ttf files in one step.
   google_fonts: 8.1.0
 
@@ -99,28 +99,18 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Roboto font files for google_fonts <version> (allowRuntimeFetching = false)
+  # Roboto (text) + Arimo (the card-suit glyphs ♠ ♥ ♦ ♣) font files for
+  # google_fonts <version>. Both are bundled locally and loaded via the
+  # google_fonts package with allowRuntimeFetching = false, so the app
+  # works fully offline and the icon SVGs in assets/icon/ rasterize
+  # deterministically from the same .ttf the runtime app uses. Bundling
+  # Arimo also stops Android substituting colored emoji for the suit
+  # codepoints. tool/update_fonts.dart keeps these in lock-step with the
+  # pinned package version.
   assets:
     - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png
-    # The app's own AGPL-3.0 license, surfaced via `showLicensePage()`
-    # so users of the binary can read the licence terms in-app (see
-    # main.dart for the registration).
+    # The app's own AGPL-3.0 license, bundled so it resolves at runtime
+    # and is aggregated into the build-time NOTICES asset that
+    # `showLicensePage()` reads.
     - LICENSE
-    # DejaVu Sans license, surfaced via `showLicensePage()` (see
-    # main.dart). The upstream Bitstream Vera + DejaVu addendum requires
-    # the copyright notices to be reachable wherever the font ships.
-    # `tool/update_fonts.sh` rewrites this path on a DejaVu version bump.
-    - assets/dejavu/2.37/LICENSE
-
-  # DejaVu Sans — bundled locally so the card-suit glyphs (♠ ♥ ♦
-  # ♣) render identically across platforms (Material's default font
-  # falls back to colored emoji on some Androids) and so the icon SVGs
-  # in assets/icon/ can be rasterized deterministically by
-  # tool/generate_icons.sh from the same .ttf the runtime app uses.
-  # Versioned path mirrors the google_fonts/<version>/ scheme so
-  # tool/update_fonts.sh can manage upgrades atomically.
-  fonts:
-    - family: DejaVu Sans
-      fonts:
-        - asset: assets/dejavu/2.37/DejaVuSans.ttf
