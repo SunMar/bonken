@@ -3,9 +3,7 @@ import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
-    // The Flutter Gradle Plugin must be applied after the Android plugin.
-    // Kotlin support is provided by Flutter's built-in Kotlin (no separate KGP needed).
-    id("dev.flutter.flutter-gradle-plugin")
+    id("dev.flutter.flutter-gradle-plugin") // must be applied after the Android plugin
 }
 
 // Read upload-keystore credentials from android/key.properties when present.
@@ -76,4 +74,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }

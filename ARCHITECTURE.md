@@ -842,25 +842,26 @@ ensures the binding.
 ## 12. Build, run & release
 
 Flutter SDK version is pinned in [`.fvmrc`](.fvmrc). CI installs it
-from there via the `setup-build` action; bare `flutter` / `dart` work locally,
-and `fvm flutter <cmd>` runs against the pinned version exactly. Bump the pin to
-the latest **stable** release with `dart run tool/update_flutter.dart`
-([`--check`](tool/update_flutter.dart) reports without writing) — it rewrites
-`.fvmrc` and the `pubspec.yaml` Dart `sdk:` lower-bound together, never
-downgrades, and prints the follow-up steps (install the SDK, re-resolve, run the
-gates).
+from there via the `setup-build` action. Always use `fvm flutter`/`fvm dart`
+locally to run against the pinned version. Bump the pin to
+the latest **stable** release with `fvm dart run tool/update_flutter.dart` — it
+rewrites `.fvmrc`, the `pubspec.yaml` Dart `sdk:` lower-bound, and the Android
+toolchain versions together, then runs `fvm install`. Exits without writing when
+already current (`--force` re-runs `fvm install` + Android sync anyway;
+[`--check`](tool/update_flutter.dart) reports without writing). Never downgrades
+if the pin is ahead of stable.
 
 ```bash
-flutter pub get
-flutter run                                       # Android device / emulator
-flutter run -d chrome                             # Web
-flutter test                                      # All tests
-flutter analyze                                   # Static analysis (lints from analysis_options.yaml)
-dart format .                                      # Auto-format all Dart (run before committing)
-dart format --output=none --set-exit-if-changed . # Formatting check (what CI runs; exits 1 on drift)
+fvm flutter pub get
+fvm flutter run                                       # Android device / emulator
+fvm flutter run -d chrome                             # Web
+fvm flutter test                                      # All tests
+fvm flutter analyze                                   # Static analysis (lints from analysis_options.yaml)
+fvm dart format .                                     # Auto-format all Dart (run before committing)
+fvm dart format --output=none --set-exit-if-changed . # Formatting check (what CI runs; exits 1 on drift)
 
-flutter build apk --release                       # Android APK
-flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
+fvm flutter build apk --release                       # Android APK
+fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 ```
 
 - **CI verification gates.** The
@@ -929,7 +930,53 @@ flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 
 ---
 
-## 13. Conventions & invariants (quick reference)
+## 13. Deferred upgrades
+
+Items that were evaluated but cannot be adopted yet due to upstream blockers.
+Re-evaluate each time Flutter or the relevant dependency is upgraded.
+
+### `android.builtInKotlin=true` (AGP 9+ built-in Kotlin)
+
+**What:** Let AGP provide the Kotlin Gradle Plugin instead of declaring it
+manually in `android/settings.gradle.kts`. Removes the explicit Kotlin version
+pin and lets AGP coordinate JVM targets automatically.
+
+**Blocked by:** `in_app_update` 4.2.5 ships its own KGP in its `buildscript`
+block, which conflicts with AGP's builtInKotlin mode and causes a
+NullPointerException at Gradle configure time. The package (latest as of
+2026-06) has no update available.
+
+**When to retry:** When `in_app_update` (or a drop-in replacement) publishes a
+version that does not embed its own KGP, or when the package is removed from the
+project.
+
+**What to do:** Set `android.builtInKotlin=true` in `android/gradle.properties`,
+remove the `id("org.jetbrains.kotlin.android")` line from
+`android/settings.gradle.kts`, drop the `kotlin` field from
+`tool/helpers/android_versions.dart` and the corresponding sync loop in
+`tool/update_flutter.dart`.
+
+---
+
+### `android.newDsl=true` (AGP 9 new Gradle DSL)
+
+**What:** Migrate to the new AGP 9 declarative DSL (`ApplicationExtension`
+instead of the legacy `android { }` closure), which becomes mandatory in AGP 10.
+
+**Blocked by:** `dev.flutter.flutter-gradle-plugin` (Flutter's own Gradle
+plugin) does not support the new DSL yet — enabling it causes an NPE in plugin
+application.
+
+**When to retry:** When Flutter upgrades its Gradle plugin to support AGP 9 new
+DSL. Watch Flutter release notes for "AGP 9 new DSL" or "newDsl" mentions.
+
+**What to do:** Set `android.newDsl=true` in `android/gradle.properties` and
+migrate `android/app/build.gradle.kts` from the legacy `BaseAppModuleExtension`
+(`android { }`) to `ApplicationExtension`.
+
+---
+
+## 14. Conventions & invariants (quick reference)
 
 Things to *not* break:
 
@@ -954,7 +1001,7 @@ Things to *not* break:
 - **Append a `StorageMigration` step + bump `currentStorageVersion`** when
   changing stored JSON shape (never edit an existing, frozen step).
 - **UI strings in Dutch, code identifiers in English.**
-- **Run `dart format` before committing** — CI's `verify` action fails on
+- **Run `fvm dart format .` before committing** — CI's `verify` action fails on
   unformatted Dart (`dart format --output=none --set-exit-if-changed .`).
 - **Update CLAUDE.md / ARCHITECTURE.md as part of the change** when it affects
   documented architecture, conventions, the storage version, the directory map,
@@ -962,7 +1009,7 @@ Things to *not* break:
 
 ---
 
-## 14. Glossary (Dutch → English)
+## 15. Glossary (Dutch → English)
 
 **Core terms:**
 

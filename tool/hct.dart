@@ -7,11 +7,11 @@
 // Two modes — direction is always explicit:
 //
 //   1. Hex -> HCT
-//      dart run tool/hct.dart to 5BD79A FF6F74 '#1F6A47'
+//      fvm dart run tool/hct.dart to 5BD79A FF6F74 '#1F6A47'
 //      Accepts: RRGGBB, #RRGGBB, AARRGGBB, #AARRGGBB (alpha is ignored).
 //
 //   2. HCT -> Hex
-//      dart run tool/hct.dart from 162,54,80 18,65,80
+//      fvm dart run tool/hct.dart from 162,54,80 18,65,80
 //      Each argument is a comma-separated H,C,T triplet. Note that sRGB
 //      cannot represent every HCT coordinate; clipped values are reported
 //      with their actual HCT.
@@ -35,8 +35,8 @@ void main(List<String> args) {
 }
 
 void _usage() {
-  print('Usage: dart run tool/hct.dart to    RRGGBB  [RRGGBB ...]');
-  print('       dart run tool/hct.dart from  H,C,T   [H,C,T ...]');
+  print('Usage: fvm dart run tool/hct.dart to    RRGGBB  [RRGGBB ...]');
+  print('       fvm dart run tool/hct.dart from  H,C,T   [H,C,T ...]');
 }
 
 void _toHct(List<String> args) {

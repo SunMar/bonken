@@ -63,6 +63,12 @@ dev_dependencies:
   # flutter, but declared explicitly so `missing_dependency` is satisfied and
   # the tool import is traceable to a real direct dependency.
   material_color_utilities: ^0.13.0
+  # Used by tool/update_fonts.dart, tool/update_deps.dart, and
+  # tool/update_flutter.dart (via tool/helpers/pubspec_yaml.dart) for
+  # format-preserving pubspec.yaml reads and edits. Declared explicitly so
+  # `missing_dependency` is satisfied and the tool imports are traceable.
+  yaml: ^3.1.3
+  yaml_edit: ^2.2.4
 
 # Launcher icon generation.  Run after changing the source SVG/PNG:
 #   dart run flutter_launcher_icons

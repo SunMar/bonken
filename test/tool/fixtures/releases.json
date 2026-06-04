@@ -1,0 +1,27 @@
+{
+  "current_release": {
+    "beta": "abc123",
+    "stable": "def456",
+    "dev": "ghi789"
+  },
+  "releases": [
+    {
+      "hash": "abc123",
+      "channel": "beta",
+      "version": "3.99.0",
+      "dart_sdk_version": "3.99.0 (build 3.99.0.1)"
+    },
+    {
+      "hash": "def456",
+      "channel": "stable",
+      "version": "3.44.0",
+      "dart_sdk_version": "3.12.0 (build 3.12.0.500)"
+    },
+    {
+      "hash": "ghi789",
+      "channel": "dev",
+      "version": "4.0.0-dev.1",
+      "dart_sdk_version": "4.0.0-dev.1"
+    }
+  ]
+}
