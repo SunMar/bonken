@@ -34,7 +34,7 @@ final gameHistoryProvider =
     );
 
 class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
-  static const _storageKey = 'game_history';
+  static const storageKey = 'game_history';
   static const _legacyStorageKey = 'bonken_game_history';
 
   /// Cached result of [playerNameSuggestions]. Recomputed lazily on the
@@ -47,7 +47,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
     final prefs = await SharedPreferences.getInstance();
     try {
       List<dynamic> games;
-      final currentRaw = prefs.getString(_storageKey);
+      final currentRaw = prefs.getString(storageKey);
       if (currentRaw != null) {
         final decoded = jsonDecode(currentRaw) as Map<String, dynamic>;
         final version = decoded['version'] as int;
@@ -58,7 +58,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
         if (version < currentStorageVersion) {
           games = runStorageMigrations(games, fromVersion: version);
           await prefs.setString(
-            _storageKey,
+            storageKey,
             jsonEncode({'version': currentStorageVersion, 'games': games}),
           );
         }
@@ -71,7 +71,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
           fromVersion: 1,
         );
         await prefs.setString(
-          _storageKey,
+          storageKey,
           jsonEncode({'version': currentStorageVersion, 'games': games}),
         );
         await prefs.remove(_legacyStorageKey);
@@ -114,7 +114,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
 
   Future<void> clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_storageKey);
+    await prefs.remove(storageKey);
     _suggestionsCache = null;
     state = const AsyncValue.data([]);
   }
@@ -130,7 +130,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   Future<void> _persist(List<GameSession> sessions) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      _storageKey,
+      storageKey,
       jsonEncode({
         'version': currentStorageVersion,
         'games': [for (final s in sessions) s.toJson()],

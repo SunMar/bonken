@@ -98,7 +98,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(GameScreen), findsOneWidget);
-    expect(container.read(calculatorProvider).sessionId, 'g1');
+    expect(
+      (container.read(calculatorProvider) as ActiveSession).sessionId,
+      'g1',
+    );
 
     // Drain the autosave debounce scheduled by loadSession.
     await tester.pump(const Duration(milliseconds: 500));
@@ -191,5 +194,134 @@ void main() {
     await prefs.remove('bonken_game_history');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('corrupt storage screen shows Verstuur foutrapport button', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'bonken_game_history': 'this is not json',
+    });
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Verstuur foutrapport'), findsOneWidget);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('bonken_game_history');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'unsupported version screen does not show Verstuur foutrapport button',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'game_history': '{"version":99,"games":[]}',
+      });
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: HomeScreen()),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('Verstuur foutrapport'), findsNothing);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('game_history');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('tapping Verstuur foutrapport button shows confirmation dialog', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'bonken_game_history': 'this is not json',
+    });
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Verstuur foutrapport'));
+    await tester.pumpAndSettle();
+
+    // Confirm dialog appears.
+    expect(find.text('Versturen'), findsOneWidget);
+
+    // Dismiss by cancelling — avoids hitting url_launcher in tests.
+    await tester.tap(find.text('Annuleren'));
+    await tester.pumpAndSettle();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('bonken_game_history');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+  });
+
+  group('buildDebugReport', () {
+    final when = DateTime.utc(2024, 1, 2, 3, 4, 5);
+
+    test('caps an oversized raw-storage blob with a marker', () {
+      final huge = 'x' * 5000;
+      final report = buildDebugReport(null, null, huge, when);
+
+      expect(report, contains('=== Raw storage data ==='));
+      expect(report, contains('x' * 3000)); // head kept (cap is 3000)
+      expect(report, isNot(contains('x' * 3001))); // …and nothing past it
+      expect(report, contains('ingekort: 2000 tekens')); // 5000 − 3000 dropped
+    });
+
+    test('caps an oversized stack trace with a marker', () {
+      final trace = StackTrace.fromString('frame\n' * 1000); // 6000 chars
+      final report = buildDebugReport(null, trace, null, when);
+
+      expect(report, contains('=== Stack trace ==='));
+      expect(report, contains('ingekort:'));
+    });
+
+    test('leaves a small raw-storage blob intact', () {
+      const small = '{"version":7,"games":[]}';
+      final report = buildDebugReport(null, null, small, when);
+
+      expect(report, contains(small));
+      expect(report, isNot(contains('ingekort:')));
+    });
+
+    test('includes the CorruptStorageException cause', () {
+      final report = buildDebugReport(
+        const CorruptStorageException('dangling player id'),
+        null,
+        null,
+        when,
+      );
+
+      expect(report, contains('=== Cause ==='));
+      expect(report, contains('dangling player id'));
+    });
   });
 }

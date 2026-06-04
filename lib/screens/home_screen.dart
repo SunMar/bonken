@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/game_session.dart';
 import '../state/calculator_provider.dart';
@@ -170,21 +172,26 @@ class _StorageErrorScreen extends ConsumerWidget {
         'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
             'de app en kan niet worden geladen. Update de app om je '
             'geschiedenis te bekijken, of wis de geschiedenis om verder te '
-            'spelen — eerdere spellen kunnen daarna niet meer worden hersteld.',
+            'spelen.',
       ),
       _StorageErrorKind.corrupt => (
         'Geschiedenis beschadigd',
         'Je opgeslagen spelgeschiedenis kan niet worden gelezen (mogelijk '
-            'beschadigd). Wis de geschiedenis om verder te spelen — eerdere '
-            'spellen kunnen daarna niet meer worden hersteld.',
+            'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
+            'of wis de geschiedenis om verder te spelen.',
       ),
       _StorageErrorKind.unknown => (
         'Onbekende fout',
         'Er is een onverwachte fout opgetreden bij het laden van de '
-            'spelgeschiedenis. Wis de geschiedenis om verder te spelen — '
-            'eerdere spellen kunnen daarna niet meer worden hersteld.',
+            'spelgeschiedenis. Verstuur het foutrapport om dit probleem te '
+            'melden, of wis de geschiedenis om verder te spelen.',
       ),
     };
+    final asyncValue = ref.watch(gameHistoryProvider);
+    final exception = asyncValue.error;
+    final stackTrace = asyncValue.stackTrace;
+    final showReportButton = kind != _StorageErrorKind.unsupportedVersion;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -207,6 +214,14 @@ class _StorageErrorScreen extends ConsumerWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
+            if (showReportButton) ...[
+              FilledButton.tonal(
+                onPressed: () =>
+                    unawaited(_sendErrorReport(context, exception, stackTrace)),
+                child: const Text('Verstuur foutrapport'),
+              ),
+              const SizedBox(height: 8),
+            ],
             FilledButton.tonal(
               onPressed: () async {
                 final confirmed = await showConfirmDialog(
@@ -228,6 +243,126 @@ class _StorageErrorScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+// =============================================================================
+// Error report helpers
+// =============================================================================
+
+/// Support address the error report is mailed to (and shown as a fallback when
+/// no mail app is available). Defined once so the two references can't drift.
+const String _supportEmail = 'support@suninet.org';
+
+/// Upper bounds on the variable-length parts of the debug report. The whole
+/// report is URL-encoded into a `mailto:` body, and many mail clients/OSes
+/// silently truncate long `mailto:` URLs — so cap the parts that can grow
+/// unbounded (the raw storage blob and the stack trace) to keep the report
+/// intact. The head of each is the most useful for diagnosis.
+const int _maxRawDataChars = 3000;
+const int _maxStackTraceChars = 1500;
+
+Future<void> _sendErrorReport(
+  BuildContext context,
+  Object? exception,
+  StackTrace? stackTrace,
+) async {
+  final confirmed = await showConfirmDialog(
+    context,
+    title: 'Verstuur foutrapport',
+    contentText:
+        'Het rapport bevat de volledige spelgeschiedenis, inclusief '
+        'spelersnamen. Er worden geen andere gegevens meegestuurd.',
+    confirmLabel: 'Versturen',
+  );
+  if (confirmed != true) return;
+  if (!context.mounted) return;
+
+  final prefs = await SharedPreferences.getInstance();
+  final rawData = prefs.getString(GameHistoryNotifier.storageKey);
+
+  final report = buildDebugReport(
+    exception,
+    stackTrace,
+    rawData,
+    DateTime.now().toUtc(),
+  );
+  final emailBody = _buildEmailBody(report);
+
+  final uri = Uri.parse(
+    'mailto:$_supportEmail'
+    '?subject=${Uri.encodeComponent('Bonken foutrapport')}'
+    '&body=${Uri.encodeComponent(emailBody)}',
+  );
+
+  final launched = await launchUrl(uri);
+  if (!launched && context.mounted) {
+    await showInfoDialog(
+      context,
+      title: 'Kan e-mail niet openen',
+      contentText:
+          'Er is geen e-mailapp beschikbaar op dit apparaat. '
+          'Neem contact op via $_supportEmail.',
+    );
+  }
+}
+
+/// Builds the plain-text debug report mailed in the error report. The
+/// variable-length parts (stack trace, raw storage blob) are capped via
+/// [_truncate] so the `mailto:` body stays within client/OS URL limits.
+///
+/// Exposed for tests so the truncation can be verified without launching mail.
+@visibleForTesting
+String buildDebugReport(
+  Object? exception,
+  StackTrace? stackTrace,
+  String? rawData,
+  DateTime now,
+) {
+  final buf = StringBuffer()..writeln('Date: ${now.toIso8601String()}');
+  if (exception != null) {
+    buf
+      ..writeln()
+      ..writeln('=== Exception ===')
+      ..writeln('${exception.runtimeType}: $exception');
+  }
+  if (exception is CorruptStorageException) {
+    buf
+      ..writeln()
+      ..writeln('=== Cause ===')
+      ..writeln('${exception.cause.runtimeType}: ${exception.cause}');
+  }
+  if (stackTrace != null) {
+    buf
+      ..writeln()
+      ..writeln('=== Stack trace ===')
+      ..writeln(_truncate(stackTrace.toString(), _maxStackTraceChars));
+  }
+  if (rawData != null) {
+    buf
+      ..writeln()
+      ..writeln('=== Raw storage data ===')
+      ..writeln(_truncate(rawData, _maxRawDataChars));
+  }
+  return buf.toString();
+}
+
+/// Caps [text] at [maxChars], appending a marker noting how many characters
+/// were dropped. Keeps the `mailto:` body small enough that mail clients don't
+/// silently truncate the report mid-URL.
+String _truncate(String text, int maxChars) {
+  if (text.length <= maxChars) return text;
+  final dropped = text.length - maxChars;
+  return '${text.substring(0, maxChars)}\n…[ingekort: $dropped tekens]';
+}
+
+String _buildEmailBody(String debugReport) {
+  return 'Voeg hier uw bericht toe (optioneel)...'
+      '\n\n\n'
+      '────────────────────────────────────────────────────\n'
+      'Bonken foutrapport — automatisch gegenereerd\n'
+      '────────────────────────────────────────────────────\n'
+      '\n'
+      '$debugReport';
 }
 
 // =============================================================================
