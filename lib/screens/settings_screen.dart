@@ -43,6 +43,7 @@ class SettingsScreen extends ConsumerWidget {
             onHeartsChanged: (v) => unawaited(
               ref.read(defaultHeartsVariantProvider.notifier).setValue(v),
             ),
+            showDefaultBadge: false,
           ),
         ],
       ),

@@ -125,22 +125,33 @@ class GameRulesCard extends ConsumerWidget {
 /// The two [FormSectionCard] rule sections shared by [_GameRulesSheet] and
 /// [SettingsScreen]. Callers supply current values and callbacks; state is
 /// managed by the caller.
-class GameRulesSections extends StatelessWidget {
+///
+/// Set [showDefaultBadge] to false on [SettingsScreen], where the listed values
+/// *are* the defaults — showing a badge there would be circular.
+class GameRulesSections extends ConsumerWidget {
   const GameRulesSections({
     super.key,
     required this.starterVariant,
     required this.heartsVariant,
     required this.onStarterChanged,
     required this.onHeartsChanged,
+    this.showDefaultBadge = true,
   });
 
   final StarterVariant starterVariant;
   final HeartsVariant heartsVariant;
   final ValueChanged<StarterVariant> onStarterChanged;
   final ValueChanged<HeartsVariant> onHeartsChanged;
+  final bool showDefaultBadge;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final defaultStarter = showDefaultBadge
+        ? ref.watch(defaultStarterVariantProvider)
+        : null;
+    final defaultHearts = showDefaultBadge
+        ? ref.watch(defaultHeartsVariantProvider)
+        : null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -153,6 +164,7 @@ class GameRulesSections extends StatelessWidget {
             values: StarterVariant.values,
             value: starterVariant,
             onChanged: onStarterChanged,
+            defaultValue: defaultStarter,
           ),
         ),
         const SizedBox(height: 12),
@@ -165,6 +177,7 @@ class GameRulesSections extends StatelessWidget {
             values: HeartsVariant.values,
             value: heartsVariant,
             onChanged: onHeartsChanged,
+            defaultValue: defaultHearts,
           ),
         ),
       ],

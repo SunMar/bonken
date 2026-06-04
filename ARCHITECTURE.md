@@ -212,8 +212,10 @@ lib/
     default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
     default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
     enum_preference_notifier.dart  Generic EnumPreferenceNotifier<T> base + loadPersistedEnum().
-    rules_locked_provider.dart  bool (default false); true while rules are shown for a fixed
-                             in-game rule set. Overridden by RulesIconButton for the pushed route.
+    rules_edit_mode_provider.dart  RulesEditMode enum (default enabled); controls cog-icon behaviour
+                             in variant-sensitive rule blocks. Overridden by RulesIconButton for
+                             the pushed route: hidden (score input — hides cog), disabled
+                             (game screen — cog shown but shows a snackbar directing to Spel bewerken).
 
   screens/                   Full-screen routes (all use AppScaffold).
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
@@ -223,7 +225,7 @@ lib/
     edit_game_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
     rules_screen.dart        Renders rules content (full doc or single game); variant text and
                              whether the alternative is shown come from the variant providers +
-                             rulesLockedProvider (overridden per-route when opened in-game).
+                             rulesEditModeProvider (overridden per-route when opened in-game).
     settings_screen.dart     App-wide default settings: StarterVariant + HeartsVariant.
 
   widgets/                   Reusable UI.
@@ -619,10 +621,12 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   open, `EditGameScreen` allows changing them mid-game. Opening rules from
   within a game (`TitleWithRules` → `RulesIconButton`) wraps the pushed
   `RulesScreen` in a `ProviderScope` that overrides the default-variant
-  providers with the session values and sets `rulesLockedProvider` → true, so
-  only the active rule is shown (no settings icon, no "Spelregel variant"
-  alternative). The standalone rules page (home / deep link) leaves both
-  unset, so it shows the app defaults plus the alternative and the icon.
+  providers with the session values and sets `rulesEditModeProvider`. The
+  score input screen uses `hidden` (cog suppressed — variant is fixed for
+  the round). The game screen uses `disabled` (cog shown but tapping shows
+  a snackbar directing the user to 'Spel bewerken'). The standalone rules page
+  (home / deep link) leaves the mode at `enabled`, showing app defaults plus
+  the alternative and the picker icon.
 
 ---
 
@@ -767,9 +771,10 @@ delegates are registered.
   `HeartsVariant` for the current session.
 - **`RulesScreen`** — renders `game_rules.dart` content (full or single game).
   Variant-sensitive blocks read the default-variant providers and
-  `rulesLockedProvider`; when locked (the in-game scope set up by
-  `RulesIconButton`'s `ProviderScope`), they show only the active text and
-  suppress the settings icon + "Spelregel variant" alternative note.
+  `rulesEditModeProvider`; the mode (set by `RulesIconButton`'s `ProviderScope`)
+  controls whether the cog opens the picker (`enabled`), is hidden
+  (`hidden`), or shows a snackbar directing to 'Spel bewerken'
+  (`disabled`).
 
 **The doubles picker** (`doubles_picker.dart`) deserves special note — it is the
 most intricate widget. Two stacked panels: an **initiator** list (the 4 players

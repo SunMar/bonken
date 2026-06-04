@@ -22,12 +22,6 @@ class DefaultStarterVariantNotifier
 
   @override
   String get prefsKey => _kKey;
-
-  @override
-  List<StarterVariant> get values => StarterVariant.values;
-
-  @override
-  StarterVariant get fallback => StarterVariant.dealerStarts;
 }
 
 /// Reads the persisted [StarterVariant] from [SharedPreferences].

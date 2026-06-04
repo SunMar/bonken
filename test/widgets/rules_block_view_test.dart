@@ -3,7 +3,7 @@ import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/default_hearts_variant_provider.dart';
 import 'package:bonken/state/default_starter_variant_provider.dart';
-import 'package:bonken/state/rules_locked_provider.dart';
+import 'package:bonken/state/rules_edit_mode_provider.dart';
 import 'package:bonken/widgets/rules_block_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +20,15 @@ const _starterBlock = VariantBlock(
   },
 );
 
+const _starterLabeledBlock = VariantBlock(
+  variantKind: VariantKind.starter,
+  label: 'Spelregel',
+  texts: {
+    StarterVariant.dealerStarts: 'De deler komt uit.',
+    StarterVariant.oppositeChooserStarts: 'Tegenover de kiezer komt uit.',
+  },
+);
+
 const _heartsBlock = VariantBlock(
   variantKind: VariantKind.hearts,
   label: 'Extra spelregel',
@@ -29,11 +38,12 @@ const _heartsBlock = VariantBlock(
   },
 );
 
-/// Pumps [block] in a [RulesBlockView]. A non-null [starterOverride] /
-/// [heartsOverride] mirrors the in-game scope: it both fixes the displayed
-/// variant (via the default-variant provider) and locks the rules
-/// ([rulesLockedProvider] → true) so the settings icon / alternative is hidden.
-/// [defaultStarter] / [defaultHearts] set the unlocked app-default values.
+/// Pumps [block] in a [RulesBlockView].
+///
+/// [starterOverride] / [heartsOverride] fix the displayed variant via the
+/// default-variant providers. [editMode] is forwarded to [rulesEditModeProvider]
+/// to control how the cog icon behaves. [defaultStarter] / [defaultHearts] set
+/// the app-default values when no override is supplied.
 Future<void> _pump(
   WidgetTester tester,
   Block block, {
@@ -41,8 +51,8 @@ Future<void> _pump(
   HeartsVariant? heartsOverride,
   StarterVariant defaultStarter = StarterVariant.dealerStarts,
   HeartsVariant defaultHearts = HeartsVariant.onlyAfterPlayedHeart,
+  RulesEditMode editMode = RulesEditMode.enabled,
 }) async {
-  final bool locked = starterOverride != null || heartsOverride != null;
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -56,7 +66,7 @@ Future<void> _pump(
             initialVariant: heartsOverride ?? defaultHearts,
           ),
         ),
-        rulesLockedProvider.overrideWithValue(locked),
+        rulesEditModeProvider.overrideWithValue(editMode),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -110,13 +120,24 @@ void main() {
       expect(find.byIcon(Symbols.settings), findsOneWidget);
     });
 
-    testWidgets('hides settings icon when override is set', (tester) async {
+    testWidgets('hides settings icon when hidden', (tester) async {
       await _pump(
         tester,
         _starterBlock,
         starterOverride: StarterVariant.dealerStarts,
+        editMode: RulesEditMode.hidden,
       );
       expect(find.byIcon(Symbols.settings), findsNothing);
+    });
+
+    testWidgets('shows settings icon when disabled', (tester) async {
+      await _pump(
+        tester,
+        _starterBlock,
+        starterOverride: StarterVariant.dealerStarts,
+        editMode: RulesEditMode.disabled,
+      );
+      expect(find.byIcon(Symbols.settings), findsOneWidget);
     });
 
     testWidgets('tapping settings icon opens variant dialog', (tester) async {
@@ -155,13 +176,24 @@ void main() {
       expect(find.byIcon(Symbols.settings), findsOneWidget);
     });
 
-    testWidgets('hides settings icon when override is set', (tester) async {
+    testWidgets('hides settings icon when hidden', (tester) async {
       await _pump(
         tester,
         _heartsBlock,
         heartsOverride: HeartsVariant.graduatedUnlock,
+        editMode: RulesEditMode.hidden,
       );
       expect(find.byIcon(Symbols.settings), findsNothing);
+    });
+
+    testWidgets('shows settings icon when disabled', (tester) async {
+      await _pump(
+        tester,
+        _heartsBlock,
+        heartsOverride: HeartsVariant.graduatedUnlock,
+        editMode: RulesEditMode.disabled,
+      );
+      expect(find.byIcon(Symbols.settings), findsOneWidget);
     });
 
     testWidgets('tapping settings icon opens variant dialog', (tester) async {
@@ -169,6 +201,99 @@ void main() {
       await tester.tap(find.byIcon(Symbols.settings));
       await tester.pumpAndSettle();
       expect(find.text('Spelregel variant'), findsOneWidget);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // VariantBlock starter — active labeled callout and settings icon
+  // -----------------------------------------------------------------------
+  group('VariantBlock starter — active labeled callout', () {
+    testWidgets('shows active text (dealerStarts by default)', (tester) async {
+      await _pump(tester, _starterLabeledBlock);
+      expect(find.textContaining('De deler komt uit.'), findsOneWidget);
+    });
+
+    testWidgets('shows active text for the overridden variant', (tester) async {
+      await _pump(
+        tester,
+        _starterLabeledBlock,
+        starterOverride: StarterVariant.oppositeChooserStarts,
+      );
+      expect(
+        find.textContaining('Tegenover de kiezer komt uit.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows settings icon when no override', (tester) async {
+      await _pump(tester, _starterLabeledBlock);
+      expect(find.byIcon(Symbols.settings), findsOneWidget);
+    });
+
+    testWidgets('hides settings icon when hidden', (tester) async {
+      await _pump(
+        tester,
+        _starterLabeledBlock,
+        starterOverride: StarterVariant.dealerStarts,
+        editMode: RulesEditMode.hidden,
+      );
+      expect(find.byIcon(Symbols.settings), findsNothing);
+    });
+
+    testWidgets('shows settings icon when disabled', (tester) async {
+      await _pump(
+        tester,
+        _starterLabeledBlock,
+        starterOverride: StarterVariant.dealerStarts,
+        editMode: RulesEditMode.disabled,
+      );
+      expect(find.byIcon(Symbols.settings), findsOneWidget);
+    });
+
+    testWidgets('tapping settings icon opens variant dialog', (tester) async {
+      await _pump(tester, _starterLabeledBlock);
+      await tester.tap(find.byIcon(Symbols.settings));
+      await tester.pumpAndSettle();
+      expect(find.text('Spelregel variant'), findsOneWidget);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // disabled — cog shown, tapping shows snackbar (not dialog)
+  // -----------------------------------------------------------------------
+  group('disabled cog behaviour', () {
+    testWidgets('tapping settings icon shows snackbar, not dialog', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _starterBlock,
+        starterOverride: StarterVariant.dealerStarts,
+        editMode: RulesEditMode.disabled,
+      );
+      await tester.tap(find.byIcon(Symbols.settings));
+      await tester.pump();
+      expect(find.text('Spelregel variant'), findsNothing);
+      expect(find.textContaining('Spel bewerken'), findsOneWidget);
+      // Drain the showTimedSnackBar internal timer before the test ends.
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+    });
+
+    testWidgets('tapping settings icon in labeled callout shows snackbar', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _starterLabeledBlock,
+        starterOverride: StarterVariant.dealerStarts,
+        editMode: RulesEditMode.disabled,
+      );
+      await tester.tap(find.byIcon(Symbols.settings));
+      await tester.pump();
+      expect(find.text('Spelregel variant'), findsNothing);
+      expect(find.textContaining('Spel bewerken'), findsOneWidget);
+      // Drain the showTimedSnackBar internal timer before the test ends.
+      await tester.pumpAndSettle(const Duration(seconds: 5));
     });
   });
 
@@ -205,19 +330,13 @@ void main() {
       );
     });
 
-    testWidgets('shows the settings icon when unlocked', (tester) async {
-      await _pump(tester, numbered);
-      expect(find.byIcon(Symbols.settings), findsOneWidget);
-    });
-
-    testWidgets('hides the settings icon when locked', (tester) async {
-      await _pump(
-        tester,
-        numbered,
-        starterOverride: StarterVariant.dealerStarts,
-      );
-      expect(find.byIcon(Symbols.settings), findsNothing);
-    });
+    testWidgets(
+      'never shows a settings icon (variant control is in the callout)',
+      (tester) async {
+        await _pump(tester, numbered);
+        expect(find.byIcon(Symbols.settings), findsNothing);
+      },
+    );
   });
 
   // -----------------------------------------------------------------------

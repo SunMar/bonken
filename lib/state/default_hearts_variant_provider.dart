@@ -22,12 +22,6 @@ class DefaultHeartsVariantNotifier
 
   @override
   String get prefsKey => _kKey;
-
-  @override
-  List<HeartsVariant> get values => HeartsVariant.values;
-
-  @override
-  HeartsVariant get fallback => HeartsVariant.onlyAfterPlayedHeart;
 }
 
 /// Reads the persisted [HeartsVariant] from [SharedPreferences].

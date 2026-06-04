@@ -13,6 +13,7 @@ import '../models/player.dart';
 import '../models/round_record.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
+import '../state/rules_edit_mode_provider.dart';
 import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_bar_widgets.dart';
@@ -39,8 +40,21 @@ class GameScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final starterVariant = ref.watch(
+      calculatorProvider.select((s) => s.ruleVariants.starterVariant),
+    );
+    final heartsVariant = ref.watch(
+      calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
+    );
     return AppScaffold(
-      appBar: AppBar(title: const TitleWithRules(title: Text('Spel invoer'))),
+      appBar: AppBar(
+        title: TitleWithRules(
+          title: const Text('Spel invoer'),
+          starterVariantOverride: starterVariant,
+          heartsVariantOverride: heartsVariant,
+          editMode: RulesEditMode.disabled,
+        ),
+      ),
       body: const _GameSelectionBody(),
     );
   }

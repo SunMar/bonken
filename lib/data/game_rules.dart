@@ -164,6 +164,14 @@ class GameSection {
 // Reusable text fragments
 // -----------------------------------------------------------------------------
 
+/// Starter (who goes first) rule texts, used in the Verloop numbered list
+/// and in the "Alternatieve spelregel" callout below it.
+const Map<Enum, String> kStarterVariantTexts = {
+  StarterVariant.dealerStarts: 'Het spelen begint, de deler komt uit.',
+  StarterVariant.oppositeChooserStarts:
+      'Het spelen begint, de speler tegenover de kiezer komt uit.',
+};
+
 /// Hearts lead-rule texts, shared by Harten Heer and Hartenpunten.
 const Map<Enum, String> kHeartsLeadRuleTexts = {
   HeartsVariant.onlyAfterPlayedHeart:
@@ -283,10 +291,10 @@ const Section kSpelvormenSection = Section(
   ],
 );
 
-const Section kVerloopSection = Section(
+final Section kVerloopSection = Section(
   title: 'Verloop van een ronde',
   blocks: [
-    NumberedList([
+    const NumberedList([
       TextItem(
         'De deler schudt de kaarten (maar niet te veel, maximaal 3 keer heffen).',
       ),
@@ -305,17 +313,21 @@ const Section kVerloopSection = Section(
       VariantItem(
         VariantBlock(
           variantKind: VariantKind.starter,
-          texts: {
-            StarterVariant.dealerStarts:
-                'Het spelen begint, de deler komt uit.',
-            StarterVariant.oppositeChooserStarts:
-                'Het spelen begint, de speler tegenover de kiezer komt uit.',
-          },
+          texts: kStarterVariantTexts,
         ),
       ),
       TextItem('De ronde wordt gescoord.'),
       TextItem('De volgende speler (met de klok mee) wordt deler.'),
     ]),
+    VariantBlock(
+      variantKind: VariantKind.starter,
+      label: 'Spelregel',
+      texts: {
+        StarterVariant.dealerStarts: StarterVariant.dealerStarts.description,
+        StarterVariant.oppositeChooserStarts:
+            StarterVariant.oppositeChooserStarts.description,
+      },
+    ),
   ],
 );
 
@@ -671,7 +683,7 @@ GameSection? gameSectionFor(String gameId) {
 
 /// Top-level non-game sections, in document order, that come BEFORE the
 /// per-game listings.
-const List<Section> kSectionsBeforeGames = [
+final List<Section> kSectionsBeforeGames = [
   kDoelSection,
   kOpzetSection,
   kVariantenSection,

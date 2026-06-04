@@ -12,7 +12,7 @@ import '../widgets/rules_block_view.dart';
 ///
 /// Which variant text is shown — and whether the "Spelregel variant"
 /// alternative is offered — is controlled by the variant providers and
-/// `rulesLockedProvider`, which `RulesIconButton` overrides for the pushed
+/// `rulesEditModeProvider`, which `RulesIconButton` overrides for the pushed
 /// route when rules are opened from within a game. See [RulesBlockView].
 class RulesScreen extends StatelessWidget {
   const RulesScreen({super.key, this.singleGameId});

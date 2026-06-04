@@ -11,7 +11,7 @@ import '../screens/rules_screen.dart';
 import '../screens/settings_screen.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
-import '../state/rules_locked_provider.dart';
+import '../state/rules_edit_mode_provider.dart';
 import '../state/theme_mode_provider.dart';
 import '../utils.dart';
 
@@ -74,6 +74,7 @@ class RulesIconButton extends StatelessWidget {
     this.tooltip,
     this.starterVariantOverride,
     this.heartsVariantOverride,
+    this.editMode = RulesEditMode.enabled,
   });
 
   /// When set, the pushed [RulesScreen] only shows this game's rules.
@@ -85,6 +86,10 @@ class RulesIconButton extends StatelessWidget {
 
   final StarterVariant? starterVariantOverride;
   final HeartsVariant? heartsVariantOverride;
+
+  /// Controls how variant-sensitive blocks behave in the pushed [RulesScreen].
+  /// See [RulesEditMode] for the three modes.
+  final RulesEditMode editMode;
 
   @override
   Widget build(BuildContext context) {
@@ -111,9 +116,7 @@ class RulesIconButton extends StatelessWidget {
                     initialVariant: heartsVariantOverride!,
                   ),
                 ),
-              rulesLockedProvider.overrideWithValue(
-                starterVariantOverride != null || heartsVariantOverride != null,
-              ),
+              rulesEditModeProvider.overrideWithValue(editMode),
             ],
             child: RulesScreen(singleGameId: singleGameId),
           ),
@@ -140,6 +143,7 @@ class TitleWithRules extends StatelessWidget {
     this.flexibleTitle = false,
     this.starterVariantOverride,
     this.heartsVariantOverride,
+    this.editMode = RulesEditMode.enabled,
   });
 
   /// The title text (or any widget). Wrap arbitrarily-long titles
@@ -162,6 +166,9 @@ class TitleWithRules extends StatelessWidget {
   /// Forwarded to [RulesIconButton] — see its doc for semantics.
   final HeartsVariant? heartsVariantOverride;
 
+  /// Forwarded to [RulesIconButton] — see its doc for semantics.
+  final RulesEditMode editMode;
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -180,6 +187,7 @@ class TitleWithRules extends StatelessWidget {
             tooltip: tooltip,
             starterVariantOverride: starterVariantOverride,
             heartsVariantOverride: heartsVariantOverride,
+            editMode: editMode,
           ),
         ),
       ],

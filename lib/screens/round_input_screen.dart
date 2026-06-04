@@ -9,6 +9,7 @@ import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/score_result.dart';
 import '../state/calculator_provider.dart';
+import '../state/rules_edit_mode_provider.dart';
 import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
 import '../widgets/app_bar_widgets.dart';
@@ -81,12 +82,10 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
         final confirmed =
             await showConfirmDialog(
               context,
-              title:
-                  isEditing ? 'Wijzigingen verwerpen' : 'Ronde verwerpen',
-              contentText:
-                  isEditing
-                      ? kDiscardChangesMessage
-                      : 'De dubbels en scores van de huidige ronde worden verworpen.',
+              title: isEditing ? 'Wijzigingen verwerpen' : 'Ronde verwerpen',
+              contentText: isEditing
+                  ? kDiscardChangesMessage
+                  : 'De dubbels en scores van de huidige ronde worden verworpen.',
               confirmLabel: 'Verwerpen',
               destructive: true,
             ) ==
@@ -172,6 +171,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             heartsVariantOverride: ref.read(
               calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
             ),
+            editMode: RulesEditMode.hidden,
           ),
           leading: Tooltip(
             message: 'Terug',

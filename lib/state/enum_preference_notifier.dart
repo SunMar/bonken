@@ -4,8 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils.dart';
 
 /// Generic base for a [Notifier] that persists a single [Enum] value to
-/// [SharedPreferences]. Subclasses supply the prefs key, the full values list
-/// (for lookup by name), and the fallback default.
+/// [SharedPreferences]. Subclasses supply the prefs key.
+///
+/// (Matching a stored name back to an enum value — with a fallback — is the job
+/// of the free [loadPersistedEnum] function used in `main()`, not of this
+/// notifier, which only writes the chosen value through.)
 ///
 /// The [initialValue] is pre-loaded in `main()` and injected via
 /// `provider.overrideWith(...)` to avoid a first-frame flash.
@@ -17,12 +20,6 @@ abstract class EnumPreferenceNotifier<T extends Enum> extends Notifier<T> {
 
   /// The [SharedPreferences] key under which the value is stored.
   String get prefsKey;
-
-  /// All valid values of [T] — used to match a stored name back to an enum.
-  List<T> get values;
-
-  /// Returned when no value is stored or the stored name is unrecognised.
-  T get fallback;
 
   @override
   T build() => initialValue;

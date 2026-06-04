@@ -9,7 +9,9 @@ import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
-import '../state/rules_locked_provider.dart';
+import '../state/rules_edit_mode_provider.dart';
+import '../utils.dart';
+import 'incomplete_form_snackbar.dart';
 import 'variant_radio_list.dart';
 
 /// Renders a single [Block] from [game_rules.dart] as Material widgets.
@@ -19,7 +21,7 @@ import 'variant_radio_list.dart';
 /// Anything visual about how a block looks lives here, not in the data.
 ///
 /// The active variant for each kind comes from the default-variant providers,
-/// and [rulesLockedProvider] decides whether variant-sensitive blocks expose
+/// and [rulesEditModeProvider] decides whether variant-sensitive blocks expose
 /// the settings icon and "Spelregel variant" alternative. `RulesIconButton`
 /// overrides both (scoped to the pushed route) when rules are opened from
 /// within a game, so the player sees only their committed rule set.
@@ -37,7 +39,7 @@ class RulesBlockView extends ConsumerWidget {
     final HeartsVariant resolvedHearts = ref.watch(
       defaultHeartsVariantProvider,
     );
-    final bool locked = ref.watch(rulesLockedProvider);
+    final RulesEditMode editMode = ref.watch(rulesEditModeProvider);
     // Resolve the active variant for a kind once, so the per-block branches
     // below don't repeat the kind switch.
     Enum resolvedFor(VariantKind kind) => switch (kind) {
@@ -112,24 +114,11 @@ class RulesBlockView extends ConsumerWidget {
                           item.text,
                           tt.bodyMedium ?? const TextStyle(),
                         ),
-                        final VariantItem item => TextSpan(
-                          children: [
-                            TextSpan(
-                              text: item.block.textFor(
-                                resolvedFor(item.block.variantKind),
-                              ),
-                            ),
-                            if (!locked)
-                              WidgetSpan(
-                                alignment: PlaceholderAlignment.middle,
-                                child: _SettingsIconButton(
-                                  variantKind: item.block.variantKind,
-                                  resolvedVariant: resolvedFor(
-                                    item.block.variantKind,
-                                  ),
-                                ),
-                              ),
-                          ],
+                        final VariantItem item => _parseInline(
+                          item.block.textFor(
+                            resolvedFor(item.block.variantKind),
+                          ),
+                          tt.bodyMedium ?? const TextStyle(),
                         ),
                       },
                     ],
@@ -146,12 +135,12 @@ class RulesBlockView extends ConsumerWidget {
       ),
       final Note b => Padding(
         padding: const EdgeInsets.only(bottom: 12, top: 2),
-        child: _NoteCallout(label: b.label, text: b.text),
+        child: RulesNoteCallout(label: b.label, text: b.text),
       ),
       final VariantBlock b => _VariantBlockView(
         block: b,
         resolvedVariant: resolvedFor(b.variantKind),
-        hasOverride: locked,
+        editMode: editMode,
       ),
     };
   }
@@ -161,29 +150,29 @@ class _VariantBlockView extends StatelessWidget {
   const _VariantBlockView({
     required this.block,
     required this.resolvedVariant,
-    required this.hasOverride,
+    required this.editMode,
   });
 
   final VariantBlock block;
   final Enum resolvedVariant;
-
-  /// When true the settings icon is hidden (in-game scope: variant is fixed).
-  final bool hasOverride;
+  final RulesEditMode editMode;
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final String text = block.textFor(resolvedVariant);
-    final settingsIcon = hasOverride
-        ? null
-        : _SettingsIconButton(
-            variantKind: block.variantKind,
-            resolvedVariant: resolvedVariant,
-          );
+    final settingsIcon = switch (editMode) {
+      RulesEditMode.enabled => _SettingsIconButton(
+        variantKind: block.variantKind,
+        resolvedVariant: resolvedVariant,
+      ),
+      RulesEditMode.hidden => null,
+      RulesEditMode.disabled => const _DisabledSettingsIconButton(),
+    };
     return block.label != null
         ? Padding(
-            padding: const EdgeInsets.only(bottom: 4, top: 2),
-            child: _NoteCallout(
+            padding: const EdgeInsets.only(bottom: 12, top: 2),
+            child: RulesNoteCallout(
               label: block.label!,
               text: text,
               trailing: settingsIcon,
@@ -202,13 +191,18 @@ class _VariantBlockView extends StatelessWidget {
 }
 
 /// Material 3 highlighted callout used to render [Note] and labeled
-/// [VariantBlock] blocks. When [trailing] is provided the label is rendered on
-/// its own row alongside the widget (e.g. a settings icon), followed by [text]
-/// on the next line. Without [trailing] the label and text are rendered inline.
-class _NoteCallout extends StatelessWidget {
-  const _NoteCallout({required this.label, required this.text, this.trailing});
+/// [VariantBlock] blocks. The label is always rendered as a bold header row
+/// (with [trailing] on the right when provided, e.g. a settings icon),
+/// followed by [text] on the next line.
+class RulesNoteCallout extends StatelessWidget {
+  const RulesNoteCallout({
+    super.key,
+    this.label,
+    required this.text,
+    this.trailing,
+  });
 
-  final String label;
+  final String? label;
   final String text;
   final Widget? trailing;
 
@@ -225,13 +219,18 @@ class _NoteCallout extends StatelessWidget {
         bottomRight: Radius.circular(4),
       ),
     );
-    if (trailing != null) {
-      return Container(
-        decoration: decoration,
-        padding: const EdgeInsets.fromLTRB(10, 4, 4, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Container(
+      decoration: decoration,
+      padding: EdgeInsets.fromLTRB(
+        10,
+        label != null ? 4 : 8,
+        trailing != null ? 4 : 12,
+        10,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (label != null)
             Row(
               children: [
                 Text(
@@ -242,28 +241,12 @@ class _NoteCallout extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                trailing!,
+                ?trailing,
               ],
             ),
-            Text(text, style: tt.bodyMedium?.copyWith(color: cs.onSurface)),
-          ],
-        ),
-      );
-    }
-    return Container(
-      decoration: decoration,
-      padding: const EdgeInsets.fromLTRB(10, 8, 12, 10),
-      child: Text.rich(
-        TextSpan(
-          style: tt.bodyMedium?.copyWith(color: cs.onSurface),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: TextStyle(fontWeight: FontWeight.bold, color: cs.primary),
-            ),
-            TextSpan(text: text),
-          ],
-        ),
+          if (label != null) const SizedBox(height: 2),
+          Text(text, style: tt.bodyMedium?.copyWith(color: cs.onSurface)),
+        ],
       ),
     );
   }
@@ -298,6 +281,26 @@ class _SettingsIconButton extends StatelessWidget {
   }
 }
 
+class _DisabledSettingsIconButton extends StatelessWidget {
+  const _DisabledSettingsIconButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = disabledOnSurface(Theme.of(context).colorScheme);
+    return IconButton(
+      icon: Icon(Symbols.settings, color: color),
+      iconSize: 20,
+      visualDensity: VisualDensity.compact,
+      tooltip: 'Spelregel variant',
+      onPressed: () => showIncompleteFormSnackBar(
+        ScaffoldMessenger.of(context),
+        message:
+            "Je kunt de spelregelvarianten hier nu niet wijzigen. Ga naar het beginscherm of gebruik de knop 'Spel bewerken'.",
+      ),
+    );
+  }
+}
+
 class _VariantDialog extends ConsumerStatefulWidget {
   const _VariantDialog({
     required this.variantKind,
@@ -322,21 +325,37 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = switch (widget.variantKind) {
+      VariantKind.starter => kStarterVariantSectionSubtitle,
+      VariantKind.hearts => kHeartsVariantSectionSubtitle,
+    };
     return AlertDialog(
       title: const Text('Spelregel variant'),
       content: SingleChildScrollView(
-        child: switch (widget.variantKind) {
-          VariantKind.starter => VariantRadioList<StarterVariant>(
-            values: StarterVariant.values,
-            value: _pending as StarterVariant,
-            onChanged: (v) => setState(() => _pending = v),
-          ),
-          VariantKind.hearts => VariantRadioList<HeartsVariant>(
-            values: HeartsVariant.values,
-            value: _pending as HeartsVariant,
-            onChanged: (v) => setState(() => _pending = v),
-          ),
-        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            switch (widget.variantKind) {
+              VariantKind.starter => VariantRadioList<StarterVariant>(
+                values: StarterVariant.values,
+                value: _pending as StarterVariant,
+                onChanged: (v) => setState(() => _pending = v),
+              ),
+              VariantKind.hearts => VariantRadioList<HeartsVariant>(
+                values: HeartsVariant.values,
+                value: _pending as HeartsVariant,
+                onChanged: (v) => setState(() => _pending = v),
+              ),
+            },
+          ],
+        ),
       ),
       actions: [
         TextButton(
