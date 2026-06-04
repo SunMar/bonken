@@ -34,16 +34,19 @@ class Player {
 }
 
 /// Returns the seat index of the player with [id] within [players].
-/// Returns 0 when [id] is not found — guards against corrupt/missing IDs.
+///
+/// Throws a [StateError] when [id] is not found. An unknown id during JSON
+/// deserialization is caught at the load boundary; an unknown id after a
+/// successful load is a programming error.
 int seatIndexOf(List<Player> players, String id) {
   final i = players.indexWhere((p) => p.id == id);
-  return i < 0 ? 0 : i;
+  if (i < 0) throw StateError('Player id "$id" not found in players list');
+  return i;
 }
 
 /// Returns [players] rotated so the player with [firstDealerId] is first,
 /// with subsequent players in their original seat order. The returned list
-/// is unmodifiable. Falls back to starting at index 0 when [firstDealerId]
-/// is not found.
+/// is unmodifiable. Throws if [firstDealerId] is not in [players].
 List<Player> rotatedFromDealer(List<Player> players, String firstDealerId) {
   final start = seatIndexOf(players, firstDealerId);
   return List.unmodifiable([

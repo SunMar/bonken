@@ -82,9 +82,12 @@ most of the structure exists to serve one of these.
   hardcodes "dealer = chooser − 1".
 
 - **Debug asserts, graceful release.** Invariants use `assert` (compiled out in
-  release) *plus* a safe production fallback. e.g. `CalculatorState._indexOf`
-  asserts an ID is found but falls back to `0`; `_recalculate` asserts the score
-  sum equals `totalPoints`. Bugs crash loudly in dev, degrade quietly in prod.
+  release). e.g. `_recalculate` asserts the score sum equals `totalPoints`. Bugs
+  crash loudly in dev, degrade quietly in prod.
+  Player-id lookups (`seatIndexOf`, `gameById`) are an exception: they throw
+  always, because an unknown id after storage load is either corruption (caught at
+  the load boundary and surfaced as `CorruptStorageException`) or a programming
+  bug — neither should silently substitute a wrong player/game.
 
 - **Pure domain, no framework leakage.** `lib/models/**` imports no Riverpod and
   (almost) no Flutter — the scoring engine is plain Dart and unit-testable in
@@ -418,8 +421,11 @@ convert `input` to/from the uniform counts form, same as a round.
 chooser's right; equivalently the chooser is left of the dealer).
 `starterIndexFor(chooserIndex, StarterVariant)` — the seat index of the player
 who leads the first trick: `dealerStarts` → same as the dealer; `oppositeChooserStarts`
-→ `(chooserIndex − 2) mod 4`. Both seat relationships live here so this file
-remains the single home for all seat arithmetic.
+→ `(chooserIndex − 2) mod 4`. Both seat *relationships* live here so this file
+remains the single home for the dealer/chooser/starter formulas. (Plain
+`List<Player>` index lookups and display rotations — `seatIndexOf`,
+`rotatedFromDealer` — are list utilities, not relationship math, and live with
+`Player` in [`player.dart`](lib/models/player.dart).)
 `playerCount` (4) and `doublingTurnIndex` live in `mini_game.dart`. The dealer
 for round *N* is `players[(firstDealerIndex + N − 1) mod 4]`. **Change these
 formulas here and nowhere else.**
@@ -636,7 +642,7 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 6):** `{ "version": 6, "games": [ … ] }`.
+- **Envelope (`currentStorageVersion` = 7):** `{ "version": 7, "games": [ … ] }`.
 - `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
   `players:[{id,name}]`, `firstDealerId`,
   `ruleVariants:{starterVariant, heartsVariant}` (enum names), `rounds:[…]`,
@@ -730,6 +736,11 @@ classes), so old steps keep working as the models evolve.
 - **`_V5ToV6`** — moves the two top-level `starterVariant` / `heartsVariant`
   keys into a single nested `ruleVariants` object, so the persisted shape mirrors
   the `RuleVariants` value class and future rule variants stay grouped.
+- **`_V6ToV7`** — normalises JS negative-zero in persisted round scores. On
+  dart2js, `0 × negative` produced `-0` which could survive serialisation as
+  `-0.0` (a double) rather than `0` (an int), violating the intended `int` type
+  of scores. The source bug is fixed in `MiniGame.calculateScores`; this step
+  repairs data written before that fix.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step
@@ -803,17 +814,28 @@ transitions, and persistence/migration, where regressions are silent and costly.
 Run with `flutter test`. Layout mirrors `lib/`:
 
 - **`test/models/`** — pure domain: scoring (`scoring_test`,
-  `scoring_doubles_test`), `double_matrix_test`, `game_session_test`,
+  `scoring_doubles_test`), `double_matrix_test`, `game_session_test`
+  (incl. corrupt-data / dangling-id rejection via `_validateReferences`),
   `mini_game_test` (incl. the input↔counts storage converters),
-  `game_mechanics_test` (dealer rotation + per-chooser quota), `score_result_test`.
+  `game_mechanics_test` (dealer rotation + per-chooser quota + `seatIndexOf`
+  throw-on-unknown), `score_result_test`.
 - **`test/state/`** — `calculator_provider_test`, `game_history_provider_test`
-  (incl. migration, corrupt data, and unsupported-version handling).
+  (incl. migration, corrupt data, unsupported-version handling, and
+  `CorruptStorageException` end-to-end for dangling player-id references).
 - **`test/widgets/`** — one file per screen/widget.
+- **`test/data/`** — `game_rules_test.dart`: variant coverage + coupling test
+  (every `kGameSections.gameId` exists in `allGames`).
+- **`test/tool/`** — pure-logic tests for the `tool/` helper libraries
+  (`semver`, `pubspec_yaml`, `pubspec_lock`, `google_fonts_parser`,
+  `flutter_release`). No network, no subprocess — only the extracted helpers.
 - **Guards:** `architecture_test.dart` fails the build if any screen uses raw
   `Scaffold` instead of `AppScaffold`, or if any file calls
   `showModalBottomSheet` directly instead of `showAppBottomSheet`;
-  `license_assets_test.dart` verifies the bundled-license registration from
-  `main.dart`; `a11y_test.dart` pumps every
+  `license_assets_test.dart` verifies: all four bundled font `.ttf` files appear
+  in the asset manifest (drift guard for `google_fonts` version bumps); the Arimo
+  SIL OFL entry appears in `LicenseRegistry` (compliance gate); the
+  `Arimo-LICENSE.txt` asset resolves at runtime; and the root AGPL `LICENSE`
+  asset resolves; `a11y_test.dart` pumps every
   screen and gates `textContrastGuideline`, `labeledTapTargetGuideline`, and
   `android`/`iOSTapTargetGuideline` (see §2 for the full a11y posture).
 

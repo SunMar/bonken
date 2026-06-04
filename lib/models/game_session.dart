@@ -1,15 +1,9 @@
 import 'double_matrix.dart';
 import 'games/game_catalog.dart';
 import 'input_descriptor.dart';
-import 'mini_game.dart';
 import 'player.dart';
 import 'round_record.dart';
 import 'rule_variants.dart';
-
-/// Resolves a [MiniGame] from its [gameId] against the catalog (falling back to
-/// the first game for unknown ids, mirroring [GameSession._roundFromJson]).
-MiniGame _gameForId(String gameId) =>
-    allGames.firstWhere((g) => g.id == gameId, orElse: () => allGames.first);
 
 /// Extracts the persisted counts list from a stored `input` map
 /// (`{'counts': [ {uuid:int}, ... ]}`); `[]` when absent.
@@ -47,7 +41,7 @@ class PendingRound {
     'input': {
       'counts': input == null
           ? const <Map<String, int>>[]
-          : _gameForId(gameId).inputToCounts(input!),
+          : gameById(gameId).inputToCounts(input!),
     },
     if (doublesJson != null) 'doublesJson': doublesJson,
   };
@@ -58,7 +52,7 @@ class PendingRound {
       gameId: gameId,
       gameName: json['gameName'] as String,
       chooserId: json['chooserId'] as String,
-      input: _gameForId(gameId).countsToInput(
+      input: gameById(gameId).countsToInput(
         _countsFromInputJson(json['input'] as Map<String, dynamic>?),
       ),
       doublesJson: json['doublesJson'] as Map<String, dynamic>?,
@@ -181,6 +175,7 @@ class GameSession {
       for (final p in json['players'] as List)
         Player.fromJson(p as Map<String, dynamic>),
     ];
+    _validateReferences(players, json);
     return GameSession(
       id: json['id'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -200,8 +195,74 @@ class GameSession {
     );
   }
 
+  // Validates every player-id reference in the raw JSON before any round or
+  // pending-round objects are constructed. A dangling ref throws, which is
+  // caught by the `on Object` boundary in GameHistoryNotifier.build() and
+  // surfaces as a CorruptStorageException. Game ids are already validated by
+  // gameById() during construction and need not be repeated here.
+  static void _validateReferences(
+    List<Player> players,
+    Map<String, dynamic> json,
+  ) {
+    final validIds = {for (final p in players) p.id};
+
+    void checkId(String id, String context) {
+      if (!validIds.contains(id)) {
+        throw StateError('$context "$id" not among session players');
+      }
+    }
+
+    void checkDoublesJson(Map<String, dynamic> doublesJson, String ctx) {
+      for (final entry in doublesJson.entries) {
+        final comma = entry.key.indexOf(',');
+        checkId(entry.key.substring(0, comma), '$ctx doubles pair A');
+        checkId(entry.key.substring(comma + 1), '$ctx doubles pair B');
+        checkId(
+          (entry.value as Map<String, dynamic>)['initiator'] as String,
+          '$ctx doubles initiator',
+        );
+      }
+    }
+
+    checkId(json['firstDealerId'] as String, 'firstDealerId');
+
+    for (final r in json['rounds'] as List) {
+      final roundJson = r as Map<String, dynamic>;
+      final n = roundJson['roundNumber'];
+      checkId(roundJson['chooserId'] as String, 'round $n chooserId');
+      for (final id in (roundJson['scores'] as Map).keys) {
+        checkId(id as String, 'round $n scoresByPlayer key');
+      }
+      final inputJson = roundJson['input'] as Map<String, dynamic>?;
+      if (inputJson != null) {
+        for (final m in (inputJson['counts'] as List? ?? const <dynamic>[])) {
+          for (final id in (m as Map).keys) {
+            checkId(id as String, 'round $n input counts key');
+          }
+        }
+      }
+      final doublesJson = roundJson['doublesJson'] as Map<String, dynamic>?;
+      if (doublesJson != null) checkDoublesJson(doublesJson, 'round $n');
+    }
+
+    final pendingJson = json['pendingRound'] as Map<String, dynamic>?;
+    if (pendingJson != null) {
+      checkId(pendingJson['chooserId'] as String, 'pendingRound chooserId');
+      final inputJson = pendingJson['input'] as Map<String, dynamic>?;
+      if (inputJson != null) {
+        for (final m in (inputJson['counts'] as List? ?? const <dynamic>[])) {
+          for (final id in (m as Map).keys) {
+            checkId(id as String, 'pendingRound input counts key');
+          }
+        }
+      }
+      final doublesJson = pendingJson['doublesJson'] as Map<String, dynamic>?;
+      if (doublesJson != null) checkDoublesJson(doublesJson, 'pendingRound');
+    }
+  }
+
   static RoundRecord _roundFromJson(Map<String, dynamic> json) {
-    final game = _gameForId(json['gameId'] as String);
+    final game = gameById(json['gameId'] as String);
     return RoundRecord(
       roundNumber: json['roundNumber'] as int,
       game: game,

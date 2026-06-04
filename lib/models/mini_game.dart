@@ -152,7 +152,10 @@ abstract class MiniGame {
         final m = doubles.multiplierFor(pa.id, pb.id);
         if (m > 0) e += ((counts[pa.id] ?? 0) - (counts[pb.id] ?? 0)) * m;
       }
-      scores[pa.id] = e * pointsPerUnit;
+      // Guard against JS negative-zero: `0 * negative` produces -0 in dart2js,
+      // which slips through `int` type checks in release mode and formats as
+      // "-0.0". Skipping the multiply when e==0 keeps the value a true 0.
+      scores[pa.id] = e == 0 ? 0 : e * pointsPerUnit;
     }
     return ScoreResult(scores: scores);
   }

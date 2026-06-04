@@ -24,3 +24,15 @@ const List<MiniGame> allGames = [
   Spades(),
   NoTrump(),
 ];
+
+/// Returns the [MiniGame] whose [MiniGame.id] matches [gameId].
+///
+/// Throws a [StateError] with a descriptive message on an unknown id. An
+/// unknown id during JSON deserialization is caught by the `on Object` boundary
+/// in `GameHistoryNotifier.build()` and surfaces as a [CorruptStorageException].
+/// An unknown id after a successful load is a programming error — the throw
+/// makes it loud rather than silently loading the wrong game.
+MiniGame gameById(String gameId) => allGames.firstWhere(
+  (g) => g.id == gameId,
+  orElse: () => throw StateError('Unknown game id: $gameId'),
+);

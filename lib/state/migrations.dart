@@ -17,7 +17,7 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 6;
+const int currentStorageVersion = 7;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
 const List<StorageMigration> _migrations = [
@@ -26,6 +26,7 @@ const List<StorageMigration> _migrations = [
   _V3ToV4(),
   _V4ToV5(),
   _V5ToV6(),
+  _V6ToV7(),
 ];
 
 /// Applies every registered step from [fromVersion] up to
@@ -426,6 +427,52 @@ class _V5ToV6 extends StorageMigration {
       'ruleVariants': <String, dynamic>{
         'starterVariant': game['starterVariant'] ?? 'dealerStarts',
         'heartsVariant': game['heartsVariant'] ?? 'onlyAfterPlayedHeart',
+      },
+    };
+  }
+}
+
+// =============================================================================
+// v6 → v7: normalise JS negative-zero in persisted round scores
+// =============================================================================
+//
+// On dart2js, `0 * negative_int` produces JavaScript negative-zero (-0).
+// In release mode Dart skips runtime type checks, so double(-0.0) could slip
+// through an `int`-typed map and survive JSON serialisation as -0.0. This step
+// rewrites any such value to a plain 0, so no future reader ever sees -0.0 in
+// stored scores. The source bug is fixed in MiniGame.calculateScores (v7+
+// builds never write -0.0); this migration repairs data written before that fix.
+
+class _V6ToV7 extends StorageMigration {
+  const _V6ToV7();
+
+  @override
+  int get fromVersion => 6;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games) _migrateGame(raw as Map<String, dynamic>),
+  ];
+
+  static Map<String, dynamic> _migrateGame(Map<String, dynamic> game) => {
+    ...game,
+    'rounds': [
+      for (final r in (game['rounds'] as List<dynamic>? ?? const []))
+        _migrateRound(r as Map<String, dynamic>),
+    ],
+  };
+
+  static Map<String, dynamic> _migrateRound(Map<String, dynamic> round) {
+    final scores = round['scores'] as Map<String, dynamic>?;
+    if (scores == null) return round;
+    // (-0.0) == 0 is true in both Dart and JS, so the comparison catches
+    // negative-zero; returning the literal 0 avoids toInt() which would
+    // preserve -0 in dart2js.
+    return {
+      ...round,
+      'scores': {
+        for (final e in scores.entries)
+          e.key: (e.value as num) == 0 ? 0 : (e.value as num).toInt(),
       },
     };
   }

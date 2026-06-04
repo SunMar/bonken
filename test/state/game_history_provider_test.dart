@@ -8,6 +8,7 @@ import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/state/migrations.dart' show currentStorageVersion;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,6 +65,91 @@ void main() {
         // Drain the Riverpod retry timer (same pattern as the unsupported test).
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('bonken_game_history');
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+      },
+    );
+
+    // Helper: store a single session JSON under the versioned storage key.
+    Future<void> storeSession(Map<String, dynamic> sessionJson) async {
+      SharedPreferences.setMockInitialValues({
+        'game_history': jsonEncode({
+          'version': currentStorageVersion,
+          'games': [sessionJson],
+        }),
+      });
+    }
+
+    testWidgets(
+      'enters AsyncError with CorruptStorageException on dangling firstDealerId',
+      (tester) async {
+        final players = [
+          for (final n in ['A', 'B', 'C', 'D']) Player(name: n),
+        ];
+        await storeSession({
+          'id': 's1',
+          'createdAt': '2024-01-01T00:00:00.000',
+          'updatedAt': '2024-01-01T00:00:00.000',
+          'players': [for (final p in players) p.toJson()],
+          'firstDealerId': 'ghost-uuid',
+          'ruleVariants': <String, dynamic>{},
+          'rounds': <dynamic>[],
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: c, child: const SizedBox()),
+        );
+        c.read(gameHistoryProvider);
+        await tester.pumpAndSettle();
+        expect(
+          c.read(gameHistoryProvider).error,
+          isA<CorruptStorageException>(),
+        );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('game_history');
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'enters AsyncError with CorruptStorageException on dangling round chooserId',
+      (tester) async {
+        final players = [
+          for (final n in ['A', 'B', 'C', 'D']) Player(name: n),
+        ];
+        await storeSession({
+          'id': 's1',
+          'createdAt': '2024-01-01T00:00:00.000',
+          'updatedAt': '2024-01-01T00:00:00.000',
+          'players': [for (final p in players) p.toJson()],
+          'firstDealerId': players[0].id,
+          'ruleVariants': <String, dynamic>{},
+          'rounds': [
+            {
+              'roundNumber': 1,
+              'gameId': 'king_of_hearts',
+              'gameName': 'Heer van harten',
+              'chooserId': 'ghost-uuid',
+              'scores': {for (final p in players) p.id: 0},
+              'input': <String, dynamic>{},
+            },
+          ],
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: c, child: const SizedBox()),
+        );
+        c.read(gameHistoryProvider);
+        await tester.pumpAndSettle();
+        expect(
+          c.read(gameHistoryProvider).error,
+          isA<CorruptStorageException>(),
+        );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('game_history');
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
       },
@@ -641,7 +727,7 @@ void main() {
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 6);
+        expect(written['version'], currentStorageVersion);
         expect(written['games'], isA<List<dynamic>>());
       },
     );
@@ -694,7 +780,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 6);
+      expect(written['version'], currentStorageVersion);
     });
 
     test('version:2 in versioned key is migrated to current version', () async {
@@ -740,7 +826,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final written =
           jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
-      expect(written['version'], 6);
+      expect(written['version'], currentStorageVersion);
       // On disk the round input is the uniform counts list.
       final game0 =
           (written['games'] as List<dynamic>).first as Map<String, dynamic>;
@@ -849,7 +935,7 @@ void main() {
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 6);
+        expect(written['version'], currentStorageVersion);
         final game =
             (written['games'] as List<dynamic>).first as Map<String, dynamic>;
         expect(game.containsKey('starterVariant'), isFalse);
@@ -906,7 +992,7 @@ void main() {
         final written =
             jsonDecode(prefs.getString('game_history')!)
                 as Map<String, dynamic>;
-        expect(written['version'], 6);
+        expect(written['version'], currentStorageVersion);
         final game =
             (written['games'] as List<dynamic>).first as Map<String, dynamic>;
         expect(game.containsKey('starterVariant'), isFalse);
@@ -916,6 +1002,49 @@ void main() {
         expect(ruleVariants['heartsVariant'], 'graduatedUnlock');
       },
     );
+
+    test('version:6 normalises negative-zero scores', () async {
+      final players = [
+        for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
+      ];
+      final ids = [for (final p in players) p.id];
+      // Embed a literal -0.0 score in the raw JSON string — the value
+      // dart2js could write before the calculateScores source fix.
+      final rawJson =
+          '{"version":6,"games":[{"id":"v6sess",'
+          '"createdAt":"2024-01-01T00:00:00.000",'
+          '"updatedAt":"2024-01-01T00:00:00.000",'
+          '"players":${jsonEncode([for (final p in players) p.toJson()])},'
+          '"firstDealerId":"${ids[0]}",'
+          '"ruleVariants":{"starterVariant":"dealerStarts",'
+          '"heartsVariant":"onlyAfterPlayedHeart"},'
+          '"rounds":[{"roundNumber":1,"gameId":"duck","gameName":"Bukken",'
+          '"chooserId":"${ids[1]}",'
+          '"scores":{"${ids[0]}":-0.0,"${ids[1]}":0,"${ids[2]}":0,"${ids[3]}":0},'
+          '"input":{"counts":[{"${ids[0]}":0,"${ids[1]}":0,"${ids[2]}":0,"${ids[3]}":0}]}'
+          '}]}]}';
+      SharedPreferences.setMockInitialValues({'game_history': rawJson});
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      final list = await c.read(gameHistoryProvider.future);
+
+      // The -0.0 score loads as 0.
+      expect(list.first.rounds[0].scoresByPlayer[ids[0]], 0);
+
+      // On disk the value is now a plain int 0.
+      final prefs = await SharedPreferences.getInstance();
+      final written =
+          jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
+      expect(written['version'], currentStorageVersion);
+      final round =
+          (((written['games'] as List).first as Map<String, dynamic>)['rounds']
+                      as List)
+                  .first
+              as Map<String, dynamic>;
+      final score = (round['scores'] as Map<String, dynamic>)[ids[0]];
+      expect(score, 0);
+      expect(score, isA<int>());
+    });
   });
 
   group('playerNameSuggestions', () {

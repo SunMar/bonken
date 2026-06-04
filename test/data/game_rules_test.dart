@@ -1,4 +1,5 @@
 import 'package:bonken/data/game_rules.dart';
+import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,23 @@ Set<Enum> _enumValuesFor(VariantKind kind) => switch (kind) {
 };
 
 void main() {
+  // Coupling test: gameById() throws on unknown ids, so every gameId referenced
+  // in kGameSections must exist in allGames or _isPositive and gameSectionFor
+  // will throw at runtime.
+  test('every kGameSections.gameId exists in allGames', () {
+    final catalogIds = {for (final g in allGames) g.id};
+    for (final section in kGameSections) {
+      expect(
+        catalogIds,
+        contains(section.gameId),
+        reason:
+            'kGameSections references gameId "${section.gameId}" '
+            'which is not in allGames — add it to game_catalog.dart '
+            'or remove it from game_rules.dart',
+      );
+    }
+  });
+
   test('every VariantBlock.texts covers exactly its kind\'s enum values', () {
     final List<Block> allBlocks = [
       for (final Section s in kSectionsBeforeGames) ...s.blocks,

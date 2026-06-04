@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../data/game_rules.dart';
+import '../models/games/game_catalog.dart';
+import '../models/mini_game.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/rules_block_view.dart';
 
@@ -79,13 +81,11 @@ class RulesScreen extends StatelessWidget {
     ];
   }
 
-  static bool _isPositive(String gameId) => const {
-    'clubs',
-    'diamonds',
-    'hearts',
-    'spades',
-    'noTrump',
-  }.contains(gameId);
+  /// Category for a rules-section game id, read from the catalog (the single
+  /// source of truth) rather than a hardcoded id list, so the negative/positive
+  /// split stays correct if the catalog ever changes.
+  static bool _isPositive(String gameId) =>
+      gameById(gameId).category == GameCategory.positive;
 }
 
 class _SectionView extends StatelessWidget {

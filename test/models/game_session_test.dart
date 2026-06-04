@@ -1,6 +1,5 @@
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
-import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/hearts_variant.dart';
@@ -141,8 +140,8 @@ void main() {
     });
   });
 
-  group('fromJson fallbacks', () {
-    test('unknown gameId falls back to allGames.first', () {
+  group('fromJson corrupt data', () {
+    test('unknown gameId throws on fromJson', () {
       final json = {
         'id': 's1',
         'createdAt': '2024-01-01T00:00:00.000',
@@ -160,11 +159,10 @@ void main() {
           },
         ],
       };
-      final session = GameSession.fromJson(json);
-      expect(session.rounds[0].game, allGames.first);
+      expect(() => GameSession.fromJson(json), throwsStateError);
     });
 
-    test('unknown firstDealerId falls back to seat index 0', () {
+    test('unknown firstDealerId throws on fromJson', () {
       final json = {
         'id': 's1',
         'createdAt': '2024-01-01T00:00:00.000',
@@ -173,9 +171,189 @@ void main() {
         'firstDealerId': 'not-a-real-uuid',
         'rounds': <dynamic>[],
       };
-      final session = GameSession.fromJson(json);
-      // seatIndexOf returns 0 for unknown id → displayedPlayers starts at seat 0
-      expect(session.displayedPlayers[0].id, pa.id);
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling round chooserId throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'gameName': 'Heer van harten',
+            'chooserId': 'ghost-uuid',
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling round scoresByPlayer key throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'gameName': 'Heer van harten',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, 'ghost-uuid': 0},
+            'input': <String, dynamic>{},
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling round input counts key throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'duck',
+            'gameName': 'Bukken',
+            'chooserId': pa.id,
+            'scores': {pa.id: -10, pb.id: -10, pc.id: -10, pd.id: -10},
+            'input': {
+              'counts': [
+                {'ghost-uuid': 3},
+              ],
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling round doubles pair A throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'gameName': 'Heer van harten',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+            'doublesJson': {
+              'ghost-uuid,${pb.id}': {'state': 'doubled', 'initiator': pa.id},
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling round doubles pair B throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'gameName': 'Heer van harten',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+            'doublesJson': {
+              '${pa.id},ghost-uuid': {'state': 'doubled', 'initiator': pa.id},
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling round doubles initiator throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'gameName': 'Heer van harten',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+            'doublesJson': {
+              '${pa.id},${pb.id}': {
+                'state': 'doubled',
+                'initiator': 'ghost-uuid',
+              },
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling pendingRound chooserId throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': <dynamic>[],
+        'pendingRound': {
+          'gameId': 'duck',
+          'gameName': 'Bukken',
+          'chooserId': 'ghost-uuid',
+          'input': {'counts': <dynamic>[]},
+        },
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('dangling pendingRound input counts key throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': <dynamic>[],
+        'pendingRound': {
+          'gameId': 'duck',
+          'gameName': 'Bukken',
+          'chooserId': pa.id,
+          'input': {
+            'counts': [
+              {'ghost-uuid': 2},
+            ],
+          },
+        },
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
     });
   });
 

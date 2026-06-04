@@ -1,9 +1,29 @@
 import 'package:bonken/models/game_mechanics.dart';
 import 'package:bonken/models/mini_game.dart';
+import 'package:bonken/models/player.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('seatIndexOf', () {
+    final players = [
+      Player(name: 'A'),
+      Player(name: 'B'),
+      Player(name: 'C'),
+      Player(name: 'D'),
+    ];
+
+    test('returns correct index for each player', () {
+      for (var i = 0; i < players.length; i++) {
+        expect(seatIndexOf(players, players[i].id), i);
+      }
+    });
+
+    test('throws StateError on an unknown id', () {
+      expect(() => seatIndexOf(players, 'ghost-uuid'), throwsStateError);
+    });
+  });
+
   group('dealerIndexFor', () {
     test('dealer sits to the right of the chooser (chooser − 1, wrapping)', () {
       expect(dealerIndexFor(0), 3);

@@ -42,8 +42,14 @@ map, or invariants — not as a follow-up.
 - **4 players, 12 rounds** (`playerCount`, `GameSession.totalRounds`).
 - **Key per-round data by player UUID**, never seat index — derive indices on demand.
 - **Σ scores == `totalPoints`** per game (engine invariant, asserted).
-- **Seat math only in `lib/models/game_mechanics.dart`** (`dealerIndexFor`,
-  `starterIndexFor` — the only home for seat arithmetic).
+- **Seat-relationship formulas only in `lib/models/game_mechanics.dart`**
+  (`dealerIndexFor` / `starterIndexFor`); `List<Player>` lookups/rotations
+  (`seatIndexOf`, `rotatedFromDealer`) are utilities that live with `Player`.
+- **`gameById` and `seatIndexOf` throw on unknown ids** — no silent fallback.
+  Unknown ids from stored JSON hit `_validateReferences` in `GameSession.fromJson`
+  first; the `on Object` catch in `GameHistoryNotifier.build()` converts them to
+  `CorruptStorageException`. Unknown ids after a successful load are programming
+  errors — throwing makes them loud.
 - **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`).
 - **Bottom sheets use `showAppBottomSheet`** (`lib/widgets/app_bottom_sheet.dart`), never `showModalBottomSheet` directly.
 - **Accessible by default** ([ARCHITECTURE.md §2](ARCHITECTURE.md)): interactive
