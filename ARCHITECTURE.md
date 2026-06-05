@@ -101,9 +101,12 @@ most of the structure exists to serve one of these.
   set is never used (even auto-generated back/close/drawer buttons are remapped
   in `main.dart`).
 
-- **Screens are guarded.** Every full-screen route uses `AppScaffold` (wraps the
-  body in `SafeArea` for edge-to-edge mode). Enforced by a test —
-  [`test/architecture_test.dart`](test/architecture_test.dart).
+- **Screens are guarded.** Every full-screen route uses `AppScaffold` (wraps
+  the body in `SafeArea` for edge-to-edge mode; also wraps it in a
+  `GestureDetector(onTap: () {})` tap absorber so that tapping a rendered
+  non-interactive element — `Card`, `Text` — cannot produce tiny scroll deltas
+  that activate the AppBar's M3 scrolled-under elevation tint). Enforced by a
+  test — [`test/architecture_test.dart`](test/architecture_test.dart).
 
 - **Bottom sheets are guarded.** All modal bottom sheets call
   `showAppBottomSheet` (wraps content in a `Padding` sized to
@@ -237,7 +240,8 @@ lib/
     settings_screen.dart     App-wide default settings: StarterVariant + HeartsVariant.
 
   widgets/                   Reusable UI.
-    app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens).
+    app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens); body wrapped in a
+                             tap-absorbing GestureDetector (see §2 "Screens are guarded").
     app_bottom_sheet.dart    showAppBottomSheet — viewPadding-aware
                              showModalBottomSheet wrapper (mandatory for all
                              modal bottom sheets).
@@ -630,17 +634,23 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   result (`updateInput`); a live/partial score renders as you go → "Opslaan" →
   `deselectGame` appends the round → pop → autosave persists.
 - **Resume after restart.** App launches at Home → tap a session card →
-  `loadSession` → `GameScreen`. A `pendingRound` shows as an hourglass tile and
-  **blocks other games** until it's finished or discarded.
+  `loadSession` → `GameScreen`. A `pendingRound` with meaningful input
+  (`hasMeaningfulPendingInput`) shows as an hourglass tile and **blocks other
+  games** until it's finished or discarded.
 - **Edit a past round.** History row "Wijzigen" → `restoreRound` →
-  `RoundInputScreen` in editing mode → "Opslaan" replaces the round; Back /
-  "Verwerpen" → `cancelEditRound` (with a confirm if `hasActiveChanges`). Editing
-  the *last* round with incomplete input can `rollbackLastRound` (delete it).
+  `RoundInputScreen` in editing mode → "Opslaan" replaces the round; "Verwerpen"
+  → `cancelEditRound` (with a confirm if `hasActiveChanges`). Back with unsaved
+  changes shows a "Scores aangepast" info dialog (save or discard to leave). A
+  round started but not yet scored (a *pending* round, not an edit) instead
+  uses `exitPendingSlot` on Back when `hasActiveChanges` (stash is kept current
+  by write-through); if nothing was entered, Back silently calls `discardGame`
+  so fat-fingering a game leaves no trace.
 - **Delete a game + undo.** Home card delete icon (or `GameScreen` "Spel
-  verwijderen" → confirm → navigate Home) → `deleteGame` → a snackbar "Spel
-  verwijderd" with "Ongedaan maken" whose action re-`saveGame`s the captured
-  session. (`showGameDeletedSnackBar` also has a belt-and-suspenders timer; tests
-  must drain it.)
+  verwijderen" → confirm → `deleteGame` → `cancelPendingAutosave` → pop →
+  `GameScreen.dispose` → `flushAndReset` no-ops because timer is gone → `NoSession`)
+  → a snackbar "Spel verwijderd" with "Ongedaan maken" whose action re-`saveGame`s
+  the captured session. (`showGameDeletedSnackBar` also has a belt-and-suspenders
+  timer; tests must drain it.)
 - **Edit a game mid-play.** `GameScreen` → "Spel bewerken" → `EditGameScreen`
   → rename + drag-reorder + change first dealer → `setPlayersAndDealer` applies
   atomically, keeping UUIDs bound to their (new) seats.

@@ -128,17 +128,23 @@ class _GameSelectionBodyState extends ConsumerState<_GameSelectionBody> {
 
     final isFinished = history.length >= GameSession.totalRounds;
 
-    final negativeUnplayed = <MiniGame>[];
-    final negativePlayed = <MiniGame>[];
-    final positiveUnplayed = <MiniGame>[];
-    final positivePlayed = <MiniGame>[];
+    final negativeGames = <MiniGame>[];
+    final positiveGames = <MiniGame>[];
+    var negativePlayed = 0;
+    var positivePlayed = 0;
     for (final g in allGames) {
       final played = playedIds.contains(g.id);
-      final list = g.category == GameCategory.positive
-          ? (played ? positivePlayed : positiveUnplayed)
-          : (played ? negativePlayed : negativeUnplayed);
-      list.add(g);
+      if (g.category == GameCategory.positive) {
+        positiveGames.add(g);
+        if (played) positivePlayed++;
+      } else {
+        negativeGames.add(g);
+        if (played) negativePlayed++;
+      }
     }
+
+    final allNegativesPlayed = negativePlayed == negativeGames.length;
+    final allPositivesPlayed = positivePlayed == positiveGames.length;
 
     // Quota counts for the current chooser — computed once instead of
     // re-derived per tile via select().
@@ -172,41 +178,45 @@ class _GameSelectionBodyState extends ConsumerState<_GameSelectionBody> {
           _SectionHeader(
             label: 'Negatieve spellen',
             color: scoreColorNegative(context),
-            canToggle: negativePlayed.isNotEmpty,
+            canToggle: negativePlayed > 0,
             showingPlayed: _showPlayedNegative,
             onToggle: () =>
                 setState(() => _showPlayedNegative = !_showPlayedNegative),
           ),
           const SizedBox(height: 8),
-          for (final game in negativeUnplayed)
-            _GameTile(game: game, negCount: negCount, posCount: posCount),
-          if (_showPlayedNegative)
-            for (final game in negativePlayed)
+          if (allNegativesPlayed && !_showPlayedNegative)
+            const _AllGamesPlayedCard(
+              title: 'Alle negatieve spellen zijn gespeeld',
+            ),
+          for (final game in negativeGames)
+            if (!playedIds.contains(game.id) || _showPlayedNegative)
               _GameTile(
                 game: game,
                 negCount: negCount,
                 posCount: posCount,
-                isPlayed: true,
+                isPlayed: playedIds.contains(game.id),
               ),
           const SizedBox(height: 20),
           _SectionHeader(
             label: 'Positieve spellen',
             color: scoreColorPositive(context),
-            canToggle: positivePlayed.isNotEmpty,
+            canToggle: positivePlayed > 0,
             showingPlayed: _showPlayedPositive,
             onToggle: () =>
                 setState(() => _showPlayedPositive = !_showPlayedPositive),
           ),
           const SizedBox(height: 8),
-          for (final game in positiveUnplayed)
-            _GameTile(game: game, negCount: negCount, posCount: posCount),
-          if (_showPlayedPositive)
-            for (final game in positivePlayed)
+          if (allPositivesPlayed && !_showPlayedPositive)
+            const _AllGamesPlayedCard(
+              title: 'Alle positieve spellen zijn gespeeld',
+            ),
+          for (final game in positiveGames)
+            if (!playedIds.contains(game.id) || _showPlayedPositive)
               _GameTile(
                 game: game,
                 negCount: negCount,
                 posCount: posCount,
-                isPlayed: true,
+                isPlayed: playedIds.contains(game.id),
               ),
         ],
         const SizedBox(height: 20),
@@ -261,6 +271,43 @@ class _SectionHeader extends StatelessWidget {
           onPressed: canToggle ? onToggle : null,
         ),
       ],
+    );
+  }
+}
+
+class _AllGamesPlayedCard extends StatelessWidget {
+  const _AllGamesPlayedCard({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dimColor = disabledOnSurface(cs);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: ListTile(
+        contentPadding: const EdgeInsetsDirectional.only(
+          start: 16,
+          end: 24,
+          top: 6,
+          bottom: 6,
+        ),
+        leading: CircleAvatar(
+          radius: 22,
+          backgroundColor: dimColor.withValues(alpha: 0.06),
+          child: Icon(
+            Symbols.check_circle,
+            // CircleAvatar wraps its child in MediaQuery.withNoTextScaling, so
+            // the avatar is a fixed-size badge; size it with a plain constant
+            // (matching GameAvatar's icon sizing) rather than a no-op scaler.
+            size: 16 * 1.1,
+            color: dimColor,
+            fill: 1,
+          ),
+        ),
+        title: Text(title, style: TextStyle(color: dimColor)),
+      ),
     );
   }
 }
@@ -329,6 +376,12 @@ class _GameTile extends ConsumerWidget {
     final tile = Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
+        contentPadding: const EdgeInsetsDirectional.only(
+          start: 16,
+          end: 24,
+          top: 6,
+          bottom: 6,
+        ),
         leading: GameAvatar(game: game, radius: 22, disabled: isDisabled),
         title: Text(
           game.name,

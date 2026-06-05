@@ -37,7 +37,16 @@ class AppScaffold extends StatelessWidget {
       body: SafeArea(
         top: appBar == null,
         bottom: bottomBar == null,
-        child: body,
+        // Prevents taps on rendered non-interactive elements (Card, Text) from
+        // producing tiny scroll deltas that activate the AppBar's M3
+        // scrolled-under elevation tint. Inner interactive widgets win the
+        // gesture arena first (inner-to-outer registration order); empty gaps
+        // are unaffected (deferToChild — no hit claim means no arena entry).
+        child: GestureDetector(
+          excludeFromSemantics: true,
+          onTap: () {},
+          child: body,
+        ),
       ),
     );
   }

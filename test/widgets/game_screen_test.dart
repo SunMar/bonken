@@ -334,6 +334,40 @@ void main() {
   );
 
   testWidgets(
+    'all games in a category played shows the all-played card; toggle reveals tiles',
+    (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      final negatives = allGames
+          .where((g) => g.category == GameCategory.negative)
+          .toList();
+      final rounds = [
+        for (var i = 0; i < negatives.length; i++)
+          _round(i + 1, negatives[i], players[1].id, players),
+      ];
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: rounds),
+      );
+
+      // Negatives all played + toggle off: the all-played card fills the empty
+      // section and no negative tiles render. Positives are untouched.
+      expect(find.text('Alle negatieve spellen zijn gespeeld'), findsOneWidget);
+      expect(find.text('Alle positieve spellen zijn gespeeld'), findsNothing);
+      expect(find.text('Bukken'), findsNothing); // a negative tile, hidden
+      expect(find.text('Klaveren'), findsOneWidget); // a positive tile, shown
+
+      // Revealing the played negatives hides the card and renders the tiles.
+      await tester.tap(
+        find.widgetWithIcon(IconButton, Symbols.visibility).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Alle negatieve spellen zijn gespeeld'), findsNothing);
+      await tester.ensureVisible(find.text('Bukken'));
+      expect(find.text('Bukken'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'leaving via back-navigation flushes the autosave and resets to NoSession',
     (tester) async {
       final players = [for (final n in _names) Player(name: n)];

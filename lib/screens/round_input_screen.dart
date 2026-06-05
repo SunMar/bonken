@@ -92,8 +92,16 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
 
     Future<void> saveOrConfirmBack() async {
       if (!isEditing) {
-        // Pending round: back is non-blocking; input is already autosaved.
-        ref.read(calculatorProvider.notifier).exitPendingSlot();
+        // Pending round: if nothing was changed from defaults, discard silently
+        // so going back without input doesn't leave a stale pending marker.
+        final hasChanges = ref.read(
+          activeSessionProvider.select((a) => a.hasActiveChanges),
+        );
+        if (hasChanges) {
+          ref.read(calculatorProvider.notifier).exitPendingSlot();
+        } else {
+          ref.read(calculatorProvider.notifier).discardGame();
+        }
         popIfMounted();
         return;
       }
