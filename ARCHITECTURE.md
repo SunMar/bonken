@@ -869,7 +869,8 @@ Run with `flutter test`. Layout mirrors `lib/`:
   (every `kGameSections.gameId` exists in `allGames`).
 - **`test/tool/`** — pure-logic tests for the `tool/` helper libraries
   (`semver`, `pubspec_yaml`, `pubspec_lock`, `google_fonts_parser`,
-  `flutter_release`). No network, no subprocess — only the extracted helpers.
+  `flutter_release`, `gha_pins` — action/Ubuntu-runner pin parsing + bumping —,
+  `fastlane_pin`). No network, no subprocess — only the extracted helpers.
 - **Guards:** `architecture_test.dart` fails the build if any screen uses raw
   `Scaffold` instead of `AppScaffold`, or if any file calls
   `showModalBottomSheet` directly instead of `showAppBottomSheet`;
@@ -967,7 +968,14 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 - **GitHub Actions & CI runners:** Actions are pinned either to a major tag
   (`@v6`) or, for actions without a moving `vN` (e.g. the OSV scanner), to a
   specific version (`@v2.3.8`); the Ubuntu runner is pinned (`runs-on:
-  ubuntu-24.04`).
+  ubuntu-24.04`). `fvm dart run tool/update_gha.dart` checks the whole CI
+  toolchain in one pass: it bumps any out-of-date **action** in place — to the
+  newest major for major pins, the newest `vX.Y.Z` for version pins, including
+  subdirectory actions (`--check` only reports) — and **reports** — never
+  changes — when a newer **fastlane** major (see below) or **Ubuntu LTS runner**
+  image is available, since those bumps are deliberate (a fastlane major may need
+  Fastfile edits; a new Ubuntu can rename packages). Set `GITHUB_TOKEN` to avoid
+  the 60/h unauthenticated rate limit.
 - **Fonts:** Roboto (text) + Arimo (suit glyphs ♠♥♦♣, which Roboto lacks) are
   bundled under `assets/google_fonts/<version>/` and loaded via the google_fonts
   package with runtime fetching disabled (offline + deterministic suit glyphs).
@@ -986,7 +994,9 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 - **fastlane:** major-pinned `gem "fastlane", "~> 2"` in `android/Gemfile`
   (not exact — it only runs in CI, with no local setup to validate a bump).
   `~> 2` lets minor/patch fixes flow but holds back a new major that could break
-  the pipeline.
+  the pipeline. `fvm dart run tool/update_gha.dart` reports (without changing
+  anything) when a new fastlane major ships; bumping it is then a deliberate
+  manual edit.
 - **Launcher icons:** `./tool/generate_icons.sh` — renders the SVG sources to
   PNGs, runs `flutter_launcher_icons` (config in `pubspec.yaml`), then overwrites
   the PWA maskable icons with `icon_bonken_maskable.svg`. Requires

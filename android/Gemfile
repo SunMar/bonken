@@ -3,5 +3,6 @@ source "https://rubygems.org"
 # Major-pinned (not exact): fastlane only runs in CI, with no local setup to
 # validate a bump against, so an exact pin would be high-maintenance with no
 # safety net. `~> 2` lets minor/patch (bug/security) fixes flow while a new
-# major can't silently break the pipeline.
+# major can't silently break the pipeline. `tool/update_gha.dart`
+# reports when a new major ships.
 gem "fastlane", "~> 2"
