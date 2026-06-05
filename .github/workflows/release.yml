@@ -6,7 +6,6 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
-  workflow_dispatch:
 
 permissions:
   contents: write   # needed to create the GitHub Release
@@ -14,13 +13,14 @@ permissions:
 
 jobs:
   # =====================================================================
-  # Build everything that does NOT require the upload keystore:
-  #   - run tests
-  #   - build the web (PWA) bundle
-  # Outputs the derived version so later jobs can reuse it.
+  # Universal gate: verify (format → analyze → dart fix → test → OSV scan)
+  # and derive the release version. Every release job below `needs` this,
+  # so nothing ships unless verify passes. Builds nothing itself (the web +
+  # APK live with the GitHub Release that needs them) and needs no keystore
+  # or platform SDK — just Flutter — so it stays fast and platform-agnostic.
   # =====================================================================
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       name: ${{ steps.version.outputs.name }}
       code: ${{ steps.version.outputs.code }}
@@ -28,8 +28,6 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-build
-        with:
-          android: 'true'
 
       - uses: ./.github/actions/verify
 
@@ -50,33 +48,24 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Build web (PWA)
-        run: |
-          flutter build web --release \
-            --build-name=${{ steps.version.outputs.name }} \
-            --build-number=${{ steps.version.outputs.code }}
-
-      - name: Zip web build
-        run: |
-          cd build/web
-          zip -r "../../bonken-web-${{ github.ref_name }}.zip" .
-
-      - name: Upload web zip
-        uses: actions/upload-artifact@v7
-        with:
-          name: bonken-web-${{ github.ref_name }}
-          path: bonken-web-${{ github.ref_name }}.zip
-          retention-days: 7
-
   # =====================================================================
-  # Build the signed Android artifacts and (optionally) publish to Play.
-  # Runs in the `play-store` environment, so the upload-keystore secrets
-  # are only exposed to this job — and only after any environment
-  # protection rules (required reviewers, branch/tag filters) pass.
+  # Publish to Google Play: build the signed AAB (the Play Store format —
+  # the APK is NOT used here; it lives with the GitHub Release) and upload
+  # it via fastlane supply to the closed-testing "alpha" track as a draft,
+  # so promoting to testers stays a manual click in the Play Console.
+  #
+  # The WHOLE job is gated on the `ANDROID_RELEASE_ENABLED` repo variable
+  # and runs in the `play-store` environment (upload keystore + service
+  # account, exposed only here and only after any environment protection
+  # rules pass). Leave the variable unset for the very first release (build
+  # the AAB locally and upload it once through the Play Console UI); flip it
+  # to 'true' (Settings → Variables) once PLAY_SERVICE_ACCOUNT_JSON exists.
+  # The GitHub Release is a separate job, so it ships regardless.
   # =====================================================================
   release-android:
     needs: build
-    runs-on: ubuntu-latest
+    if: ${{ vars.ANDROID_RELEASE_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
     environment: play-store
     steps:
       - uses: actions/checkout@v6
@@ -85,20 +74,11 @@ jobs:
         with:
           android: 'true'
 
-      # -----------------------------------------------------------------
-      # Decode upload keystore from the environment secrets.
-      # -----------------------------------------------------------------
       - uses: ./.github/actions/decode-keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-
-      - name: Build Android APK
-        run: |
-          flutter build apk --release \
-            --build-name=${{ needs.build.outputs.name }} \
-            --build-number=${{ needs.build.outputs.code }}
 
       - name: Build Android App Bundle (AAB)
         run: |
@@ -106,10 +86,8 @@ jobs:
             --build-name=${{ needs.build.outputs.name }} \
             --build-number=${{ needs.build.outputs.code }}
 
-      - name: Rename Android artifacts
+      - name: Rename AAB
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk \
-             "bonken-${{ github.ref_name }}.apk"
           mv build/app/outputs/bundle/release/app-release.aab \
              "bonken-${{ github.ref_name }}.aab"
 
@@ -120,57 +98,75 @@ jobs:
           path: bonken-${{ github.ref_name }}.aab
           retention-days: 90
 
-      - name: Upload APK as workflow artifact
-        uses: actions/upload-artifact@v7
+      - name: Setup Ruby (fastlane)
+        uses: ruby/setup-ruby@v1
         with:
-          name: bonken-${{ github.ref_name }}-apk
-          path: bonken-${{ github.ref_name }}.apk
-          retention-days: 7
+          working-directory: android
+          bundler-cache: true
 
-      # -----------------------------------------------------------------
-      # Publish to Google Play (closed testing = "alpha" in the API,
-      # shown as "Closed testing — Alpha" in the Play Console UI).
-      # Uploaded as a draft, so promotion to testers is a manual click
-      # in the Play Console.
-      # Skipped when the service-account secret is missing — useful for
-      # the very first release, which must be uploaded manually through
-      # the Play Console UI.
-      # -----------------------------------------------------------------
       - name: Publish to Play Console (alpha, draft)
-        if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        working-directory: android
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.suninet.bonken
-          releaseFiles: bonken-${{ github.ref_name }}.aab
-          track: alpha
-          status: draft
+          AAB_PATH: ../bonken-${{ github.ref_name }}.aab
+        run: bundle exec fastlane alpha
 
   # =====================================================================
-  # Create the public GitHub Release with the web zip + APK.
-  # Runs after both build jobs so it can attach artifacts from each.
+  # Create the public GitHub Release with the web (PWA) zip + the signed
+  # APK (direct-download / sideload artifact — not a Play Store format).
+  # The APK is signed with the upload keystore, which is scoped to the
+  # `play-store` environment, so this job runs there too. It does NOT
+  # depend on release-android, so a Play upload failure (or a disabled Play
+  # release) never blocks the GitHub Release.
   # =====================================================================
-  publish-release:
-    needs: [build, release-android]
-    runs-on: ubuntu-latest
+  release-github:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: play-store
+    permissions:
+      contents: write   # needed to create the GitHub Release
     steps:
-      - name: Download web zip
-        uses: actions/download-artifact@v8
-        with:
-          name: bonken-web-${{ github.ref_name }}
+      - uses: actions/checkout@v6
 
-      - name: Download APK
-        uses: actions/download-artifact@v8
+      - uses: ./.github/actions/setup-build
         with:
-          name: bonken-${{ github.ref_name }}-apk
+          android: 'true'
+
+      - uses: ./.github/actions/decode-keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: Build web (PWA)
+        run: |
+          flutter build web --release \
+            --build-name=${{ needs.build.outputs.name }} \
+            --build-number=${{ needs.build.outputs.code }}
+
+      - name: Zip web build
+        run: |
+          cd build/web
+          zip -r "../../bonken-web-${{ github.ref_name }}.zip" .
+
+      - name: Build Android APK
+        run: |
+          flutter build apk --release \
+            --build-name=${{ needs.build.outputs.name }} \
+            --build-number=${{ needs.build.outputs.code }}
+
+      - name: Rename APK
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             "bonken-${{ github.ref_name }}.apk"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          name: ${{ github.ref_name }}
-          generate_release_notes: true
-          files: |
-            bonken-web-${{ github.ref_name }}.zip
-            bonken-${{ github.ref_name }}.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --repo "${{ github.repository }}" \
+            "bonken-web-${{ github.ref_name }}.zip" \
+            "bonken-${{ github.ref_name }}.apk"

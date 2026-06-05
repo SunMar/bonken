@@ -19,7 +19,7 @@ val keystoreProperties = Properties().apply {
 val hasReleaseSigning = keystorePropertiesFile.exists()
 
 android {
-    namespace = "nl.bonken.bonken"
+    namespace = "com.suninet.bonken"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

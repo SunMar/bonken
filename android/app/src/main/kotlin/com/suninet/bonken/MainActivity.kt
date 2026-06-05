@@ -1,4 +1,4 @@
-package nl.bonken.bonken
+package com.suninet.bonken
 
 import io.flutter.embedding.android.FlutterActivity
 

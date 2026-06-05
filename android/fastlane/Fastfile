@@ -1,0 +1,28 @@
+# Bonken Android release automation.
+#
+# The `alpha` lane is what CI runs on a version tag: it uploads the already-built
+# AAB to the Play Console closed-testing ("alpha") track as a DRAFT, so promoting
+# it to testers stays a manual click in the Play Console (same behaviour the
+# previous r0adkll/upload-google-play step had).
+#
+# Required environment (provided by the `play-store` GitHub environment):
+#   PLAY_SERVICE_ACCOUNT_JSON   service-account JSON (passed inline, not a file)
+#   AAB_PATH                    path to the built .aab (relative to android/)
+
+default_platform(:android)
+
+platform :android do
+  desc "Upload the AAB to the Play Console alpha track as a draft"
+  lane :alpha do
+    upload_to_play_store(
+      track: "alpha",
+      release_status: "draft",
+      aab: ENV.fetch("AAB_PATH"),
+      json_key_data: ENV.fetch("PLAY_SERVICE_ACCOUNT_JSON"),
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+end

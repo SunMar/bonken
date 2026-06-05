@@ -27,7 +27,7 @@ trick), then computes per-round and cumulative scores.
 Key characteristics:
 
 - **Platform:** Flutter. Ships as an offline-first **PWA** (web, installable on
-  Android/iOS/desktop) and as a native Android APK.
+  Android/iOS/desktop) and as native **Android** (APK/AAB on Google Play) builds.
 - **Fully offline / local-only:** no backend, no accounts, no network in the
   core flow. All data is in `SharedPreferences`. Fonts and licenses are bundled
   as assets so the app works with zero connectivity. (The only network use is an
@@ -926,6 +926,7 @@ fvm dart format .                                     # Auto-format all Dart (ru
 fvm dart format --output=none --set-exit-if-changed . # Formatting check (what CI runs; exits 1 on drift)
 
 fvm flutter build apk --release                       # Android APK
+fvm flutter build appbundle --release                 # Android AAB (Play Store)
 fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 ```
 
@@ -952,6 +953,21 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
   pushing.
 - **Versioning:** `pubspec.yaml` is a sentinel `0.0.0+0`; CI passes
   `--build-name` / `--build-number` from the git tag / run number.
+- **Release pipeline.** A `MAJOR.MINOR.PATCH` git tag triggers
+  [`release.yml`](.github/workflows/release.yml): it builds the web (PWA) bundle
+  and a signed Android APK and attaches both to a public **GitHub Release**, and
+  builds a signed **AAB** that **fastlane** `supply`
+  ([`android/fastlane/`](android/fastlane/)) uploads to the Play Console *alpha*
+  track as a *draft* (promoting to testers stays a manual step). The whole Play
+  path (the AAB build + its upload) is gated on the `ANDROID_RELEASE_ENABLED`
+  repo **variable**, so the web + APK keep shipping via the GitHub Release before
+  the Play credentials exist; flip it to `'true'` (Settings → Variables) once
+  they do. The Android signing keystore + Play service account live in the
+  `play-store` GitHub environment, exposed only to the jobs that need them.
+- **GitHub Actions & CI runners:** Actions are pinned either to a major tag
+  (`@v6`) or, for actions without a moving `vN` (e.g. the OSV scanner), to a
+  specific version (`@v2.3.8`); the Ubuntu runner is pinned (`runs-on:
+  ubuntu-24.04`).
 - **Fonts:** Roboto (text) + Arimo (suit glyphs ♠♥♦♣, which Roboto lacks) are
   bundled under `assets/google_fonts/<version>/` and loaded via the google_fonts
   package with runtime fetching disabled (offline + deterministic suit glyphs).
@@ -967,6 +983,10 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
   resolved version from `pubspec.lock` (the manifest-rewriting half that `pub
   upgrade` deliberately omits). Non-caret Dart pins (e.g. `google_fonts`) are
   left untouched.
+- **fastlane:** major-pinned `gem "fastlane", "~> 2"` in `android/Gemfile`
+  (not exact — it only runs in CI, with no local setup to validate a bump).
+  `~> 2` lets minor/patch fixes flow but holds back a new major that could break
+  the pipeline.
 - **Launcher icons:** `./tool/generate_icons.sh` — renders the SVG sources to
   PNGs, runs `flutter_launcher_icons` (config in `pubspec.yaml`), then overwrites
   the PWA maskable icons with `icon_bonken_maskable.svg`. Requires
