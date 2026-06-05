@@ -22,9 +22,6 @@ import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/score_result_view.dart';
 
-/// Standard confirmation dialog used whenever the user is about to abandon
-/// unsaved edits. Returns true if the user confirms the discard.
-
 /// Per-round score input destination.
 ///
 /// Pushed from [GameSelectionPhase] when the user picks (or resumes) a
@@ -46,22 +43,20 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
   // Captured once at push time — see class doc.  The bang is intentional:
   // pushing without a selected game is a programmer error and should crash
   // loudly rather than silently render nothing.
-  late final MiniGame _game = ref.read(calculatorProvider).selectedGame!;
+  late final MiniGame _game = ref.read(activeSessionProvider).selectedGame!;
 
   @override
   Widget build(BuildContext context) {
     final game = _game;
     final isEditing = ref.watch(
-      calculatorProvider.select((s) => s.isEditingExistingRound),
+      activeSessionProvider.select((a) => a.isEditingExistingRound),
     );
     final isComplete = ref.watch(
-      calculatorProvider.select((s) => s.inputState == InputState.complete),
+      activeSessionProvider.select((a) => a.inputState == InputState.complete),
     );
 
     void popIfMounted() {
-      if (context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
+      if (context.mounted) Navigator.of(context).pop();
     }
 
     void cancelInputPhase() {
@@ -75,7 +70,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
 
     Future<void> confirmAndCancelInput() async {
       final hasChanges = ref.read(
-        calculatorProvider.select((s) => s.hasActiveChanges),
+        activeSessionProvider.select((a) => a.hasActiveChanges),
       );
       if (hasChanges) {
         if (!context.mounted) return;
@@ -104,7 +99,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
       }
       // Editing a completed round: block navigation if there are unsaved changes.
       final hasChanges = ref.read(
-        calculatorProvider.select((s) => s.hasActiveChanges),
+        activeSessionProvider.select((a) => a.hasActiveChanges),
       );
       if (!hasChanges) {
         cancelInputPhase();
@@ -121,7 +116,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
 
     // Only called when isComplete (button is enabled only then).
     Future<void> saveOrConfirmDone() async {
-      final s = ref.read(calculatorProvider);
+      final s = ref.read(activeSessionProvider);
       if (s.hasActiveChanges) {
         if (!context.mounted) return;
         final confirm = await showConfirmDialog(
@@ -166,10 +161,12 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             tooltip: 'Spelregels ${game.name}',
             flexibleTitle: true,
             starterVariantOverride: ref.read(
-              calculatorProvider.select((s) => s.ruleVariants.starterVariant),
+              activeSessionProvider.select(
+                (a) => a.ruleVariants.starterVariant,
+              ),
             ),
             heartsVariantOverride: ref.read(
-              calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
+              activeSessionProvider.select((a) => a.ruleVariants.heartsVariant),
             ),
             editMode: RulesEditMode.hidden,
           ),
@@ -228,7 +225,7 @@ class _RoundInputBody extends ConsumerWidget {
     final isPositive = game.category == GameCategory.positive;
     final textColor = scoreColor(isPositive ? 1 : -1, context);
     final heartsVariant = ref.watch(
-      calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
+      activeSessionProvider.select((a) => a.ruleVariants.heartsVariant),
     );
 
     return ListView(
@@ -262,8 +259,8 @@ class _ChooserSelectorCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (displayedPlayers, chooserId, dealerId) = ref.watch(
-      calculatorProvider.select(
-        (s) => (s.displayedPlayers, s.chooserId, s.dealerId),
+      activeSessionProvider.select(
+        (a) => (a.displayedPlayers, a.chooserId, a.dealerId),
       ),
     );
     return _ChooserSelector(
@@ -275,7 +272,7 @@ class _ChooserSelectorCard extends ConsumerWidget {
           .read(calculatorProvider.notifier)
           .setChooser(
             ref
-                .read(calculatorProvider)
+                .read(activeSessionProvider)
                 .players
                 .indexWhere((p) => p.id == displayedPlayers[dispI].id),
           ),
@@ -289,7 +286,9 @@ class _DoublesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (players, chooserIndex, doubles) = ref.watch(
-      calculatorProvider.select((s) => (s.players, s.chooserIndex, s.doubles)),
+      activeSessionProvider.select(
+        (a) => (a.players, a.chooserIndex, a.doubles),
+      ),
     );
     return Card(
       child: Padding(
@@ -326,7 +325,7 @@ class _InputFormCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (displayedPlayers, input) = ref.watch(
-      calculatorProvider.select((s) => (s.displayedPlayers, s.input)),
+      activeSessionProvider.select((a) => (a.displayedPlayers, a.input)),
     );
     if (input == null) return const SizedBox.shrink();
     return Card(
@@ -365,13 +364,13 @@ class _ScoreResultSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final (result, partialResult, doubles, dispChooser, dispPlayers) = ref
         .watch(
-          calculatorProvider.select(
-            (s) => (
-              s.result,
-              s.partialResult,
-              s.doubles,
-              s.displayedChooserIndex,
-              s.displayedPlayers,
+          activeSessionProvider.select(
+            (a) => (
+              a.result,
+              a.partialResult,
+              a.doubles,
+              a.displayedChooserIndex,
+              a.displayedPlayers,
             ),
           ),
         );
@@ -414,8 +413,8 @@ class _RoundInputHeader extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final (playerNames, chooserIndex, dealerIndex, starterIndex) = ref.watch(
-      calculatorProvider.select(
-        (s) => (s.playerNames, s.chooserIndex, s.dealerIndex, s.starterIndex),
+      activeSessionProvider.select(
+        (a) => (a.playerNames, a.chooserIndex, a.dealerIndex, a.starterIndex),
       ),
     );
 

@@ -74,7 +74,10 @@ void main() {
       // the one under test.
       container.read(calculatorProvider.notifier).setChooser(2);
       await tester.pumpAndSettle();
-      expect(container.read(calculatorProvider).chooserIndex, 2);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).chooserIndex,
+        2,
+      );
 
       // Open the chooser DropdownMenu (the only DropdownMenu<int> on
       // this screen) and pick Bob (the default, dealer+1).
@@ -90,7 +93,10 @@ void main() {
 
       // No confirm dialog appears.
       expect(find.text('Kiezer wijzigen'), findsNothing);
-      expect(container.read(calculatorProvider).chooserIndex, 1);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).chooserIndex,
+        1,
+      );
       // Drain autosave debounce so no Timer survives into teardown.
       await tester.pump(const Duration(milliseconds: 500));
     },
@@ -115,7 +121,10 @@ void main() {
       expect(find.text('Kiezer wijzigen'), findsOneWidget);
       await tester.tap(find.widgetWithText(TextButton, 'Annuleren'));
       await tester.pumpAndSettle();
-      expect(container.read(calculatorProvider).chooserIndex, 1);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).chooserIndex,
+        1,
+      );
 
       // Try again and confirm.
       await tester.tap(find.byType(DropdownMenu<int>));
@@ -129,7 +138,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(TextButton, 'Instellen'));
       await tester.pumpAndSettle();
-      expect(container.read(calculatorProvider).chooserIndex, 3);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).chooserIndex,
+        3,
+      );
       // Drain autosave debounce so no Timer survives into teardown.
       await tester.pump(const Duration(milliseconds: 500));
     },
@@ -142,7 +154,7 @@ void main() {
       addTearDown(container.dispose);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
-      final ps = container.read(calculatorProvider).players;
+      final ps = (container.read(calculatorProvider) as ActiveSession).players;
 
       // Round 1 — Clubs, valid input, commit.
       notifier.selectGame(const Clubs());
@@ -159,13 +171,14 @@ void main() {
       notifier.deselectGame();
 
       // Restore round 1 for edit, then make its input invalid.
-      final round1 = container.read(calculatorProvider).history.first;
+      final round1 =
+          (container.read(calculatorProvider) as ActiveSession).history.first;
       notifier.restoreRound(round1);
       notifier.updateInput(
         CountsInput({ps[0].id: 4, ps[1].id: 3, ps[2].id: 2, ps[3].id: 0}),
       ); // sum 9 ≠ 13
       expect(
-        container.read(calculatorProvider).inputState,
+        (container.read(calculatorProvider) as ActiveSession).inputState,
         isNot(InputState.complete),
       );
       await tester.pump(const Duration(milliseconds: 500));
@@ -207,7 +220,7 @@ void main() {
       addTearDown(container.dispose);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
-      final ps = container.read(calculatorProvider).players;
+      final ps = (container.read(calculatorProvider) as ActiveSession).players;
       notifier.selectGame(const Clubs());
       notifier.updateInput(
         CountsInput({ps[0].id: 3, ps[1].id: 2, ps[2].id: 0, ps[3].id: 0}),
@@ -222,7 +235,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(RoundInputScreen), findsNothing);
-      final s = container.read(calculatorProvider);
+      final s = container.read(calculatorProvider) as ActiveSession;
       expect(s.hasPendingGame, isTrue);
       final p = s.pending as ActivePendingRound;
       expect(p.game.id, 'clubs');
@@ -264,13 +277,14 @@ void main() {
       addTearDown(container.dispose);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
-      final ps = container.read(calculatorProvider).players;
+      final ps = (container.read(calculatorProvider) as ActiveSession).players;
       notifier.selectGame(const Clubs());
       notifier.updateInput(
         CountsInput({ps[0].id: 4, ps[1].id: 4, ps[2].id: 2, ps[3].id: 3}),
       );
       notifier.deselectGame();
-      final round = container.read(calculatorProvider).history.first;
+      final round =
+          (container.read(calculatorProvider) as ActiveSession).history.first;
       notifier.restoreRound(round);
       await tester.pump(const Duration(milliseconds: 500));
 
@@ -330,7 +344,10 @@ void main() {
       // game deselected.
       expect(find.text(kRoundIncompleteTitle), findsNothing);
       expect(find.byType(RoundInputScreen), findsNothing);
-      expect(container.read(calculatorProvider).selectedGame, isNull);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).selectedGame,
+        isNull,
+      );
     },
   );
 }

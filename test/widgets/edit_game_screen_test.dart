@@ -69,12 +69,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(EditGameScreen), findsNothing);
-      expect(container.read(calculatorProvider).playerNames, [
-        'Aaron',
-        'Bob',
-        'Carol',
-        'Dan',
-      ]);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).playerNames,
+        ['Aaron', 'Bob', 'Carol', 'Dan'],
+      );
     },
   );
 
@@ -203,7 +201,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(EditGameScreen), findsNothing);
-      final s = container.read(calculatorProvider);
+      final s = container.read(calculatorProvider) as ActiveSession;
       expect(
         s.ruleVariants.starterVariant,
         StarterVariant.oppositeChooserStarts,

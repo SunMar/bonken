@@ -124,9 +124,9 @@ void main() {
       tester,
     ) async {
       // Reproduces the bug that motivated the ProviderContainer parameter:
-      // before the fix, the snackbar captured a WidgetRef from a screen
-      // that got disposed by pushAndRemoveUntil, and the undo callback
-      // silently no-op'd.
+      // before the fix, the snackbar captured a WidgetRef from a screen that
+      // got disposed on navigation (GameScreen pops back to Home after a
+      // delete), and the undo callback silently no-op'd.
       late ScaffoldMessengerState messenger;
       late ProviderContainer container;
       final session = _session('s1');

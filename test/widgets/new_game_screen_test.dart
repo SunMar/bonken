@@ -160,10 +160,8 @@ void main() {
     await enterName(tester, 0, 'Alice');
     await enterName(tester, 1, 'Bob');
 
-    // Provider stays empty — names live only in local controllers.
-    final s = container.read(calculatorProvider);
-    expect(s.playerNames, ['', '', '', '']);
-    expect(s.sessionId, '');
+    // Provider stays idle — names live only in local controllers.
+    expect(container.read(calculatorProvider), isA<NoSession>());
   });
 
   /// Reads the visible text inside the dealer DropdownMenu's input field.
@@ -225,7 +223,7 @@ void main() {
 
       // A game has been committed; the drawn dealer is one of the four
       // players (we don't assert which — Random() is, well, random).
-      final s = container.read(calculatorProvider);
+      final s = container.read(calculatorProvider) as ActiveSession;
       expect(s.dealerIndex, inInclusiveRange(0, 3));
       expect(s.sessionId, isNotEmpty);
     },
@@ -246,7 +244,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
       await tester.pumpAndSettle();
 
-      final s = container.read(calculatorProvider);
+      final s = container.read(calculatorProvider) as ActiveSession;
       expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
       expect(s.dealerIndex, 2);
       expect(s.sessionId, isNotEmpty);
@@ -273,7 +271,7 @@ void main() {
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
 
-      final s = container.read(calculatorProvider);
+      final s = container.read(calculatorProvider) as ActiveSession;
       expect(s.playerNames, ['Alice', 'Bob', 'Carol', 'Dan']);
       expect(s.dealerIndex, inInclusiveRange(0, 3));
       expect(s.sessionId, isNotEmpty);
@@ -342,7 +340,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
       await tester.pumpAndSettle();
 
-      final s = container.read(calculatorProvider);
+      final s = container.read(calculatorProvider) as ActiveSession;
       expect(
         s.ruleVariants.starterVariant,
         StarterVariant.oppositeChooserStarts,

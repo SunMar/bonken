@@ -75,13 +75,12 @@ Color scoreColorNeutral(BuildContext context) =>
 /// sprinkled across screens.
 Color disabledOnSurface(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.38);
 
-/// Shared [MenuItemButton] / [SubmenuButton] style for overflow menus.
+/// Shared [MenuItemButton] / [SubmenuButton] style for menu anchors.
 ///
 /// Adds 16 px of horizontal padding so the [TextButton]-derived
 /// [MenuItemButton] gets a comfortable popup-menu rhythm instead of its
-/// default tight padding. Both [MenuAnchor]s in the app (HomeScreen and
-/// GameScreen overflow menus) reference this so their item density
-/// stays in sync.
+/// default tight padding. Referenced by the theme menu (`ThemeMenuButton`) and
+/// any future [MenuAnchor], so their item density stays in sync.
 final ButtonStyle kMenuItemButtonStyle = MenuItemButton.styleFrom(
   padding: const EdgeInsets.symmetric(horizontal: 16),
 );

@@ -145,21 +145,21 @@ most of the structure exists to serve one of these.
 Three layers; dependencies point **downward only**:
 
 ```
-            ┌─────────────────────────────────────────────┐
-  UI        │  lib/screens/*  +  lib/widgets/*             │  ConsumerWidgets
-            │  watch providers · call notifier methods     │
-            └───────────────┬─────────────────────────────┘
+            ┌───────────────────────────────────────────────┐
+  UI        │  lib/screens/*  +  lib/widgets/*              │  ConsumerWidgets
+            │  watch providers · call notifier methods      │
+            └───────────────┬───────────────────────────────┘
                             │ ref.watch(provider.select) / ref.read(...notifier)
-            ┌───────────────▼─────────────────────────────┐
-  STATE     │  lib/state/*  (Riverpod Notifiers)           │
-            │  calculatorProvider · gameHistoryProvider ·  │
-            │  themeModeProvider                           │
-            └───────────────┬─────────────────────────────┘
+            ┌───────────────▼───────────────────────────────┐
+  STATE     │  lib/state/*  (Riverpod Notifiers)            │
+            │  calculatorProvider · gameHistoryProvider ·   │
+            │  themeModeProvider                            │
+            └───────────────┬───────────────────────────────┘
                             │ construct/read models · toJson/fromJson
-            ┌───────────────▼─────────────────────────────┐
-  MODELS    │  lib/models/*  (pure Dart, no UI)            │
-            │  MiniGame scoring engine · session · doubles │
-            └─────────────────────────────────────────────┘
+            ┌───────────────▼───────────────────────────────┐
+  MODELS    │  lib/models/*  (pure Dart, no UI)             │
+            │  MiniGame scoring engine · session · doubles  │
+            └───────────────────────────────────────────────┘
 ```
 
 - **Models** are plain data + pure functions; the scoring engine lives here.
@@ -201,17 +201,21 @@ lib/
     double_matrix.dart       DoubleMatrix: per-pair doubling state + initiator, UUID-keyed.
     score_result.dart        ScoreResult: {playerId: pointsThisRound}.
     round_record.dart        RoundRecord: one completed round (in-memory + toJson).
-    game_session.dart        GameSession aggregate + PendingRound; derived totals/winners; JSON.
+    game_session.dart        GameSession aggregate + PendingRound; derived totals/winners; JSON;
+                             _validateReferences (id referential-integrity check at load boundary).
     rule_variants.dart       RuleVariants: per-game StarterVariant + HeartsVariant, grouped + JSON.
     games/
-      game_catalog.dart      allGames — the single ordered list of all 13 mini-games.
+      game_catalog.dart      allGames — the single ordered list of all 13 mini-games; gameById()
+                             — the single lookup helper (throws on unknown id).
       positive_games.dart    PositiveGame base + Clubs/Diamonds/Hearts/Spades/NoTrump.
       negative_games.dart    The 8 negative mini-games.
 
   state/                     Riverpod providers.
-    calculator_provider.dart CalculatorState + CalculatorNotifier (the in-game state machine).
+    calculator_provider.dart CalculatorState (sealed: NoSession | ActiveSession) +
+                             CalculatorNotifier (the in-game state machine);
+                             activeSessionProvider narrows it to ActiveSession.
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4→v5→v6) + runner.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4→v5→v6→v7) + runner.
     theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
     default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
     default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
@@ -518,11 +522,22 @@ emits it via `onChanged` → `updateDoubles`:
 ([`calculator_provider.dart`](lib/state/calculator_provider.dart)). Holds the
 **single game currently being played or edited**.
 
-**`CalculatorState` fields**, grouped:
+`CalculatorState` is **sealed**: `NoSession` (idle — notifier alive, no game) or
+`ActiveSession` (carries all the fields below). "No game active" is
+`state is NoSession`; autosave is a no-op in that state. The session-bound
+screens (GameScreen, RoundInputScreen, EditGameScreen) only ever run with an
+`ActiveSession`, so they watch the derived **`activeSessionProvider`**
+(`Provider.autoDispose<ActiveSession>`) instead of casting `state as
+ActiveSession` at every call site — the cast lives once, in that provider. It is
+`autoDispose` so it is torn down when the last session-bound screen leaves
+(back to Home), before the `NoSession` transition, so the cast never runs on a
+`NoSession` value.
+
+**`ActiveSession` fields**, grouped:
 
 | group | fields | notes |
 |-------|--------|-------|
-| identity | `sessionId`, `createdAt`, `updatedAt` | empty `sessionId` ⇒ no active game (autosave off) |
+| identity | `sessionId`, `createdAt`, `updatedAt` | always present in `ActiveSession`; the idle signal is `NoSession`, not an empty `sessionId` |
 | players | `players`, `playerNames`*, `displayedPlayers`* | *stored derived, for `select()` stability |
 | seating | `firstDealerId`, `dealerId`, `chooserId` | IDs; seat indices via `dealerIndex`/`chooserIndex`/`firstDealerIndex`/`displayedChooserIndex` getters |
 | progress | `roundNumber` (1–12), `history: List<RoundRecord>` | |
@@ -533,7 +548,7 @@ emits it via `onChanged` → `updateDoubles`:
 
 Helper getters: `hasPendingGame`, `hasMeaningfulPendingInput`, `inputState`
 (`InputState{none,partial,complete}` via the descriptor), `isEditingExistingRound`,
-`isEditingLastRound`, `canRollbackWithPartial`, and `hasActiveChanges` (deep-equals
+`isEditingLastRound`, and `hasActiveChanges` (deep-equals
 current vs. captured originals; gates discard confirmations).
 
 `result` is the **final** score (input complete). `partialResult` is a **live
@@ -559,13 +574,21 @@ preview** shown while a counts game is partway entered (0 < sum < total).
 - `discardGame` / `cancelEditRound` — leave the slot without saving.
 - `restoreRound(record)` — load a past round into the slot for editing (history
   untouched until re-saved); captures originals for change detection.
-- `deleteLastRound` / `rollbackLastRound` — drop the most recent round.
+- `deleteLastRound` — drop the most recent completed round (dealer/round roll back).
+- `exitPendingSlot` — leave the live slot *without* saving or discarding the
+  pending round (Back with meaningful input on a pending round); the stash is
+  already kept current by write-through in `updateInput`/`updateDoubles`.
 - `setPlayersAndDealer` / `setDealer` / `setPlayerName` — player + dealer edits.
 - `setStarterVariant` / `setHeartsVariant` — update one field of `ruleVariants`
   (via `RuleVariants.copyWith`) for the current session.
 - `buildSession()` — snapshot state → `GameSession` (or `null` if no session id).
-- `reset()` — clear the in-game slot (called after the active session is deleted,
-  so the provider returns to the "no active game" idle state).
+- `reset()` — cancel autosave timer and clear to `NoSession` (without saving).
+- `cancelPendingAutosave()` — cancel the debounced timer without saving. Called
+  before deleting a game so the timer cannot re-save a session that was just
+  removed from history.
+- `flushAndReset()` — if a debounced autosave is pending, write it immediately,
+  then clear to `NoSession`. Called from `GameScreen.dispose()` on back-navigation
+  so last-second edits are not lost to the debounce window.
 
 The shared private `_exitSlot` recomputes `dealerId`/`roundNumber`/`chooserId`
 from `firstDealerId` + the *new* history length, so dealer rotation stays correct
@@ -575,8 +598,9 @@ whether you appended, replaced, deleted, or cancelled.
 (coalescing keystroke bursts into one SharedPreferences encode). `_autosave`
 calls `buildSession()` → `gameHistoryProvider.saveGame()`. Switching to a
 different session first **flushes** any pending autosave for the outgoing one.
-Autosave is a no-op while `sessionId` is empty. The timer is cancelled in
-`ref.onDispose`.
+Autosave is a no-op in `NoSession`. The timer is also cancelled in `ref.onDispose`
+and, for back-navigation, by `GameScreen.dispose` via `flushAndReset`; for the
+delete flow, by `cancelPendingAutosave` before the pop.
 
 ### `gameHistoryProvider` — persistence & suggestions
 `AsyncNotifierProvider<GameHistoryNotifier, List<GameSession>>`. Loads + sorts
@@ -765,13 +789,21 @@ delegates are registered.
   `HeartsVariant` from the default providers; commits via `startNewGame`.
 - **`SettingsScreen`** — app-wide default `StarterVariant` + `HeartsVariant`
   (`RadioListTile` per value with label + description); changes persist immediately.
-- **`GameScreen`** — the in-game hub. `_GameSelectionBody` separates unplayed
-  and played games per category (negative / positive); played games are hidden by
-  default and can be revealed via a per-category toggle in `_SectionHeader` —
-  when visible they render disabled ("Spel al gespeeld") and offer force-replay
-  on tap. Per-chooser quota disabling and pending-round blocking remain as soft
-  disables. Also contains `_LiveScoreboard`, a round-history list, and
-  edit-game / delete-game actions.
+- **`GameScreen`** — the in-game hub; a `ConsumerStatefulWidget` whose `dispose()`
+  schedules `flushAndReset()` via `addPostFrameCallback` (subscriptions are
+  cancelled by Riverpod only after `dispose()` returns; the callback fires after
+  `finalizeTree()` drains them all, so the `NoSession` transition is safe).
+  A `sessionId` guard prevents resetting a session loaded during the animation.
+  Back-navigation therefore never loses a debounced autosave. `_GameSelectionBody`
+  separates unplayed and played games per category (negative / positive); played
+  games are hidden by default and can be revealed via a per-category toggle in
+  `_SectionHeader` — when visible they render disabled ("Spel al gespeeld") and
+  offer force-replay on tap. When all games in a category are played and the toggle
+  is off, a greyed-out `_AllGamesPlayedCard` fills the otherwise-empty section; it
+  hides when the toggle is on (the played tiles themselves provide the content).
+  Per-chooser quota disabling and pending-round blocking
+  remain as soft disables. Also contains `_LiveScoreboard`, a round-history list,
+  and edit-game / delete-game actions.
 - **`RoundInputScreen`** — composed of focused `ConsumerWidget` cards
   (`_ChooserSelectorCard`, `_DoublesCard`, `_InputFormCard`,
   `_ScoreResultSection`), each declaring its own narrow `select`. Game-specific
@@ -1032,13 +1064,25 @@ Things to *not* break:
 - **Σ scores == `totalPoints`** for every game — the engine invariant (asserted).
 - **Seat-relationship math lives only in `game_mechanics.dart`** — don't
   re-derive "dealer = chooser − 1" or "starter = …" elsewhere. This includes
-  `starterIndexFor`, which takes a `StarterVariant` and lives here.
+  `starterIndexFor`, which takes a `StarterVariant` and lives here. (The
+  `List<Player>` lookup/rotation helpers `seatIndexOf` / `rotatedFromDealer` are
+  not relationship math and live with `Player` in `player.dart`.)
 - **Screens use `AppScaffold`** (architecture test enforces it).
 - **Bottom sheets use `showAppBottomSheet`**, never `showModalBottomSheet`
   directly (architecture test enforces it).
 - **Icons are `Symbols.*` only** — never the legacy `Icons`.
-- **Empty-string IDs are the "not yet set" sentinel** — don't assert player
-  lookups on them (`_indexOf` already guards this).
+- **`gameById` and `seatIndexOf` throw on an unknown id** — never rely on a
+  silent fallback. An unknown id from stored JSON is caught at the load boundary
+  (`GameSession.fromJson` calls `_validateReferences`; any throw becomes
+  `CorruptStorageException` via `GameHistoryNotifier.build()`'s `on Object`
+  catch). An unknown id after load is a programming error; throwing makes it loud.
+- **`CalculatorState` is sealed: `NoSession` vs `ActiveSession`.** "No session
+  active" is `state is NoSession`, not an empty `sessionId` or `firstDealerId`
+  sentinel. `ActiveSession` requires a valid `firstDealerId` / `dealerId` /
+  `chooserId` (the factory makes them `required`; storage loads pass through
+  `_validateReferences`), so its seat-index getters delegate to the throwing
+  `seatIndexOf` — an invalid id surfaces a programming bug instead of silently
+  resolving to seat 0.
 - **Derived lists watched by `select()` must keep stable identity** — store them
   as fields, recompute in `copyWith` only when inputs change.
 - **`pending` is sealed** — branch with `is ActivePendingRound`; never resurrect

@@ -7,10 +7,13 @@
 // covered by `game_screen_actions_test.dart`; this file focuses on the tile
 // list and round flow.
 
+import 'dart:async';
+
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/game_catalog.dart';
 import 'package:bonken/models/games/negative_games.dart';
+import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
@@ -143,7 +146,10 @@ void main() {
         ],
       );
       final container = await _pump(tester, session: session);
-      expect(container.read(calculatorProvider).chooserId, players[3].id);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).chooserId,
+        players[3].id,
+      );
 
       await tester.ensureVisible(find.text('Vrouwen')); // Queens (negative)
       await tester.pumpAndSettle();
@@ -187,12 +193,21 @@ void main() {
     tester,
   ) async {
     final players = [for (final n in _names) Player(name: n)];
+    // Provide non-zero counts so hasMeaningfulPendingInput is true and the
+    // hourglass + blocking behaviour activates.
+    final input = CountsInput({
+      players[0].id: 3,
+      players[1].id: 0,
+      players[2].id: 0,
+      players[3].id: 0,
+    });
     final session = _session(
       players: players,
       pendingRound: PendingRound(
         gameId: 'duck',
         gameName: 'Bukken',
         chooserId: players[1].id,
+        input: input,
       ),
     );
     await _pump(tester, session: session);
@@ -307,11 +322,65 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(RoundInputScreen), findsOneWidget);
-      expect(container.read(calculatorProvider).selectedGame?.id, 'duck');
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).selectedGame?.id,
+        'duck',
+      );
 
       // Drain the autosave debounce scheduled by selectGame.
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'leaving via back-navigation flushes the autosave and resets to NoSession',
+    (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await container.read(gameHistoryProvider.future);
+      container
+          .read(calculatorProvider.notifier)
+          .loadSession(_session(players: players));
+
+      final navKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            navigatorKey: navKey,
+            home: const Scaffold(body: Center(child: Text('home'))),
+          ),
+        ),
+      );
+      // Drain the autosave debounce scheduled by loadSession.
+      await tester.pump(const Duration(milliseconds: 500));
+
+      unawaited(
+        navKey.currentState!.push(
+          MaterialPageRoute<void>(builder: (_) => const GameScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(GameScreen), findsOneWidget);
+
+      // Rename a player (schedules a debounced autosave), then leave before the
+      // 400 ms debounce fires.
+      container.read(calculatorProvider.notifier).setPlayerName(0, 'Zoë');
+      await tester.pump();
+
+      navKey.currentState!.pop();
+      await tester.pumpAndSettle();
+      // dispose() schedules flushAndReset via a post-frame callback; force one
+      // more frame so it runs even if pumpAndSettle settled first.
+      await tester.pump();
+
+      // Back-navigation resets the calculator to the idle state…
+      expect(container.read(calculatorProvider), isA<NoSession>());
+      // …and the pre-debounce rename was flushed to history, not lost.
+      final saved = container.read(gameHistoryProvider).value!;
+      expect(saved.single.players.first.name, 'Zoë');
     },
   );
 }

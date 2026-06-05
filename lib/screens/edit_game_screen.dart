@@ -69,7 +69,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   @override
   void initState() {
     super.initState();
-    final state = ref.read(calculatorProvider);
+    final state = ref.read(activeSessionProvider);
     _firstDealerIndex = state.firstDealerIndex;
     _originalFirstDealerIndex = state.firstDealerIndex;
     _gameInProgress = state.history.isNotEmpty || state.hasPendingGame;
@@ -207,7 +207,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     // Build the new player list in the post-reorder seat order.
     // Map each controller back to the original Player object by identity so
     // UUIDs stay bound to the correct person after a drag-reorder.
-    final origPlayers = ref.read(calculatorProvider).players;
+    final origPlayers = ref.read(activeSessionProvider).players;
     final newPlayers = <Player>[
       for (int i = 0; i < playerCount; i++)
         () {

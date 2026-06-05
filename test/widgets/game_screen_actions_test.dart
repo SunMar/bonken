@@ -19,6 +19,7 @@ import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/widgets/scoreboard_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,8 +33,8 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
 
-  // Seed a session that already has one completed round so the live
-  // scoreboard renders (it hides itself when history is empty).
+  // Seed a session with one completed round so the history list renders
+  // and the scoreboard shows realistic non-zero scores.
   final players = [for (final name in _names) Player(name: name)];
   final session = GameSession(
     id: 'seed-session',
@@ -59,14 +60,19 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
   );
   await container.read(gameHistoryProvider.future);
   await container.read(gameHistoryProvider.notifier).saveGame(session);
-  container.read(calculatorProvider.notifier).loadSession(session);
 
+  // Start from HomeScreen so the navigator stack is [HomeScreen, GameScreen].
+  // This mirrors the real app flow and lets _deleteGame pop() back correctly.
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: GameScreen()),
+      child: const MaterialApp(home: HomeScreen()),
     ),
   );
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.byType(ScoreboardCard));
+  await tester.pumpAndSettle();
   // Drain the autosave debounce timer scheduled by loadSession.
   await tester.pump(const Duration(milliseconds: 500));
   await tester.pumpAndSettle();
@@ -109,7 +115,8 @@ void main() {
     tester,
   ) async {
     final container = await _pumpGameScreen(tester);
-    final sessionId = container.read(calculatorProvider).sessionId;
+    final sessionId =
+        (container.read(calculatorProvider) as ActiveSession).sessionId;
     // Sanity: the session lives in history.
     expect(
       container.read(gameHistoryProvider).value?.any((g) => g.id == sessionId),

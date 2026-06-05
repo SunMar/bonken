@@ -44,17 +44,30 @@ class ActivePendingRound extends PendingRoundState {
   final DoubleMatrix doubles;
 }
 
-/// Holds the transient state for the score calculator screen.
+/// Sealed state for [calculatorProvider].
+///
+/// [NoSession] is the idle state — the notifier is alive but no game is in
+/// progress. [ActiveSession] carries all transient round-by-round data.
+sealed class CalculatorState {
+  const CalculatorState();
+}
+
+/// Idle state: the notifier is alive but no game session is in progress.
+class NoSession extends CalculatorState {
+  const NoSession();
+}
+
+/// Active game session — carries all transient round-by-round state.
 @immutable
-class CalculatorState {
-  factory CalculatorState({
-    String sessionId = '',
-    DateTime? createdAt,
+class ActiveSession extends CalculatorState {
+  factory ActiveSession({
+    required String sessionId,
+    required DateTime createdAt,
     DateTime? updatedAt,
-    List<Player>? players,
-    String firstDealerId = '',
-    String dealerId = '',
-    String chooserId = '',
+    required List<Player> players,
+    required String firstDealerId,
+    required String dealerId,
+    required String chooserId,
     int roundNumber = 1,
     List<RoundRecord> history = const [],
     MiniGame? selectedGame,
@@ -69,22 +82,14 @@ class CalculatorState {
     String? editOriginalChooserId,
     RuleVariants ruleVariants = const RuleVariants(),
   }) {
-    final resolvedPlayers =
-        players ??
-        [
-          Player(name: ''),
-          Player(name: ''),
-          Player(name: ''),
-          Player(name: ''),
-        ];
-    return CalculatorState._(
+    return ActiveSession._(
       sessionId: sessionId,
       createdAt: createdAt,
-      updatedAt: updatedAt,
-      players: resolvedPlayers,
-      playerNames: List.unmodifiable([for (final p in resolvedPlayers) p.name]),
+      updatedAt: updatedAt ?? createdAt,
+      players: players,
+      playerNames: List.unmodifiable([for (final p in players) p.name]),
       firstDealerId: firstDealerId,
-      displayedPlayers: rotatedFromDealer(resolvedPlayers, firstDealerId),
+      displayedPlayers: rotatedFromDealer(players, firstDealerId),
       dealerId: dealerId,
       chooserId: chooserId,
       roundNumber: roundNumber,
@@ -107,7 +112,7 @@ class CalculatorState {
   // references are preserved when the underlying data hasn't changed, keeping
   // select() callbacks stable across unrelated state mutations.
   // ignore: prefer_const_constructors_in_immutables
-  const CalculatorState._({
+  const ActiveSession._({
     required this.sessionId,
     required this.createdAt,
     required this.updatedAt,
@@ -132,20 +137,16 @@ class CalculatorState {
     required this.ruleVariants,
   });
 
-  /// Unique ID for this game session; empty until a session is started via
-  /// [CalculatorNotifier.startNewGame] or restored via
-  /// [CalculatorNotifier.loadSession]. [CalculatorNotifier.reset] clears
-  /// it back to empty when the session is closed or deleted.
+  /// Unique ID for this game session.
   final String sessionId;
 
-  /// When this session was started; null until [CalculatorNotifier.startNewGame]
-  /// or [CalculatorNotifier.loadSession] populates it.
-  final DateTime? createdAt;
+  /// When this session was started.
+  final DateTime createdAt;
 
   /// Last time meaningful content was saved (completed round, player
   /// reorder, player/dealer name change). Not updated on load or on
   /// cancelled edits.
-  final DateTime? updatedAt;
+  final DateTime updatedAt;
 
   /// Players in seat order. UUIDs are stable across renames and reorders.
   final List<Player> players;
@@ -171,24 +172,21 @@ class CalculatorState {
   final String chooserId;
 
   // ---------------------------------------------------------------------------
-  // Computed seat-index getters — derived on demand from ID fields.
+  // Computed seat-index getters — derived on demand from ID fields via the
+  // shared throwing helper. These ID fields are always valid in an
+  // ActiveSession (the factory requires them; storage loads pass through
+  // _validateReferences), so seatIndexOf never throws here — a throw would
+  // mean a programming bug, which is exactly what we want surfaced.
   // ---------------------------------------------------------------------------
 
-  int _indexOf(String id) {
-    final i = players.indexWhere((p) => p.id == id);
-    // Empty string is the "not yet set" sentinel — don't assert on it.
-    assert(id.isEmpty || i >= 0, 'Player ID "$id" not in player list');
-    return i < 0 ? 0 : i;
-  }
-
   /// Seat index (0–3) of the current dealer.
-  int get dealerIndex => _indexOf(dealerId);
+  int get dealerIndex => seatIndexOf(players, dealerId);
 
   /// Seat index (0–3) of the current chooser.
-  int get chooserIndex => _indexOf(chooserId);
+  int get chooserIndex => seatIndexOf(players, chooserId);
 
   /// Seat index (0–3) of the round-1 dealer.
-  int get firstDealerIndex => _indexOf(firstDealerId);
+  int get firstDealerIndex => seatIndexOf(players, firstDealerId);
 
   /// Position of the chooser within [displayedPlayers] (0–3).
   int get displayedChooserIndex => seatIndexOf(displayedPlayers, chooserId);
@@ -217,18 +215,21 @@ class CalculatorState {
   bool get hasPendingGame => pending is ActivePendingRound && result == null;
 
   /// True when the pending (interrupted) game has meaningful input — i.e. the
-  /// user actually entered something beyond the defaults.
+  /// user actually entered something beyond the defaults (scores or doubles).
   bool get hasMeaningfulPendingInput {
     final p = pending;
     if (p is! ActivePendingRound) return false;
+    if (p.doubles.hasAnyDouble) return true;
     final gameInput = p.input;
     if (gameInput == null) return false;
     return !p.game.inputDescriptor.isEmpty(gameInput);
   }
 
-  /// Intermediate score shown while the player is still entering counts.
-  /// Only set for [CountsInputDescriptor] games when the sum is > 0 but
-  /// < [CountsInputDescriptor.total]. Null for recipient games.
+  /// Intermediate score shown while the round is partway entered (see
+  /// [InputState.partial]): for [CountsInputDescriptor] games when the sum is
+  /// > 0 but < [CountsInputDescriptor.total], and for the two-slot 7e/13e
+  /// recipient game when exactly one slot is filled. Null for single-slot
+  /// recipient games, which are only ever empty or complete.
   final ScoreResult? partialResult;
 
   /// Non-null when the user is re-editing an already-scored round; holds the
@@ -290,7 +291,7 @@ class CalculatorState {
     return InputState.partial;
   }
 
-  CalculatorState copyWith({
+  ActiveSession copyWith({
     String? sessionId,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -327,7 +328,7 @@ class CalculatorState {
     final newDisplayedPlayers = (players != null || firstDealerId != null)
         ? rotatedFromDealer(newPlayers, newFirstDealerId)
         : displayedPlayers;
-    return CalculatorState._(
+    return ActiveSession._(
       sessionId: sessionId ?? this.sessionId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -373,7 +374,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       _autosaveTimer?.cancel();
       _autosaveTimer = null;
     });
-    return CalculatorState();
+    return const NoSession();
   }
 
   /// Pending debounced autosave timer. We coalesce bursts of state mutations
@@ -383,6 +384,9 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   Timer? _autosaveTimer;
   static const _autosaveDebounce = Duration(milliseconds: 400);
 
+  /// Convenience accessor — only valid while a session is active.
+  ActiveSession get _session => state as ActiveSession;
+
   @override
   set state(CalculatorState newState) {
     super.state = newState;
@@ -390,14 +394,14 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   void _scheduleAutosave() {
-    if (state.sessionId.isEmpty) return;
+    if (state is NoSession) return;
     _autosaveTimer?.cancel();
     _autosaveTimer = Timer(_autosaveDebounce, _autosave);
   }
 
   Future<void> _autosave() async {
     _autosaveTimer = null;
-    if (state.sessionId.isEmpty) return;
+    if (state is NoSession) return;
     final session = buildSession();
     if (session == null) return;
     try {
@@ -410,10 +414,11 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Flushes a pending debounced autosave for the currently loaded session
   /// when it is about to be replaced by [incomingId].
-  void _flushPendingAutosaveForOutgoingSession({required String incomingId}) {
+  void _flushPendingAutosaveForOutgoingSession({String? incomingId}) {
     if (_autosaveTimer == null) return;
-    final outgoingId = state.sessionId;
-    if (outgoingId.isEmpty || outgoingId == incomingId) return;
+    final s = state;
+    if (s is! ActiveSession) return;
+    if (incomingId != null && s.sessionId == incomingId) return;
     _autosaveTimer!.cancel();
     _autosaveTimer = null;
     final outgoing = buildSession();
@@ -427,9 +432,9 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   void setPlayerName(int index, String name) {
-    final updated = List<Player>.from(state.players);
+    final updated = List<Player>.from(_session.players);
     updated[index] = updated[index].copyWith(name: name);
-    state = state.copyWith(players: updated, updatedAt: DateTime.now());
+    state = _session.copyWith(players: updated, updatedAt: DateTime.now());
   }
 
   /// Atomically applies a full player reorder + name updates + dealer change.
@@ -439,8 +444,9 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// [firstDealerIdx] is the seat index of the player who dealt round 1.
   /// The current-round dealer is derived from that via the rotation formula.
   void setPlayersAndDealer(List<Player> players, int firstDealerIdx) {
-    final nextDealerIdx = (firstDealerIdx + state.history.length) % playerCount;
-    state = state.copyWith(
+    final nextDealerIdx =
+        (firstDealerIdx + _session.history.length) % playerCount;
+    state = _session.copyWith(
       players: players,
       firstDealerId: players[firstDealerIdx].id,
       dealerId: players[nextDealerIdx].id,
@@ -450,27 +456,26 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   void setDealer(int index) {
     // Back-compute firstDealerId so the next round's dealer is players[index].
-    final n = state.history.length;
+    final n = _session.history.length;
     final firstDealerIdx =
         ((index - n) % playerCount + playerCount) % playerCount;
-    state = state.copyWith(
-      firstDealerId: state.players[firstDealerIdx].id,
-      dealerId: state.players[index].id,
+    state = _session.copyWith(
+      firstDealerId: _session.players[firstDealerIdx].id,
+      dealerId: _session.players[index].id,
     );
   }
 
   void setChooser(int index) {
-    state = state.copyWith(chooserId: state.players[index].id);
+    state = _session.copyWith(chooserId: _session.players[index].id);
     _recalculate();
   }
 
   void selectGame(MiniGame game) {
     // If we're resuming the same game that was interrupted, restore partial input.
-    final p = state.pending;
-    if (p is ActivePendingRound &&
-        p.game.id == game.id &&
-        state.result == null) {
-      state = state.copyWith(
+    final s = _session;
+    final p = s.pending;
+    if (p is ActivePendingRound && p.game.id == game.id && s.result == null) {
+      state = s.copyWith(
         selectedGame: game,
         input: p.input,
         doubles: p.doubles,
@@ -479,11 +484,11 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       return;
     }
 
-    final defaults = game.inputDescriptor.defaults(state.players);
+    final defaults = game.inputDescriptor.defaults(s.players);
 
-    state = state.copyWith(
+    state = s.copyWith(
       selectedGame: game,
-      chooserId: state.players[(state.dealerIndex + 1) % playerCount].id,
+      chooserId: s.players[(s.dealerIndex + 1) % playerCount].id,
       input: defaults,
       doubles: const DoubleMatrix(),
       clearResult: true,
@@ -492,12 +497,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     );
   }
 
-  /// Shared exit path used by [deselectGame], [discardGame], [cancelEditRound]
-  /// and [rollbackLastRound]. Clears every slot/edit field, then derives
-  /// `dealerId`, `roundNumber` and `chooserId` from [newHistory] and
-  /// [CalculatorState.firstDealerId].
-  CalculatorState _exitSlot(
-    CalculatorState s, {
+  /// Shared exit path used by [deselectGame], [discardGame], [exitPendingSlot],
+  /// [deleteLastRound] and [cancelEditRound]. Clears every slot/edit field, then
+  /// derives `dealerId`, `roundNumber` and `chooserId` from [newHistory] and
+  /// [ActiveSession.firstDealerId].
+  ActiveSession _exitSlot(
+    ActiveSession s, {
     required List<RoundRecord> newHistory,
     bool historyChanged = false,
     PendingRoundState? overridePending,
@@ -537,7 +542,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   ///   3. New round, result present: append to history, advance dealer/round.
   ///   4. New round, no result but has a selected game: stash as pending.
   void deselectGame() {
-    final s = state;
+    final s = _session;
     final editIndex = s.editingRoundIndex;
 
     if (editIndex != null) {
@@ -599,7 +604,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// the user can switch to a different game. When editing a completed round
   /// (via [restoreRound]), the history is left unchanged.
   void discardGame() {
-    final s = state;
+    final s = _session;
     final p = s.pending;
     final clearPending =
         p is ActivePendingRound && s.selectedGame?.id == p.game.id;
@@ -615,20 +620,21 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// [updateDoubles] already write through to [ActivePendingRound], so the
   /// stash is always current and no extra copy is needed here.
   void exitPendingSlot() {
-    final s = state;
+    final s = _session;
     state = _exitSlot(s, newHistory: s.history, overridePending: s.pending);
   }
 
   /// Deletes the last completed round from history, rolling dealer/round back.
   void deleteLastRound() {
-    if (state.history.isEmpty) return;
-    final newHistory = state.history.sublist(0, state.history.length - 1);
-    state = _exitSlot(state, newHistory: newHistory, historyChanged: true);
+    final s = _session;
+    if (s.history.isEmpty) return;
+    final newHistory = s.history.sublist(0, s.history.length - 1);
+    state = _exitSlot(s, newHistory: newHistory, historyChanged: true);
   }
 
   void updateInput(GameInput input) {
-    if (state.input == input) return;
-    final s = state;
+    final s = _session;
+    if (s.input == input) return;
     final p = s.pending;
     state = p is ActivePendingRound && s.selectedGame?.id == p.game.id
         ? s.copyWith(
@@ -644,8 +650,8 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   void updateDoubles(DoubleMatrix doubles) {
-    if (state.doubles == doubles) return;
-    final s = state;
+    final s = _session;
+    if (s.doubles == doubles) return;
     final p = s.pending;
     state = p is ActivePendingRound && s.selectedGame?.id == p.game.id
         ? s.copyWith(
@@ -661,18 +667,19 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   /// Restores a past round for re-editing. Loads the round's data into the
-  /// input slot and tags [CalculatorState.editingRoundIndex] with its position
+  /// input slot and tags [ActiveSession.editingRoundIndex] with its position
   /// in [history]; the history list itself is left untouched.
   void restoreRound(RoundRecord record) {
-    final index = state.history.indexWhere(
+    final s = _session;
+    final index = s.history.indexWhere(
       (r) => r.roundNumber == record.roundNumber,
     );
     assert(index >= 0, 'restoreRound: record not found in history');
     if (index < 0) return;
-    final safeChooserIdx = seatIndexOf(state.players, record.chooserId);
-    final dealerIdx = dealerIndexFor(safeChooserIdx);
-    state = state.copyWith(
-      dealerId: state.players[dealerIdx].id,
+    final chooserIdx = seatIndexOf(s.players, record.chooserId);
+    final dealerIdx = dealerIndexFor(chooserIdx);
+    state = s.copyWith(
+      dealerId: s.players[dealerIdx].id,
       chooserId: record.chooserId,
       roundNumber: record.roundNumber,
       selectedGame: record.game,
@@ -690,21 +697,23 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// Cancels an in-progress edit. Because [history] was never mutated during
   /// the edit, this just clears the slot and recomputes from history.
   void cancelEditRound() {
-    if (state.editingRoundIndex == null) return;
-    state = _exitSlot(state, newHistory: state.history);
+    final s = _session;
+    if (s.editingRoundIndex == null) return;
+    state = _exitSlot(s, newHistory: s.history);
   }
 
   /// Recalculates the result whenever the state changes, or clears it if input
   /// is no longer valid. Skips emitting when the result is unchanged.
   void _recalculate() {
-    final game = state.selectedGame;
+    final s = _session;
+    final game = s.selectedGame;
     if (game == null) return;
 
-    if (state.inputState == InputState.complete) {
+    if (s.inputState == InputState.complete) {
       final result = game.calculateScores(
-        input: state.input!,
-        doubles: state.doubles,
-        players: state.players,
+        input: s.input!,
+        doubles: s.doubles,
+        players: s.players,
       );
       assert(
         result.scores.values.fold(0, (a, b) => a + b) == game.totalPoints,
@@ -712,25 +721,42 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
         'got ${result.scores.values.fold(0, (a, b) => a + b)}, '
         'expected ${game.totalPoints}',
       );
-      if (state.result == result && state.partialResult == null) return;
-      state = state.copyWith(result: result, clearPartialResult: true);
-    } else if (state.inputState == InputState.partial) {
+      if (s.result == result && s.partialResult == null) return;
+      state = s.copyWith(result: result, clearPartialResult: true);
+    } else if (s.inputState == InputState.partial) {
       final partial = game.calculateScores(
-        input: state.input!,
-        doubles: state.doubles,
-        players: state.players,
+        input: s.input!,
+        doubles: s.doubles,
+        players: s.players,
       );
-      if (state.partialResult == partial && state.result == null) return;
-      state = state.copyWith(clearResult: true, partialResult: partial);
+      if (s.partialResult == partial && s.result == null) return;
+      state = s.copyWith(clearResult: true, partialResult: partial);
     } else {
-      if (state.result != null || state.partialResult != null) {
-        state = state.copyWith(clearResult: true, clearPartialResult: true);
+      if (s.result != null || s.partialResult != null) {
+        state = s.copyWith(clearResult: true, clearPartialResult: true);
       }
     }
   }
 
   void reset() {
-    state = CalculatorState();
+    _autosaveTimer?.cancel();
+    _autosaveTimer = null;
+    state = const NoSession();
+  }
+
+  /// Cancels any pending debounced autosave without saving. Used before
+  /// intentional deletion so the timer cannot re-save the about-to-be-deleted
+  /// session after the pop.
+  void cancelPendingAutosave() {
+    _autosaveTimer?.cancel();
+    _autosaveTimer = null;
+  }
+
+  /// Flushes any pending debounced autosave and transitions to [NoSession].
+  /// Called from [GameScreen]'s dispose when the user leaves via back-navigation.
+  void flushAndReset() {
+    _flushPendingAutosaveForOutgoingSession();
+    state = const NoSession();
   }
 
   /// Starts a brand-new game session: resets all transient state, applies the
@@ -740,11 +766,11 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     required int dealerIndex,
     RuleVariants ruleVariants = const RuleVariants(),
   }) {
+    _flushPendingAutosaveForOutgoingSession();
     final now = DateTime.now();
-    state = CalculatorState(
+    state = ActiveSession(
       sessionId: '${now.microsecondsSinceEpoch}',
       createdAt: now,
-      updatedAt: now,
       players: List<Player>.from(players),
       firstDealerId: players[dealerIndex].id,
       dealerId: players[dealerIndex].id,
@@ -755,33 +781,33 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Builds a [GameSession] from the current state.
   ///
-  /// Returns `null` when [CalculatorState.sessionId] is still empty — i.e.
-  /// before [startNewGame] or [loadSession] has assigned an id.
+  /// Returns `null` when there is no active session — i.e. before
+  /// [startNewGame] or [loadSession] has been called.
   GameSession? buildSession() {
-    if (state.sessionId.isEmpty) return null;
-    final now = DateTime.now();
+    final s = state;
+    if (s is! ActiveSession) return null;
 
     PendingRound? pendingRound;
-    final p = state.pending;
+    final p = s.pending;
     if (p is ActivePendingRound) {
       pendingRound = PendingRound(
         gameId: p.game.id,
         gameName: p.game.name,
-        chooserId: state.chooserId,
+        chooserId: s.chooserId,
         input: p.input,
         doublesJson: p.doubles.hasAnyDouble ? p.doubles.toJson() : null,
       );
     }
 
     return GameSession(
-      id: state.sessionId,
-      createdAt: state.createdAt ?? now,
-      updatedAt: state.updatedAt ?? state.createdAt ?? now,
-      players: state.players,
-      firstDealerId: state.firstDealerId,
-      ruleVariants: state.ruleVariants,
+      id: s.sessionId,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      players: s.players,
+      firstDealerId: s.firstDealerId,
+      ruleVariants: s.ruleVariants,
       pendingRound: pendingRound,
-      rounds: state.history,
+      rounds: s.history,
     );
   }
 
@@ -790,11 +816,11 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     _flushPendingAutosaveForOutgoingSession(incomingId: session.id);
 
     final players = session.players;
-    final safeInitialIdx = seatIndexOf(players, session.firstDealerId);
+    final initialDealerIdx = seatIndexOf(players, session.firstDealerId);
 
     final history = session.rounds;
 
-    final nextDealerIdx = (safeInitialIdx + history.length) % playerCount;
+    final nextDealerIdx = (initialDealerIdx + history.length) % playerCount;
     final nextRound = history.length + 1;
 
     PendingRoundState pendingState = const NoPendingRound();
@@ -814,18 +840,14 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
           doubles: pendingDoubles,
         );
         chooserId = savedPending.chooserId;
-        // Derive dealer from chooser per game rules.
-        final chooserIdx = players.indexWhere(
-          (p) => p.id == savedPending.chooserId,
-        );
-        final safeChooserIdx = chooserIdx < 0
-            ? (nextDealerIdx + 1) % playerCount
-            : chooserIdx;
-        dealerId = players[dealerIndexFor(safeChooserIdx)].id;
+        // Derive dealer from chooser per game rules. chooserId is guaranteed
+        // in players by _validateReferences at load time.
+        final chooserIdx = seatIndexOf(players, savedPending.chooserId);
+        dealerId = players[dealerIndexFor(chooserIdx)].id;
       }
     }
 
-    state = CalculatorState(
+    state = ActiveSession(
       sessionId: session.id,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
@@ -842,16 +864,16 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Updates the [StarterVariant] for the current session.
   void setStarterVariant(StarterVariant variant) {
-    state = state.copyWith(
-      ruleVariants: state.ruleVariants.copyWith(starterVariant: variant),
+    state = _session.copyWith(
+      ruleVariants: _session.ruleVariants.copyWith(starterVariant: variant),
       updatedAt: DateTime.now(),
     );
   }
 
   /// Updates the [HeartsVariant] for the current session.
   void setHeartsVariant(HeartsVariant variant) {
-    state = state.copyWith(
-      ruleVariants: state.ruleVariants.copyWith(heartsVariant: variant),
+    state = _session.copyWith(
+      ruleVariants: _session.ruleVariants.copyWith(heartsVariant: variant),
       updatedAt: DateTime.now(),
     );
   }
@@ -861,3 +883,19 @@ final calculatorProvider =
     NotifierProvider<CalculatorNotifier, CalculatorState>(
       CalculatorNotifier.new,
     );
+
+/// Narrows [calculatorProvider] to its [ActiveSession] state for the
+/// session-bound screens (GameScreen, RoundInputScreen, EditGameScreen), which
+/// only ever run while a game is in progress. They watch
+/// `activeSessionProvider.select(...)` instead of casting `state as
+/// ActiveSession` in every callback — the cast lives here, in one place.
+///
+/// `autoDispose` is deliberate: the provider is alive only while a screen is
+/// watching it. When the user leaves the game (back to Home), the last listener
+/// drops, this provider is torn down, and its own subscription to
+/// [calculatorProvider] goes with it — so the subsequent `NoSession` transition
+/// (see `GameScreen.dispose`) never re-runs the cast on a [NoSession] value. A
+/// plain `Provider` would keep that subscription and throw on the flip.
+final activeSessionProvider = Provider.autoDispose<ActiveSession>(
+  (ref) => ref.watch(calculatorProvider) as ActiveSession,
+);

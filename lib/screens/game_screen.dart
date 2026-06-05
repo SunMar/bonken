@@ -28,23 +28,62 @@ import '../widgets/primary_action_button.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/scoreboard_card.dart';
 import 'edit_game_screen.dart';
-import 'home_screen.dart';
 import 'round_input_screen.dart';
 
 // =============================================================================
 // GameScreen — top-level screen
 // =============================================================================
 
-class GameScreen extends ConsumerWidget {
+class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends ConsumerState<GameScreen> {
+  // ref.read and Notifier.state are both invalid in dispose(); capture the
+  // container and notifier in initState so dispose() can use them safely.
+  late ProviderContainer _container;
+  late CalculatorNotifier _notifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+    _notifier = ref.read(calculatorProvider.notifier);
+  }
+
+  @override
+  void dispose() {
+    // Riverpod cancels ref.watch subscriptions only after dispose() returns
+    // (in ConsumerStatefulElement.unmount). Calling flushAndReset() directly
+    // would flip the state to NoSession while activeSessionProvider (and the
+    // selects reading it) still hold ActiveSession casts → CastError. The
+    // post-frame callback fires after finalizeTree() has cancelled all
+    // subscriptions and autoDisposed activeSessionProvider, so the state change
+    // lands safely. The sessionId guard prevents resetting a session that was
+    // loaded between the pop and the callback.
+    final s = _container.read(calculatorProvider);
+    if (s is ActiveSession) {
+      final sessionId = s.sessionId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final current = _container.read(calculatorProvider);
+        if (current is ActiveSession && current.sessionId == sessionId) {
+          _notifier.flushAndReset();
+        }
+      });
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final starterVariant = ref.watch(
-      calculatorProvider.select((s) => s.ruleVariants.starterVariant),
+      activeSessionProvider.select((a) => a.ruleVariants.starterVariant),
     );
     final heartsVariant = ref.watch(
-      calculatorProvider.select((s) => s.ruleVariants.heartsVariant),
+      activeSessionProvider.select((a) => a.ruleVariants.heartsVariant),
     );
     return AppScaffold(
       appBar: AppBar(
@@ -81,8 +120,10 @@ class _GameSelectionBodyState extends ConsumerState<_GameSelectionBody> {
 
   @override
   Widget build(BuildContext context) {
-    final history = ref.watch(calculatorProvider.select((s) => s.history));
-    final chooserId = ref.watch(calculatorProvider.select((s) => s.chooserId));
+    final history = ref.watch(activeSessionProvider.select((a) => a.history));
+    final chooserId = ref.watch(
+      activeSessionProvider.select((a) => a.chooserId),
+    );
     final playedIds = history.map((r) => r.game.id).toSet();
 
     final isFinished = history.length >= GameSession.totalRounds;
@@ -247,8 +288,9 @@ class _GameTile extends ConsumerWidget {
     final textColor = scoreColor(isPositive ? 1 : -1, context);
 
     final pendingGameId = ref.watch(
-      calculatorProvider.select((s) {
-        final p = s.pending;
+      activeSessionProvider.select((a) {
+        if (!a.hasMeaningfulPendingInput) return null;
+        final p = a.pending;
         return p is ActivePendingRound ? p.game.id : null;
       }),
     );
@@ -305,7 +347,7 @@ class _GameTile extends ConsumerWidget {
                 color: isDisabled ? disabledOnSurface(cs) : null,
               ),
         onTap: () async {
-          final state = ref.read(calculatorProvider);
+          final state = ref.read(activeSessionProvider);
           // Pending game tile — resume directly.
           if (isPending) {
             ref.read(calculatorProvider.notifier).selectGame(game);
@@ -315,8 +357,8 @@ class _GameTile extends ConsumerWidget {
             );
             return;
           }
-          // Other games are blocked while a pending game exists.
-          if (state.hasPendingGame) {
+          // Other games are blocked while a pending game with meaningful input exists.
+          if (state.hasMeaningfulPendingInput) {
             await showInfoDialog(
               context,
               title: kRoundIncompleteTitle,
@@ -375,8 +417,8 @@ class _LiveScoreboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (history, displayedPlayers, updatedAt) = ref.watch(
-      calculatorProvider.select(
-        (s) => (s.history, s.displayedPlayers, s.updatedAt),
+      activeSessionProvider.select(
+        (a) => (a.history, a.displayedPlayers, a.updatedAt),
       ),
     );
 
@@ -418,13 +460,11 @@ class _LiveScoreboard extends ConsumerWidget {
     // Same appearance as the home-screen session card: date on the
     // left, action(s) on the right. The game screen adds an
     // "Spel bewerken" icon next to the delete action.
-    final headerLabel = updatedAt == null
-        ? Text(isFinished ? 'Eindstand' : 'Tussenstand', style: labelStyle)
-        : Text(
-            formatDate(updatedAt),
-            style: labelStyle,
-            overflow: TextOverflow.ellipsis,
-          );
+    final headerLabel = Text(
+      formatDate(updatedAt),
+      style: labelStyle,
+      overflow: TextOverflow.ellipsis,
+    );
 
     return Theme(
       data: mutedIconTheme,
@@ -463,15 +503,14 @@ class _LiveScoreboard extends ConsumerWidget {
   }
 
   // Delete-and-undo flow:
-  //   1. Snapshot the GameSession BEFORE the delete, so the snackbar's
+  //   1. Snapshot the GameSession BEFORE the delete so the snackbar's
   //      undo can re-save it byte-for-byte.
   //   2. Capture the ScaffoldMessenger + root ProviderContainer BEFORE
-  //      any await — both must outlive this widget, which gets disposed
-  //      by pushAndRemoveUntil below.
-  //   3. Delete from history, reset the calculator, then navigate to
-  //      HomeScreen.
-  //   4. Show the snackbar AFTER the navigation so it anchors to the
-  //      freshly-mounted HomeScreen.
+  //      any await — both must outlive this widget, which is unmounted
+  //      by the pop animation below.
+  //   3. Delete from history, reset the calculator, then pop back to
+  //      the existing HomeScreen (reuses it rather than a fresh one).
+  //   4. Show the snackbar after the pop so it anchors to HomeScreen.
   Future<void> _deleteGame(BuildContext context, WidgetRef ref) async {
     final confirm = await showConfirmDialog(
       context,
@@ -485,16 +524,11 @@ class _LiveScoreboard extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final container = ProviderScope.containerOf(context, listen: false);
     final session = ref.read(calculatorProvider.notifier).buildSession();
-    final sessionId = ref.read(calculatorProvider).sessionId;
+    final sessionId = ref.read(activeSessionProvider).sessionId;
+    ref.read(calculatorProvider.notifier).cancelPendingAutosave();
     await ref.read(gameHistoryProvider.notifier).deleteGame(sessionId);
     if (!context.mounted) return;
-    ref.read(calculatorProvider.notifier).reset();
-    unawaited(
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        (_) => false,
-      ),
-    );
+    Navigator.of(context).pop();
     if (session != null) {
       showGameDeletedSnackBar(messenger, container, session);
     }
@@ -514,7 +548,7 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
   }
 
   Future<void> _onPressed(BuildContext context, WidgetRef ref) async {
-    final state = ref.read(calculatorProvider);
+    final state = ref.read(activeSessionProvider);
     final names = List<String>.from(state.playerNames);
     final previousDealer = state.dealerIndex;
 
@@ -580,8 +614,8 @@ class _HistoryList extends ConsumerWidget {
     // not on every input keystroke / chooser tap / etc. The list of player
     // names is referenced by every row but stays constant during gameplay.
     final (history, displayedPlayers, hasPendingGame) = ref.watch(
-      calculatorProvider.select(
-        (s) => (s.history, s.displayedPlayers, s.hasPendingGame),
+      activeSessionProvider.select(
+        (a) => (a.history, a.displayedPlayers, a.hasPendingGame),
       ),
     );
     if (history.isEmpty) return const SizedBox.shrink();
@@ -657,7 +691,7 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
-    final safeChooserIdx = seatIndexOf(players, record.chooserId);
+    final chooserIdx = seatIndexOf(players, record.chooserId);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -670,13 +704,13 @@ class _HistoryRow extends StatelessWidget {
                 record: record,
                 playerNames: playerNames,
                 cs: cs,
-                chooserIndex: safeChooserIdx,
+                chooserIndex: chooserIdx,
               ),
               if (record.doubles.hasAnyDouble)
                 DoublesChips(
                   doubles: record.doubles,
                   players: players,
-                  chooserIndex: safeChooserIdx,
+                  chooserIndex: chooserIdx,
                 ),
             ],
           ),
@@ -779,13 +813,13 @@ class _RoundInfoBanner extends ConsumerWidget {
     // state — keeps the banner off the per-keystroke rebuild path.
     final (round, dealerName, chooserName, starterName, roundsPlayed) = ref
         .watch(
-          calculatorProvider.select(
-            (s) => (
-              s.roundNumber,
-              s.playerNames[s.dealerIndex],
-              s.playerNames[(s.dealerIndex + 1) % playerCount],
-              s.playerNames[s.starterIndex],
-              s.history.length,
+          activeSessionProvider.select(
+            (a) => (
+              a.roundNumber,
+              a.playerNames[a.dealerIndex],
+              a.playerNames[(a.dealerIndex + 1) % playerCount],
+              a.playerNames[a.starterIndex],
+              a.history.length,
             ),
           ),
         );
