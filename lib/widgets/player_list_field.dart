@@ -124,7 +124,6 @@ class DealerDropdownField extends StatelessWidget {
     required this.controllers,
     required this.value,
     required this.onChanged,
-    this.hintText,
     this.allowRandomDealer = false,
   }) : assert(controllers.length == playerCount);
 
@@ -135,7 +134,6 @@ class DealerDropdownField extends StatelessWidget {
   /// player pick, or `null` when [allowRandomDealer] is true and the user
   /// picked the "Willekeurige deler" entry.
   final ValueChanged<int?> onChanged;
-  final String? hintText;
   final bool allowRandomDealer;
 
   /// Sentinel menu value for the "random dealer" entry.  Anything outside
@@ -144,13 +142,16 @@ class DealerDropdownField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final randomLabel = hintText ?? 'Willekeurige deler';
     // Material 3 `DropdownMenu` is the modern replacement for the M2-era
     // `DropdownButtonFormField`.  It draws an outlined text-field with a
     // trailing chevron and uses the M3 elevation/shape spec for the
     // dropdown overlay.  `requestFocusOnTap: false` keeps the on-screen
     // keyboard hidden — we want a picker, not text entry.  `expandedInsets`
     // makes the field fill the parent width (the default is intrinsic).
+    //
+    // No `hintText`: the field always has a selection (a player, or — when
+    // [allowRandomDealer] — the random entry as the default), so a placeholder
+    // would never show.
     return DropdownMenu<int>(
       key: ValueKey(value),
       initialSelection:
@@ -158,7 +159,6 @@ class DealerDropdownField extends StatelessWidget {
       enableSearch: false,
       requestFocusOnTap: false,
       expandedInsets: EdgeInsets.zero,
-      hintText: hintText,
       menuStyle: const MenuStyle(visualDensity: VisualDensity.compact),
       inputDecorationTheme: const InputDecorationTheme(
         isDense: true,
@@ -174,10 +174,10 @@ class DealerDropdownField extends StatelessWidget {
       },
       dropdownMenuEntries: [
         if (allowRandomDealer)
-          DropdownMenuEntry<int>(
+          const DropdownMenuEntry<int>(
             value: _randomDealerValue,
-            label: randomLabel,
-            leadingIcon: const Icon(Symbols.shuffle),
+            label: 'Willekeurige deler',
+            leadingIcon: Icon(Symbols.shuffle),
           ),
         for (int i = 0; i < playerCount; i++)
           DropdownMenuEntry<int>(

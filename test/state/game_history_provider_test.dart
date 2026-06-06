@@ -1045,6 +1045,54 @@ void main() {
       expect(score, 0);
       expect(score, isA<int>());
     });
+
+    test(
+      'version:7 migrates to current version with no gameName (null)',
+      () async {
+        final players = [
+          for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
+        ];
+        final ids = [for (final p in players) p.id];
+        // A genuine v7 record: no `gameName` key at all.
+        SharedPreferences.setMockInitialValues({
+          'game_history': jsonEncode({
+            'version': 7,
+            'games': [
+              {
+                'id': 'v7sess',
+                'createdAt': '2024-01-01T00:00:00.000',
+                'updatedAt': '2024-01-01T00:00:00.000',
+                'players': [for (final p in players) p.toJson()],
+                'firstDealerId': ids[0],
+                'ruleVariants': {
+                  'starterVariant': 'dealerStarts',
+                  'heartsVariant': 'onlyAfterPlayedHeart',
+                },
+                'rounds': <dynamic>[],
+              },
+            ],
+          }),
+        });
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        final list = await c.read(gameHistoryProvider.future);
+
+        // The no-op step changes nothing; a v7 game has no name → loads as null.
+        expect(list.length, 1);
+        expect(list.first.gameName, isNull);
+
+        // On disk the chain reaches the current version; with a null name the
+        // key stays omitted (omit-when-null serialization).
+        final prefs = await SharedPreferences.getInstance();
+        final written =
+            jsonDecode(prefs.getString('game_history')!)
+                as Map<String, dynamic>;
+        expect(written['version'], currentStorageVersion);
+        final game =
+            (written['games'] as List<dynamic>).first as Map<String, dynamic>;
+        expect(game.containsKey('gameName'), isFalse);
+      },
+    );
   });
 
   group('playerNameSuggestions', () {

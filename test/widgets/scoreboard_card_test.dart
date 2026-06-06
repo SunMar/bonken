@@ -1,4 +1,5 @@
 import 'package:bonken/models/game_session.dart';
+import 'package:bonken/utils.dart';
 import 'package:bonken/widgets/scoreboard_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,8 +9,7 @@ import '_helpers.dart';
 
 void main() {
   group('ScoreboardCard', () {
-    Widget headerLabel(String text) =>
-        Text(text, overflow: TextOverflow.ellipsis);
+    final testDate = DateTime(2024, 6, 15);
 
     testWidgets(
       'mid-game state: progress glyph, no trophy, no winner highlight',
@@ -21,7 +21,7 @@ void main() {
             playerNames: playerNames,
             scores: const [10, 30, 20, 0],
             winners: const [],
-            headerLabel: headerLabel('Tussenstand'),
+            updatedAt: testDate,
           ),
         );
 
@@ -30,8 +30,8 @@ void main() {
         expect(find.byIcon(Symbols.emoji_events), findsNothing);
         // 5/12 = ~42% → clock_loader_40 (the 30..50% bucket).
         expect(find.byIcon(Symbols.clock_loader_40), findsOneWidget);
-        // Header label rendered, scores rendered with formatScore signs.
-        expect(find.text('Tussenstand'), findsOneWidget);
+        // Header date rendered, scores rendered with formatScore signs.
+        expect(find.text(formatDate(testDate)), findsOneWidget);
         expect(find.text('+10'), findsOneWidget);
         expect(find.text('+30'), findsOneWidget);
         expect(find.text('+20'), findsOneWidget);
@@ -49,14 +49,14 @@ void main() {
             playerNames: playerNames,
             scores: const [40, 100, 30, -10],
             winners: const [1],
-            headerLabel: headerLabel('Eindstand'),
+            updatedAt: testDate,
           ),
         );
 
         expect(find.byIcon(Symbols.check_circle), findsOneWidget);
         // Exactly one trophy — winner index 1 only.
         expect(find.byIcon(Symbols.emoji_events), findsOneWidget);
-        expect(find.text('Eindstand'), findsOneWidget);
+        expect(find.text(formatDate(testDate)), findsOneWidget);
         expect(find.text('-10'), findsOneWidget);
       },
     );
@@ -69,11 +69,45 @@ void main() {
           playerNames: playerNames,
           scores: const [50, 50, 30, 20],
           winners: const [0, 1],
-          headerLabel: headerLabel('Eindstand'),
+          updatedAt: testDate,
         ),
       );
 
       expect(find.byIcon(Symbols.emoji_events), findsNWidgets(2));
+    });
+
+    testWidgets('gameName set: name is primary header, date is subtitle', (
+      tester,
+    ) async {
+      await pumpHost(
+        tester,
+        ScoreboardCard(
+          roundsPlayed: 3,
+          playerNames: playerNames,
+          scores: const [0, 0, 0, 0],
+          winners: const [],
+          updatedAt: testDate,
+          gameName: 'Kerst 2024',
+        ),
+      );
+
+      expect(find.text('Kerst 2024'), findsOneWidget);
+      expect(find.text(formatDate(testDate)), findsOneWidget);
+    });
+
+    testWidgets('gameName null: only date shown in header', (tester) async {
+      await pumpHost(
+        tester,
+        ScoreboardCard(
+          roundsPlayed: 3,
+          playerNames: playerNames,
+          scores: const [0, 0, 0, 0],
+          winners: const [],
+          updatedAt: testDate,
+        ),
+      );
+
+      expect(find.text(formatDate(testDate)), findsOneWidget);
     });
 
     testWidgets('tappable card exposes button role and semantic label', (
@@ -87,7 +121,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          headerLabel: headerLabel('Tussenstand'),
+          updatedAt: testDate,
           onTap: () {},
           tapSemanticLabel: 'Open spel',
         ),
@@ -131,7 +165,7 @@ void main() {
             playerNames: playerNames,
             scores: const [0, 0, 0, 0],
             winners: const [],
-            headerLabel: headerLabel('Tussenstand'),
+            updatedAt: testDate,
           ),
         );
         expect(find.byType(InkWell), findsNothing);
@@ -145,7 +179,7 @@ void main() {
             playerNames: playerNames,
             scores: const [0, 0, 0, 0],
             winners: const [],
-            headerLabel: headerLabel('Tussenstand'),
+            updatedAt: testDate,
             onTap: () => taps++,
           ),
         );
@@ -165,7 +199,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          headerLabel: headerLabel('Tussenstand'),
+          updatedAt: testDate,
         ),
       );
       expect(find.byIcon(Symbols.delete), findsNothing);
@@ -177,7 +211,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          headerLabel: headerLabel('Tussenstand'),
+          updatedAt: testDate,
           headerTrailing: IconButton(
             icon: const Icon(Symbols.delete),
             onPressed: () {},
@@ -214,7 +248,7 @@ void main() {
             playerNames: playerNames,
             scores: const [0, 0, 0, 0],
             winners: const [],
-            headerLabel: headerLabel('Tussenstand'),
+            updatedAt: testDate,
           ),
         );
         expect(find.byIcon(glyph), findsOneWidget);

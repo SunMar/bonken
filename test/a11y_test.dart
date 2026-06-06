@@ -34,21 +34,36 @@ import 'test_helpers.dart';
 
 const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 
+RoundRecord _dominoesRound(int n, List<Player> players) => RoundRecord(
+  roundNumber: n,
+  game: const Dominoes(),
+  chooserId: players[1].id,
+  scoresByPlayer: {for (final p in players) p.id: 0},
+  input: const RecipientInput([null]),
+  doubles: const DoubleMatrix(),
+);
+
 GameSession _session(List<Player> players) => GameSession(
   id: 'seed',
   createdAt: DateTime(2024),
   updatedAt: DateTime(2024),
   players: players,
   firstDealerId: players[0].id,
+  rounds: [_dominoesRound(1, players)],
+);
+
+/// A finished (12-round) session with a name — exercises the finished-state UI
+/// (the share action in the app bar).
+GameSession _finishedSession(List<Player> players) => GameSession(
+  id: 'seed',
+  createdAt: DateTime(2024),
+  updatedAt: DateTime(2024),
+  gameName: 'Kerst 2024',
+  players: players,
+  firstDealerId: players[0].id,
   rounds: [
-    RoundRecord(
-      roundNumber: 1,
-      game: const Dominoes(),
-      chooserId: players[1].id,
-      scoresByPlayer: {for (final p in players) p.id: 0},
-      input: const RecipientInput([null]),
-      doubles: const DoubleMatrix(),
-    ),
+    for (int i = 1; i <= GameSession.totalRounds; i++)
+      _dominoesRound(i, players),
   ],
 );
 
@@ -122,6 +137,15 @@ void main() {
     final handle = tester.ensureSemantics();
     final players = [for (final n in _names) Player(name: n)];
     await _pump(tester, const GameScreen(), load: _session(players));
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('GameScreen (finished) meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    final players = [for (final n in _names) Player(name: n)];
+    // Finished state surfaces the share action in the app bar.
+    await _pump(tester, const GameScreen(), load: _finishedSession(players));
     await _expectA11y(tester);
     handle.dispose();
   });

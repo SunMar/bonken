@@ -218,7 +218,7 @@ lib/
                              CalculatorNotifier (the in-game state machine);
                              activeSessionProvider narrows it to ActiveSession.
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→v2→v3→v4→v5→v6→v7) + runner.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→…→v7→v8) + runner.
     theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
     default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
     default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
@@ -231,7 +231,8 @@ lib/
   screens/                   Full-screen routes (all use AppScaffold).
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
     new_game_screen.dart     Enter names (with suggestions) + pick first dealer + pick variants.
-    game_screen.dart         In-game hub: game selection, live scoreboard, history, edit/delete.
+    game_screen.dart         In-game hub: game selection, live scoreboard, history, edit/delete;
+                             share result (image/text) when finished.
     round_input_screen.dart  Per-round: chooser, doubles, input form, live/final result.
     edit_game_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
     rules_screen.dart        Renders rules content (full doc or single game); variant text and
@@ -413,7 +414,9 @@ keeping `RoundRecord` a catalog-free data class.
 The persisted aggregate: `id`, `createdAt`/`updatedAt`, `players`,
 `firstDealerId`, `ruleVariants` (a `RuleVariants` grouping the per-game
 `starterVariant` + `heartsVariant`), `rounds: List<RoundRecord>`,
-optional `pendingRound`.
+optional `pendingRound`, and an optional user-supplied `gameName` (shown on the
+scoreboard cards and in the shared result; never the empty string — null when
+unset).
 Lazily-computed (`late final`) derived getters: `isFinished` (≥ `totalRounds`
 == 12), `finalScoresByPlayer`, `winnerIds`, and the display-ordered
 `displayedPlayers` / `displayedPlayerNames` / `displayedScores` /
@@ -549,6 +552,7 @@ ActiveSession` at every call site — the cast lives once, in that provider. It 
 | stash | `pending: PendingRoundState` | sealed: `NoPendingRound` \| `ActivePendingRound{game,input,doubles}` |
 | edit | `editingRoundIndex`, `editOriginal{Input,Doubles,ChooserId}` | non-null while re-editing a past round |
 | rules | `ruleVariants: RuleVariants` | per-game `starterVariant` + `heartsVariant`, grouped (mirrors `GameSession`); `starterIndex` getter reads it |
+| label | `gameName` | optional user-supplied session name (mirrors `GameSession`); null when unset, never the empty string |
 
 Helper getters: `hasPendingGame`, `hasMeaningfulPendingInput`, `inputState`
 (`InputState{none,partial,complete}` via the descriptor), `isEditingExistingRound`,
@@ -561,7 +565,8 @@ preview** shown while a counts game is partway entered (0 < sum < total).
 `partialResult`; none → clear both. It skips emitting when the value is unchanged.
 
 **Notifier methods (the transitions):**
-- `startNewGame({players, dealerIndex, ruleVariants})` — fresh session id + reset.
+- `startNewGame({players, dealerIndex, ruleVariants, gameName})` — fresh session
+  id + reset.
 - `loadSession(session)` — restore a saved game; reconstructs `dealerId`/
   `chooserId`/`roundNumber` from `firstDealerId` + history length, and rehydrates
   any `pendingRound` into an `ActivePendingRound`.
@@ -585,6 +590,8 @@ preview** shown while a counts game is partway entered (0 < sum < total).
 - `setPlayersAndDealer` / `setDealer` / `setPlayerName` — player + dealer edits.
 - `setStarterVariant` / `setHeartsVariant` — update one field of `ruleVariants`
   (via `RuleVariants.copyWith`) for the current session.
+- `setGameName(name)` — set or clear the session's optional `gameName` (pass null
+  to clear).
 - `buildSession()` — snapshot state → `GameSession` (or `null` if no session id).
 - `reset()` — cancel autosave timer and clear to `NoSession` (without saving).
 - `cancelPendingAutosave()` — cancel the debounced timer without saving. Called
@@ -676,11 +683,12 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 7):** `{ "version": 7, "games": [ … ] }`.
+- **Envelope (`currentStorageVersion` = 8):** `{ "version": 8, "games": [ … ] }`.
 - `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
   `players:[{id,name}]`, `firstDealerId`,
   `ruleVariants:{starterVariant, heartsVariant}` (enum names), `rounds:[…]`,
-  `pendingRound?`.
+  `pendingRound?`, `gameName?` (optional user-supplied label; omitted when null,
+  like `pendingRound`).
 - `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
   `scores:{playerId:int}`, `input` (the **uniform** `{"counts":[ {uuid:int}, … ]}`
   form, regardless of game shape — see below), `doublesJson?` (omitted unless a
@@ -700,11 +708,12 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 6,
+  "version": 8,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
     "updatedAt": "2026-05-20T20:05:00.000",
+    "gameName": "Kerst 2024",
     "players": [
       {"id": "a1", "name": "Alice"}, {"id": "b2", "name": "Bob"},
       {"id": "c3", "name": "Carol"}, {"id": "d4", "name": "Dan"}
@@ -775,6 +784,12 @@ classes), so old steps keep working as the models evolve.
   `-0.0` (a double) rather than `0` (an int), violating the intended `int` type
   of scores. The source bug is fixed in `MiniGame.calculateScores`; this step
   repairs data written before that fix.
+- **`_V7ToV8`** — introduces the optional `gameName`. A **no-op** data step
+  (`apply` returns the games unchanged): `gameName` is serialised only when set
+  (omit-when-null), so a v7 game — which never had a name — is already a valid v8
+  game with no name. The bump exists only as a version gate, so an older v7-only
+  build refuses a v8 file (`version > currentStorageVersion` → "App bijwerken
+  vereist") instead of silently dropping a name a newer build wrote.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step
@@ -813,7 +828,13 @@ delegates are registered.
   hides when the toggle is on (the played tiles themselves provide the content).
   Per-chooser quota disabling and pending-round blocking
   remain as soft disables. Also contains `_LiveScoreboard`, a round-history list,
-  and edit-game / delete-game actions.
+  and edit-game / delete-game actions. When the game is **finished**, the app bar
+  shows a *Deel uitslag* (share) action that exports the result as a rendered PNG
+  (an off-screen `_ShareCard`, captured via `RepaintBoundary.toImage`) with a
+  plain-text fallback; a popup dialog offers an explicit image/text choice and a
+  `CustomSemanticsAction` exposes it to assistive tech. Uses `share_plus`
+  (+ `path_provider` for the temp file on mobile; the web branch uses
+  `XFile.fromData`).
 - **`RoundInputScreen`** — composed of focused `ConsumerWidget` cards
   (`_ChooserSelectorCard`, `_DoublesCard`, `_InputFormCard`,
   `_ScoreResultSection`), each declaring its own narrow `select`. Game-specific

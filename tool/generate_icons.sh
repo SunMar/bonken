@@ -111,6 +111,7 @@ done
 
 echo "==> Rendering source SVGs to 1024px PNGs"
 rsvg-convert -w 1024 assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken.png
+rsvg-convert -w 72   assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken_share.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_launcher.svg     -o assets/icon/icon_bonken_launcher.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o assets/icon/icon_bonken_adaptive_fg.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_bg.svg  -o assets/icon/icon_bonken_adaptive_bg.png

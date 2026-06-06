@@ -21,6 +21,7 @@ import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,6 +49,7 @@ GameSession _session({
   required List<Player> players,
   List<RoundRecord> rounds = const [],
   PendingRound? pendingRound,
+  String? gameName,
 }) => GameSession(
   id: 'seed',
   createdAt: DateTime(2024),
@@ -56,6 +58,7 @@ GameSession _session({
   firstDealerId: players[0].id,
   rounds: rounds,
   pendingRound: pendingRound,
+  gameName: gameName,
 );
 
 Future<ProviderContainer> _pump(
@@ -128,6 +131,112 @@ void main() {
     expect(find.text('Nieuw spel met dezelfde spelers'), findsOneWidget);
     expect(find.text('Negatieve spellen'), findsNothing);
     expect(find.text('Positieve spellen'), findsNothing);
+  });
+
+  group('share (finished game)', () {
+    List<Player> mkPlayers() => [for (final n in _names) Player(name: n)];
+
+    // 12 rounds so the game reads as finished. firstDealer = players[0] ⇒
+    // display order is seat order, so per-player totals land in seat order.
+    List<RoundRecord> finishedRounds(List<Player> players) => [
+      for (int i = 0; i < GameSession.totalRounds; i++)
+        _round(i + 1, allGames[i], players[1].id, players),
+    ];
+
+    test('rankScores: highest first, ties keep seat (display) order', () {
+      final players = mkPlayers();
+      final rounds = [
+        RoundRecord(
+          roundNumber: 1,
+          game: const Duck(),
+          chooserId: players[1].id,
+          // Alice 10, Bob 30, Carol 30, Dan 0 — Bob/Carol tie at the top.
+          scoresByPlayer: {
+            players[0].id: 10,
+            players[1].id: 30,
+            players[2].id: 30,
+            players[3].id: 0,
+          },
+          input: const Duck().inputDescriptor.defaults(players),
+          doubles: const DoubleMatrix(),
+        ),
+      ];
+      final session = _session(players: players, rounds: rounds);
+      final ranked = rankScores(session.rounds, session.displayedPlayers);
+
+      expect(
+        [for (final e in ranked) e.name],
+        ['Bob', 'Carol', 'Alice', 'Dan'],
+      );
+      // The 30-30 tie resolves to seat order (Bob seat 1 before Carol seat 2),
+      // deterministically — not whatever order sort happens to leave.
+      expect(ranked[0].seat, lessThan(ranked[1].seat));
+    });
+
+    test('buildShareText: header, name, date, trophy on the (tied) max', () {
+      const entries = [
+        (name: 'Bob', score: 30, seat: 1),
+        (name: 'Carol', score: 30, seat: 2),
+        (name: 'Alice', score: 10, seat: 0),
+        (name: 'Dan', score: 0, seat: 3),
+      ];
+      final date = DateTime(2024, 6, 15);
+      final lines = buildShareText(
+        gameName: 'Kerst 2024',
+        updatedAt: date,
+        entries: entries,
+      ).split('\n');
+
+      expect(lines[0], 'Bonken uitslag');
+      expect(lines[1], 'Kerst 2024');
+      expect(lines[2], formatDate(date));
+      // Both leaders get the trophy (ties shared); the rest do not.
+      expect(lines[3], 'Bob  30 pt 🏆');
+      expect(lines[4], 'Carol  30 pt 🏆');
+      expect(lines[5], 'Alice  10 pt');
+      expect(lines[6], 'Dan  0 pt');
+    });
+
+    test('buildShareText: omits the name line when gameName is null', () {
+      const entries = [(name: 'Alice', score: 5, seat: 0)];
+      // gameName omitted (defaults to null).
+      final text = buildShareText(updatedAt: DateTime(2024), entries: entries);
+      final lines = text.split('\n');
+      // Date follows the header directly — no blank/`null` name line.
+      expect(lines[1], formatDate(DateTime(2024)));
+      expect(text, isNot(contains('null')));
+    });
+
+    testWidgets('share action is absent until the game is finished', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      await _pump(tester, session: _session(players: players));
+      expect(find.byIcon(Symbols.share), findsNothing);
+    });
+
+    testWidgets('finished game shows the share action; long-press opens the '
+        'format dialog', (tester) async {
+      final players = mkPlayers();
+      await _pump(
+        tester,
+        session: _session(
+          players: players,
+          rounds: finishedRounds(players),
+          gameName: 'Kerst 2024',
+        ),
+      );
+      expect(find.byIcon(Symbols.share), findsOneWidget);
+
+      await tester.longPress(find.byIcon(Symbols.share));
+      await tester.pumpAndSettle();
+
+      // The popup dialog (not a menu) offers both formats plus a cancel action.
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('Afbeelding'), findsOneWidget);
+      expect(find.text('Tekst'), findsOneWidget);
+      expect(find.text('Annuleren'), findsOneWidget);
+    });
   });
 
   testWidgets(

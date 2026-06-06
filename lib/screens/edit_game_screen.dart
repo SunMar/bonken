@@ -16,6 +16,7 @@ import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
+import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
 import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
@@ -60,6 +61,8 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   late final StarterVariant _originalStarterVariant;
   late HeartsVariant _heartsVariant;
   late final HeartsVariant _originalHeartsVariant;
+  late final TextEditingController _nameController;
+  late final String _originalName;
   // Listenable that fires on any controller text change. Combined with
   // `setState`-driven dealer/reorder updates, this is what the outer
   // [ListenableBuilder] subscribes to so [PopScope.canPop] stays in sync
@@ -83,7 +86,9 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     _originalControllerOrder = List.unmodifiable(_controllers);
     _originalTexts = [for (final c in _controllers) c.text.trim()];
     _focusNodes = List.generate(playerCount, (_) => FocusNode());
-    _formChanges = Listenable.merge(_controllers);
+    _nameController = TextEditingController(text: state.gameName ?? '');
+    _originalName = state.gameName ?? '';
+    _formChanges = Listenable.merge([..._controllers, _nameController]);
   }
 
   bool get _orderChanged => !listEquals(_controllers, _originalControllerOrder);
@@ -106,7 +111,8 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
       ) ||
       _firstDealerIndex != _originalFirstDealerIndex ||
       _starterVariant != _originalStarterVariant ||
-      _heartsVariant != _originalHeartsVariant;
+      _heartsVariant != _originalHeartsVariant ||
+      _nameController.text.trim() != _originalName;
 
   @override
   void dispose() {
@@ -116,6 +122,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     for (final n in _focusNodes) {
       n.dispose();
     }
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -217,10 +224,12 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
           );
         }(),
     ];
+    final trimmedName = _nameController.text.trim();
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.setPlayersAndDealer(newPlayers, _firstDealerIndex);
     notifier.setStarterVariant(_starterVariant);
     notifier.setHeartsVariant(_heartsVariant);
+    notifier.setGameName(trimmedName.isEmpty ? null : trimmedName);
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -313,6 +322,8 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            GameNameField(controller: _nameController),
             const SizedBox(height: 12),
             GameRulesCard(
               starterVariant: _starterVariant,

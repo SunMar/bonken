@@ -133,7 +133,6 @@ void main() {
           controllers: controllers,
           value: null,
           onChanged: (_) {},
-          hintText: 'Pick',
         ),
       );
       await tester.tap(find.byType(DealerDropdownField));
@@ -152,7 +151,6 @@ void main() {
           controllers: controllers,
           value: null,
           onChanged: (v) => picked = v,
-          hintText: 'Pick',
         ),
       );
       await tester.tap(find.byType(DealerDropdownField));

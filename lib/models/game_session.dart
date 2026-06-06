@@ -12,6 +12,34 @@ List<Map<String, int>> _countsFromInputJson(Map<String, dynamic>? inputJson) {
   return [for (final m in raw) (m as Map).cast<String, int>()];
 }
 
+/// Per-player cumulative score, summed across [rounds], in the order of
+/// [ordered]: result index `i` is the total for `ordered[i]` (missing per-round
+/// scores count as 0).
+///
+/// The single source of truth for "sum the rounds per player" — used by
+/// [GameSession]'s derived totals and by the in-game scoreboard / share views.
+List<int> cumulativeTotals(Iterable<RoundRecord> rounds, List<Player> ordered) {
+  final totals = List<int>.filled(ordered.length, 0);
+  for (final r in rounds) {
+    for (int i = 0; i < ordered.length; i++) {
+      totals[i] += r.scoresByPlayer[ordered[i].id] ?? 0;
+    }
+  }
+  return totals;
+}
+
+/// Indices into [totals] holding the maximum value — the leader(s); ties are
+/// shared. Empty when [totals] is empty. Callers decide *when* a leader should
+/// be crowned (e.g. only once the game is finished).
+List<int> leaderIndices(List<int> totals) {
+  if (totals.isEmpty) return const [];
+  final best = totals.reduce((a, b) => a > b ? a : b);
+  return [
+    for (int i = 0; i < totals.length; i++)
+      if (totals[i] == best) i,
+  ];
+}
+
 /// A mini-game round that was started but not fully scored.
 /// Stored inside [GameSession] so partial input survives app restarts.
 class PendingRound {
@@ -71,12 +99,17 @@ class GameSession {
     required this.rounds,
     this.pendingRound,
     this.ruleVariants = const RuleVariants(),
+    this.gameName,
   });
 
   /// Unique identifier – microseconds-since-epoch string generated at start.
   final String id;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Optional user-supplied name for this game session. Never the empty string
+  /// — callers must pass null rather than `''`.
+  final String? gameName;
 
   /// The four players in seat order.
   final List<Player> players;
@@ -125,34 +158,27 @@ class GameSession {
 
   /// Cumulative score for each player, keyed by player ID.
   late final Map<String, int> finalScoresByPlayer = () {
-    final totals = <String, int>{for (final p in players) p.id: 0};
-    for (final r in rounds) {
-      for (final p in players) {
-        totals[p.id] = totals[p.id]! + (r.scoresByPlayer[p.id] ?? 0);
-      }
-    }
-    return Map<String, int>.unmodifiable(totals);
+    final totals = cumulativeTotals(rounds, players);
+    return Map<String, int>.unmodifiable({
+      for (int i = 0; i < players.length; i++) players[i].id: totals[i],
+    });
   }();
 
   /// Cumulative scores in display order.
-  late final List<int> displayedScores = [
-    for (final p in displayedPlayers) finalScoresByPlayer[p.id] ?? 0,
-  ];
+  late final List<int> displayedScores = cumulativeTotals(
+    rounds,
+    displayedPlayers,
+  );
+
+  /// Indices of winner(s) within [displayedPlayers] — for use with
+  /// [ScoreboardCard]. Empty before any round is played (no leader to crown yet).
+  late final List<int> displayedWinnerIndices = rounds.isEmpty
+      ? const []
+      : leaderIndices(displayedScores);
 
   /// Player IDs of the winner(s) — the player(s) with the highest score.
-  late final List<String> winnerIds = () {
-    if (rounds.isEmpty) return <String>[];
-    final best = finalScoresByPlayer.values.reduce((a, b) => a > b ? a : b);
-    return [
-      for (final e in finalScoresByPlayer.entries)
-        if (e.value == best) e.key,
-    ];
-  }();
-
-  /// Indices of winner(s) within [displayedPlayers] — for use with [ScoreboardCard].
-  late final List<int> displayedWinnerIndices = [
-    for (int i = 0; i < displayedPlayers.length; i++)
-      if (winnerIds.contains(displayedPlayers[i].id)) i,
+  late final List<String> winnerIds = [
+    for (final i in displayedWinnerIndices) displayedPlayers[i].id,
   ];
 
   // ---------------------------------------------------------------------------
@@ -168,6 +194,7 @@ class GameSession {
     'ruleVariants': ruleVariants.toJson(),
     'rounds': [for (final r in rounds) r.toJson()],
     if (pendingRound != null) 'pendingRound': pendingRound!.toJson(),
+    if (gameName != null) 'gameName': gameName,
   };
 
   factory GameSession.fromJson(Map<String, dynamic> json) {
@@ -192,6 +219,7 @@ class GameSession {
       pendingRound: json['pendingRound'] != null
           ? PendingRound.fromJson(json['pendingRound'] as Map<String, dynamic>)
           : null,
+      gameName: json['gameName'] as String?,
     );
   }
 

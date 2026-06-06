@@ -17,7 +17,7 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 7;
+const int currentStorageVersion = 8;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
 const List<StorageMigration> _migrations = [
@@ -27,6 +27,7 @@ const List<StorageMigration> _migrations = [
   _V4ToV5(),
   _V5ToV6(),
   _V6ToV7(),
+  _V7ToV8(),
 ];
 
 /// Applies every registered step from [fromVersion] up to
@@ -476,4 +477,26 @@ class _V6ToV7 extends StorageMigration {
       },
     };
   }
+}
+
+// =============================================================================
+// v7 → v8: add the optional `gameName` field to GameSession (no data change)
+// =============================================================================
+//
+// v8 introduces an optional, user-supplied `gameName` on a session. It is
+// serialized only when set (omit-when-null, like `pendingRound` / `doublesJson`),
+// so a v7 game — which never had a name — is already a valid v8 game with no
+// name. There is genuinely nothing to transform; this step exists solely to
+// advance the version so an older v7-only build refuses to silently drop a name
+// written by a newer build (it hits version > currentStorageVersion and surfaces
+// the "App bijwerken vereist" screen instead).
+
+class _V7ToV8 extends StorageMigration {
+  const _V7ToV8();
+
+  @override
+  int get fromVersion => 7;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => games;
 }

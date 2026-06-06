@@ -43,6 +43,12 @@ dependencies:
   # Open external URLs (the GitHub link in the About dialog).
   url_launcher: ^6.3.2
 
+  # Cross-platform share sheet (Android intent / iOS share / Web Share API).
+  share_plus: ^13.1.0
+
+  # Temporary directory for writing share images on mobile.
+  path_provider: ^2.1.0
+
   # UUID generation for stable player identifiers.
   uuid: ^4.5.3
 
@@ -110,6 +116,7 @@ flutter:
   assets:
     - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png
+    - assets/icon/icon_bonken_share.png
     # The app's own AGPL-3.0 license, bundled so it resolves at runtime
     # and is aggregated into the build-time NOTICES asset that
     # `showLicensePage()` reads.

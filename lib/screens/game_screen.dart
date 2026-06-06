@@ -1,9 +1,18 @@
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:math' show Random;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/game_mechanics.dart';
 import '../models/game_session.dart';
@@ -33,6 +42,47 @@ import 'round_input_screen.dart';
 // =============================================================================
 // GameScreen — top-level screen
 // =============================================================================
+
+enum _ShareFormat { image, text }
+
+/// Players ranked highest score first for the share views. Ties keep the
+/// players' seat (display) order so the output is deterministic across renders
+/// and app restarts — Bonken has no rule-level tiebreak, this is purely for a
+/// stable list order.
+@visibleForTesting
+List<({String name, int score, int seat})> rankScores(
+  List<RoundRecord> history,
+  List<Player> displayedPlayers,
+) {
+  final totals = cumulativeTotals(history, displayedPlayers);
+  return [
+    for (int i = 0; i < displayedPlayers.length; i++)
+      (name: displayedPlayers[i].name, score: totals[i], seat: i),
+  ]..sort((a, b) {
+    final byScore = b.score.compareTo(a.score);
+    return byScore != 0 ? byScore : a.seat.compareTo(b.seat);
+  });
+}
+
+/// Builds the plain-text share payload from already-ranked [entries] (highest
+/// first). Pure (no provider access) so it is unit-testable; the top score gets
+/// the 🏆 (ties shared).
+@visibleForTesting
+String buildShareText({
+  String? gameName,
+  required DateTime updatedAt,
+  required List<({String name, int score, int seat})> entries,
+}) {
+  final maxScore = entries.isEmpty ? 0 : entries.first.score;
+  final lines = [
+    'Bonken uitslag',
+    ?gameName,
+    formatDate(updatedAt),
+    for (final e in entries)
+      '${e.name}  ${e.score} pt${e.score == maxScore ? ' 🏆' : ''}',
+  ];
+  return lines.join('\n');
+}
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -85,6 +135,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final heartsVariant = ref.watch(
       activeSessionProvider.select((a) => a.ruleVariants.heartsVariant),
     );
+    final isFinished = ref.watch(
+      activeSessionProvider.select(
+        (a) => a.history.length >= GameSession.totalRounds,
+      ),
+    );
+
     return AppScaffold(
       appBar: AppBar(
         title: TitleWithRules(
@@ -93,8 +149,212 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           heartsVariantOverride: heartsVariant,
           editMode: RulesEditMode.disabled,
         ),
+        actions: [if (isFinished) _buildShareAction()],
       ),
       body: const _GameSelectionBody(),
+    );
+  }
+
+  /// The finished-game share action. A plain tap shares with the default format
+  /// (image, falling back to text); a long-press (touch) or a screen-reader
+  /// custom action opens the format picker — a niche affordance, so it stays out
+  /// of the way of the common case.
+  Widget _buildShareAction() {
+    return TooltipTheme(
+      // `manual` disables only the *touch* trigger, so a long-press opens the
+      // dialog without the tooltip racing it; mouse hover still shows it.
+      data: TooltipTheme.of(
+        context,
+      ).copyWith(triggerMode: TooltipTriggerMode.manual),
+      // Merge so the long-press (GestureDetector) and the custom actions fold
+      // into the IconButton's single labeled button node — otherwise the
+      // long-press would surface as a separate, unlabeled tappable node.
+      child: MergeSemantics(
+        child: Semantics(
+          customSemanticsActions: {
+            const CustomSemanticsAction(label: 'Deel als afbeelding'): () =>
+                unawaited(_shareImage()),
+            const CustomSemanticsAction(label: 'Deel als tekst'): () =>
+                unawaited(_shareText()),
+          },
+          child: GestureDetector(
+            onLongPress: () => unawaited(_showShareDialog()),
+            child: IconButton(
+              icon: const Icon(Symbols.share),
+              tooltip: 'Deel uitslag',
+              onPressed: () => unawaited(_share()),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Popup dialog (consistent with the app's dialog/popup convention — no menus)
+  /// letting the user pick the share format. Reached by long-press or the
+  /// screen-reader custom action; a plain tap never opens it.
+  Future<void> _showShareDialog() async {
+    final mode = await showDialog<_ShareFormat>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        // M3 hero icon, no title (the title read as redundant beside it). The
+        // semanticLabel gives screen readers the context the title would have.
+        icon: const Icon(Symbols.share, semanticLabel: 'Deel uitslag'),
+        // Zero horizontal padding so the option rows span the dialog width;
+        // each ListTile keeps its own inset.
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Symbols.image),
+              title: const Text('Afbeelding'),
+              onTap: () => Navigator.of(dialogContext).pop(_ShareFormat.image),
+            ),
+            ListTile(
+              leading: const Icon(Symbols.article),
+              title: const Text('Tekst'),
+              onTap: () => Navigator.of(dialogContext).pop(_ShareFormat.text),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Annuleren'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || mode == null) return;
+    if (mode == _ShareFormat.image) {
+      await _shareImage();
+    } else {
+      await _shareText();
+    }
+  }
+
+  /// Shares the result as an image only (no silent text fallback) — used by the
+  /// explicit "Afbeelding" choice, which should report failure rather than
+  /// quietly switch formats.
+  Future<void> _shareImage() => _share(fallbackToText: false);
+
+  Future<void> _share({bool fallbackToText = true}) async {
+    final text = _buildShareText();
+    final Uint8List? bytes = await _captureShareCard();
+    if (bytes != null) {
+      try {
+        final XFile imageFile;
+        if (kIsWeb) {
+          imageFile = XFile.fromData(
+            bytes,
+            mimeType: 'image/png',
+            name: 'bonken_uitslag.png',
+          );
+        } else {
+          final dir = await getTemporaryDirectory();
+          final file = File('${dir.path}/bonken_uitslag.png');
+          await file.writeAsBytes(bytes);
+          imageFile = XFile(file.path);
+        }
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [imageFile],
+            text: text,
+            subject: 'Bonken uitslag',
+          ),
+        );
+        return;
+      } on PlatformException catch (_) {
+        // Image share not supported (e.g. Web Share API Level 2 unavailable).
+        if (!fallbackToText && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Afbeelding delen wordt niet ondersteund op dit apparaat',
+              ),
+            ),
+          );
+        }
+      }
+    }
+    if (fallbackToText) await _shareText();
+  }
+
+  Future<void> _shareText() async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(text: _buildShareText(), subject: 'Bonken uitslag'),
+      );
+    } on PlatformException catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Delen wordt niet ondersteund op dit apparaat'),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Renders [_ShareCard] off-screen just long enough to capture it as a PNG,
+  /// then removes it. Built on demand (only when an image is actually needed)
+  /// via an [OverlayEntry] rather than permanently composited. Returns null if
+  /// rendering/capture fails.
+  Future<Uint8List?> _captureShareCard() async {
+    final boundaryKey = GlobalKey();
+    final overlay = Overlay.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final entry = OverlayEntry(
+      // Off-screen (clipped to zero size) and excluded from the a11y tree, but a
+      // real composited layer so toImage() captures it. textScaler is pinned so
+      // the exported image is independent of the user's font-scale setting.
+      builder: (_) => Positioned(
+        left: 0,
+        top: 0,
+        child: ExcludeSemantics(
+          child: ClipRect(
+            child: SizedBox.shrink(
+              child: OverflowBox(
+                maxWidth: double.infinity,
+                maxHeight: double.infinity,
+                alignment: Alignment.topLeft,
+                child: RepaintBoundary(
+                  key: boundaryKey,
+                  child: MediaQuery(
+                    data: mediaQuery.copyWith(textScaler: TextScaler.noScaling),
+                    child: const _ShareCard(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    try {
+      // Let the entry lay out and paint before capturing.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return null;
+      final object = boundaryKey.currentContext?.findRenderObject();
+      if (object is! RenderRepaintBoundary) return null;
+      final image = await object.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } on Object catch (_) {
+      return null;
+    } finally {
+      entry.remove();
+    }
+  }
+
+  String _buildShareText() {
+    final session = ref.read(activeSessionProvider);
+    return buildShareText(
+      gameName: session.gameName,
+      updatedAt: session.updatedAt,
+      entries: rankScores(session.history, session.displayedPlayers),
     );
   }
 }
@@ -469,9 +729,9 @@ class _LiveScoreboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final (history, displayedPlayers, updatedAt) = ref.watch(
+    final (history, displayedPlayers, updatedAt, gameName) = ref.watch(
       activeSessionProvider.select(
-        (a) => (a.history, a.displayedPlayers, a.updatedAt),
+        (a) => (a.history, a.displayedPlayers, a.updatedAt, a.gameName),
       ),
     );
 
@@ -480,43 +740,17 @@ class _LiveScoreboard extends ConsumerWidget {
     final roundsPlayed = history.length;
     final isFinished = roundsPlayed >= GameSession.totalRounds;
 
-    // Sum scores per player across all completed rounds, in display order.
-    final totals = List<int>.filled(playerCount, 0);
-    for (final record in history) {
-      for (int i = 0; i < playerCount; i++) {
-        totals[i] += record.scoresByPlayer[displayedPlayers[i].id] ?? 0;
-      }
-    }
-
-    // Winner indices (highest score, may be shared). Only highlighted
-    // once the game is finished — mid-game leaders shouldn't claim the
-    // crown yet.
-    final best = totals.reduce((a, b) => a > b ? a : b);
-    final winners = isFinished
-        ? [
-            for (int i = 0; i < playerCount; i++)
-              if (totals[i] == best) i,
-          ]
-        : <int>[];
+    // Sum scores per player in display order (shared primitive). Winners
+    // (highest score, may be shared) are only highlighted once the game is
+    // finished — mid-game leaders shouldn't claim the crown yet.
+    final totals = cumulativeTotals(history, displayedPlayers);
+    final winners = isFinished ? leaderIndices(totals) : const <int>[];
 
     // Muted tint for the trailing IconButtons, matching the home
     // session-card surface (standard 48dp tap targets).
     final mutedIconTheme = mutedIconButtonTheme(
       theme,
       foregroundColor: cs.onSurfaceVariant,
-    );
-
-    final labelStyle = theme.textTheme.bodyMedium?.copyWith(
-      color: cs.onSurfaceVariant,
-    );
-
-    // Same appearance as the home-screen session card: date on the
-    // left, action(s) on the right. The game screen adds an
-    // "Spel bewerken" icon next to the delete action.
-    final headerLabel = Text(
-      formatDate(updatedAt),
-      style: labelStyle,
-      overflow: TextOverflow.ellipsis,
     );
 
     return Theme(
@@ -526,7 +760,8 @@ class _LiveScoreboard extends ConsumerWidget {
         playerNames: [for (final p in displayedPlayers) p.name],
         scores: totals,
         winners: winners,
-        headerLabel: headerLabel,
+        updatedAt: updatedAt,
+        gameName: gameName,
         headerTrailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -941,6 +1176,153 @@ class _RoundRowHeader extends StatelessWidget {
           style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
+    );
+  }
+}
+
+// =============================================================================
+// Share card — dedicated widget rendered off-screen for image capture
+// =============================================================================
+
+class _ShareCard extends ConsumerWidget {
+  const _ShareCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (history, displayedPlayers, updatedAt, gameName) = ref.watch(
+      activeSessionProvider.select(
+        (a) => (a.history, a.displayedPlayers, a.updatedAt, a.gameName),
+      ),
+    );
+
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final entries = rankScores(history, displayedPlayers);
+
+    return Card(
+      // Flat: the capture is a transparent PNG, so a drop shadow would paint
+      // onto transparency as a grey halo. The surface colour follows the
+      // current theme (dark mode → dark card) — intentional.
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: Image.asset(
+                    'assets/icon/icon_bonken_share.png',
+                    width: 24,
+                    height: 24,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Uitslag',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (gameName != null) ...[
+              Text(
+                gameName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                formatDate(updatedAt),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ] else
+              Text(
+                formatDate(updatedAt),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            const SizedBox(height: 8),
+            Table(
+              columnWidths: const {
+                0: IntrinsicColumnWidth(),
+                1: IntrinsicColumnWidth(),
+                2: IntrinsicColumnWidth(),
+              },
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                for (int i = 0; i < entries.length; i++)
+                  TableRow(
+                    decoration: entries[i].score == entries[0].score
+                        ? BoxDecoration(
+                            color: cs.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          )
+                        : null,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: 6,
+                          end: 16,
+                          top: 3,
+                          bottom: 3,
+                        ),
+                        child: Text(
+                          entries[i].name,
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          end: 4,
+                          top: 3,
+                          bottom: 3,
+                        ),
+                        child: Text(
+                          '${entries[i].score} pt',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: scoreColor(entries[i].score, context),
+                          ),
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: 4,
+                          end: 6,
+                          top: 3,
+                          bottom: 3,
+                        ),
+                        child: entries[i].score == entries[0].score
+                            ? Icon(
+                                Symbols.emoji_events,
+                                size: 16,
+                                fill: 1,
+                                color: cs.onTertiaryContainer,
+                                semanticLabel: 'Winnaar',
+                              )
+                            : const SizedBox(width: 16),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

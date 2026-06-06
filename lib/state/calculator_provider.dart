@@ -81,6 +81,7 @@ class ActiveSession extends CalculatorState {
     DoubleMatrix? editOriginalDoubles,
     String? editOriginalChooserId,
     RuleVariants ruleVariants = const RuleVariants(),
+    String? gameName,
   }) {
     return ActiveSession._(
       sessionId: sessionId,
@@ -105,6 +106,7 @@ class ActiveSession extends CalculatorState {
       editOriginalDoubles: editOriginalDoubles,
       editOriginalChooserId: editOriginalChooserId,
       ruleVariants: ruleVariants,
+      gameName: gameName,
     );
   }
 
@@ -135,6 +137,7 @@ class ActiveSession extends CalculatorState {
     required this.editOriginalDoubles,
     required this.editOriginalChooserId,
     required this.ruleVariants,
+    required this.gameName,
   });
 
   /// Unique ID for this game session.
@@ -252,6 +255,9 @@ class ActiveSession extends CalculatorState {
   /// The per-game rule variants (starter + hearts) in effect for this session.
   final RuleVariants ruleVariants;
 
+  /// Optional user-supplied name for this game session. Never the empty string.
+  final String? gameName;
+
   /// Seat index (0–3) of the player who leads the first trick.
   int get starterIndex =>
       starterIndexFor(chooserIndex, ruleVariants.starterVariant);
@@ -317,6 +323,8 @@ class ActiveSession extends CalculatorState {
     String? editOriginalChooserId,
     bool clearEditState = false,
     RuleVariants? ruleVariants,
+    String? gameName,
+    bool clearGameName = false,
   }) {
     final newPlayers = players ?? this.players;
     final newFirstDealerId = firstDealerId ?? this.firstDealerId;
@@ -363,6 +371,7 @@ class ActiveSession extends CalculatorState {
           ? null
           : (editOriginalChooserId ?? this.editOriginalChooserId),
       ruleVariants: ruleVariants ?? this.ruleVariants,
+      gameName: clearGameName ? null : (gameName ?? this.gameName),
     );
   }
 }
@@ -765,6 +774,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     required List<Player> players,
     required int dealerIndex,
     RuleVariants ruleVariants = const RuleVariants(),
+    String? gameName,
   }) {
     _flushPendingAutosaveForOutgoingSession();
     final now = DateTime.now();
@@ -776,6 +786,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       dealerId: players[dealerIndex].id,
       chooserId: players[(dealerIndex + 1) % playerCount].id,
       ruleVariants: ruleVariants,
+      gameName: gameName,
     );
   }
 
@@ -808,6 +819,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       ruleVariants: s.ruleVariants,
       pendingRound: pendingRound,
       rounds: s.history,
+      gameName: s.gameName,
     );
   }
 
@@ -859,6 +871,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       history: history,
       pending: pendingState,
       ruleVariants: session.ruleVariants,
+      gameName: session.gameName,
     );
   }
 
@@ -874,6 +887,16 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   void setHeartsVariant(HeartsVariant variant) {
     state = _session.copyWith(
       ruleVariants: _session.ruleVariants.copyWith(heartsVariant: variant),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Sets or clears the custom name for the current session.
+  /// Pass null to remove the name.
+  void setGameName(String? name) {
+    state = _session.copyWith(
+      gameName: name,
+      clearGameName: name == null,
       updatedAt: DateTime.now(),
     );
   }

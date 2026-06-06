@@ -9,30 +9,10 @@ import '../utils.dart';
 /// screen's history list, or the live session on the score-input
 /// screen).
 ///
-/// The card always has the same shape:
-///
-/// ```
-/// ┌─────────────────────────────────────────────┐
-/// │ [progress glyph] [headerLabel]    [trailing]│
-/// │                                             │
-/// │ [chip]   [chip]   [chip]   [chip]           │
-/// └─────────────────────────────────────────────┘
-/// ```
-///
-/// * The progress glyph is derived from [roundsPlayed] (an animated
-///   `clock_loader_*` series, replaced by a filled `check_circle` once
-///   the game is finished).
-/// * [headerLabel] is the widget shown right of the glyph (e.g. the
-///   game's date on the home screen, or the literal "Tussenstand" /
-///   "Eindstand" on the in-game view). It is wrapped in an [Expanded]
-///   so it pushes [headerTrailing] to the far right and ellipsizes
-///   long labels instead of overflowing.
-/// * [headerTrailing] is shown on the far right of the header (e.g. the
-///   date on the in-game view, or a delete `IconButton` on the home
-///   screen). Pass `null` to omit it.
-/// * [onTap] makes the entire card tappable via an [InkWell]. When
-///   `null` the card has no ripple feedback and no tap target — this
-///   is intentional, so a non-tappable card never *looks* tappable.
+/// The header shows a progress glyph, then [gameName] as a bold title
+/// with [updatedAt] as a muted subtitle (or [updatedAt] alone when
+/// [gameName] is null), then an optional [headerTrailing] widget.
+/// [onTap] makes the whole card tappable; pass `null` for a static card.
 class ScoreboardCard extends StatelessWidget {
   const ScoreboardCard({
     super.key,
@@ -40,7 +20,8 @@ class ScoreboardCard extends StatelessWidget {
     required this.playerNames,
     required this.scores,
     required this.winners,
-    required this.headerLabel,
+    required this.updatedAt,
+    this.gameName,
     this.headerTrailing,
     this.onTap,
     this.tapSemanticLabel,
@@ -61,13 +42,16 @@ class ScoreboardCard extends StatelessWidget {
   /// claim the crown until the game is finished.
   final List<int> winners;
 
-  /// Label shown immediately right of the progress glyph (after a
-  /// 6-pixel gap). Wrapped in an [Expanded] internally so it absorbs
-  /// the free space and pushes [headerTrailing] to the far right.
-  final Widget headerLabel;
+  /// Shown as a muted subtitle (or as the sole header line when [gameName]
+  /// is null).
+  final DateTime updatedAt;
+
+  /// Optional game name shown as the primary header line above [updatedAt].
+  /// Never the empty string — pass null to show only the date.
+  final String? gameName;
 
   /// Optional widget shown on the far right of the header. Typically a
-  /// date `Text` or a trailing `IconButton`.
+  /// trailing `IconButton`.
   final Widget? headerTrailing;
 
   /// If non-null, the card becomes tappable (with an [InkWell] ripple).
@@ -91,8 +75,37 @@ class ScoreboardCard extends StatelessWidget {
       winners.every((i) => i >= 0 && i < playerNames.length),
       'winners must be valid indices into playerNames/scores',
     );
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final isFinished = roundsPlayed >= GameSession.totalRounds;
+
+    final titleStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.bold,
+    );
+    final Widget label = gameName != null
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                gameName!,
+                style: titleStyle,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                formatDate(updatedAt),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          )
+        : Text(
+            formatDate(updatedAt),
+            style: titleStyle,
+            overflow: TextOverflow.ellipsis,
+          );
 
     final content = Padding(
       padding: const EdgeInsets.all(16),
@@ -116,11 +129,7 @@ class ScoreboardCard extends StatelessWidget {
                 semanticLabel: isFinished ? 'Afgerond spel' : 'Lopend spel',
               ),
               const SizedBox(width: 6),
-              // Expanded (not Flexible) so the label absorbs the free
-              // space and pushes [headerTrailing] to the far right.
-              // The label still ellipsizes via the caller's
-              // `overflow: ellipsis`.
-              Expanded(child: headerLabel),
+              Expanded(child: label),
               if (headerTrailing != null) ...[
                 const SizedBox(width: 8),
                 headerTrailing!,

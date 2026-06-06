@@ -396,15 +396,14 @@ class _GameSessionCard extends ConsumerWidget {
       foregroundColor: cs.onSurfaceVariant,
     );
 
-    final labelStyle = theme.textTheme.bodyMedium?.copyWith(
-      color: cs.onSurfaceVariant,
-    );
-
     final names = session.displayedPlayerNames.join(', ');
     final date = formatDate(session.updatedAt);
+    // Announce the custom game name (when set) so screen-reader users get the
+    // same recognition cue sighted users see on the card.
+    final namePart = session.gameName != null ? '"${session.gameName}" ' : '';
     final tapLabel = session.isFinished
-        ? 'Afgerond spel met $names — $date'
-        : 'Lopend spel met $names — ronde ${session.rounds.length + 1} '
+        ? 'Afgerond spel ${namePart}met $names — $date'
+        : 'Lopend spel ${namePart}met $names — ronde ${session.rounds.length + 1} '
               'van ${GameSession.totalRounds} — $date';
 
     return Theme(
@@ -420,12 +419,8 @@ class _GameSessionCard extends ConsumerWidget {
         scores: session.displayedScores,
         winners: session.isFinished ? session.displayedWinnerIndices : const [],
         onTap: onTap,
-        // Past-game card: date on the left, delete action on the right.
-        headerLabel: Text(
-          formatDate(session.updatedAt),
-          style: labelStyle,
-          overflow: TextOverflow.ellipsis,
-        ),
+        updatedAt: session.updatedAt,
+        gameName: session.gameName,
         headerTrailing: IconButton(
           icon: const Icon(Symbols.delete),
           tooltip: 'Verwijderen',

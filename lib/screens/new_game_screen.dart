@@ -18,6 +18,7 @@ import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
+import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
 import '../widgets/player_list_field.dart';
 import '../widgets/primary_action_button.dart';
@@ -38,6 +39,7 @@ class NewGameScreen extends ConsumerStatefulWidget {
 class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
+  late final TextEditingController _nameController;
 
   /// Dealer slot index, or null if the user wants a random dealer.
   int? _dealerIndex;
@@ -62,6 +64,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       return c;
     });
     _focusNodes = List.generate(playerCount, (_) => FocusNode());
+    _nameController = TextEditingController();
   }
 
   @override
@@ -74,6 +77,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     for (final n in _focusNodes) {
       n.dispose();
     }
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -121,6 +125,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       if (!mounted) return;
     }
 
+    final trimmedName = _nameController.text.trim();
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.startNewGame(
       players: players,
@@ -129,6 +134,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
         starterVariant: _starterVariant,
         heartsVariant: _heartsVariant,
       ),
+      gameName: trimmedName.isEmpty ? null : trimmedName,
     );
     final session = notifier.buildSession();
     if (session != null) {
@@ -186,11 +192,14 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
                   child: DealerDropdownField(
                     controllers: _controllers,
                     value: _dealerIndex,
-                    hintText: 'Willekeurige deler',
                     allowRandomDealer: true,
                     onChanged: (v) => setState(() => _dealerIndex = v),
                   ),
                 ),
+
+                const SizedBox(height: 12),
+
+                GameNameField(controller: _nameController),
 
                 const SizedBox(height: 12),
 
