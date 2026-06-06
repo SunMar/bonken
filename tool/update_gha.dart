@@ -12,8 +12,10 @@
 //      only; a major bump may need Fastfile changes, so it stays manual.
 //   3. The Ubuntu runner (`runs-on: ubuntu-N.N`) — REPORTS a newer LTS image
 //      only; bumping the OS is deliberate (package names etc. can change).
+//   4. Ruby (`ruby-version: 'X.Y'` in workflow YAML) — REPORTS a newer release
+//      cycle only; bumping Ruby is deliberate (API/gem compat can change).
 //
-// Only the GitHub Actions are ever written; fastlane + the runner are
+// Only the GitHub Actions are ever written; fastlane, the runner, and Ruby are
 // report-only heads-ups, matching how the tooling/OS were pinned on purpose.
 // The parsing/compare logic lives in tool/helpers/{gha_pins,fastlane_pin,
 // semver}.dart (unit-tested); this script is the I/O + network glue.
@@ -30,6 +32,7 @@ import 'dart:io';
 
 import 'helpers/fastlane_pin.dart';
 import 'helpers/gha_pins.dart';
+import 'helpers/ruby_pin.dart';
 import 'helpers/semver.dart';
 
 const _gemfiles = ['android/Gemfile'];
@@ -63,6 +66,7 @@ Future<void> main(List<String> args) async {
     pending |= await _checkActions(yamlFiles, token, client, checkOnly);
     pending |= await _checkFastlane(client);
     pending |= await _checkUbuntu(yamlFiles, token, client);
+    pending |= await _checkRuby(yamlFiles, client);
   } finally {
     client.close();
   }
@@ -281,6 +285,93 @@ String _ubuntu((int, int) v) =>
 
 int _byUbuntu((int, int) a, (int, int) b) =>
     ubuntuIsNewer(a, b) ? -1 : (ubuntuIsNewer(b, a) ? 1 : 0);
+
+// ---------------------------------------------------------------------------
+// 4. Ruby — report-only (never written).
+// ---------------------------------------------------------------------------
+
+/// Returns whether a newer Ruby major.minor cycle is available than the pinned
+/// `ruby-version: 'X.Y'` across all workflows.
+///
+/// Queries `ruby-builder-versions.json` from the same branch of `ruby/setup-ruby`
+/// that the workflows pin (e.g. `v1`), so the supported-versions list matches
+/// the action version in use.
+Future<bool> _checkRuby(List<String> yamlFiles, HttpClient client) async {
+  print('==> Ruby');
+
+  // Collect ruby-version pins and the ruby/setup-ruby action ref in one pass.
+  final pins = <String, (int, int)>{};
+  String? setupRubyRef;
+  for (final file in yamlFiles) {
+    final content = File(file).readAsStringSync();
+    final pin = parseRubyVersionPin(content);
+    if (pin != null) pins[file] = pin;
+    setupRubyRef ??= parseActionPins(
+      content,
+    ).where((p) => p.repo == 'ruby/setup-ruby').map((p) => p.ref).firstOrNull;
+  }
+
+  if (pins.isEmpty) {
+    print('  (no ruby-version pins found)');
+    return false;
+  }
+
+  final versions = pins.values.toSet();
+  if (versions.length > 1) {
+    final detail = pins.entries
+        .map((e) => '${e.key}=${e.value.$1}.${e.value.$2}')
+        .join(', ');
+    print(
+      '  WARNING: workflows pin different Ruby versions ($detail) — skipping.',
+    );
+    return false;
+  }
+  final pinned = versions.single;
+
+  final ref = setupRubyRef ?? 'master';
+  final latest = await _fetchLatestRubyCycle(client, ref);
+  if (latest == null) return false;
+
+  if (!rubyIsNewer(latest, pinned)) {
+    print(
+      '  ${pinned.$1}.${pinned.$2} (latest ${latest.$1}.${latest.$2}) — up to date.',
+    );
+    return false;
+  }
+  print(
+    '  ${pinned.$1}.${pinned.$2} -> ${latest.$1}.${latest.$2} available. '
+    'Bump `ruby-version:` in .github/workflows/.',
+  );
+  return true;
+}
+
+/// Fetches the latest stable Ruby major.minor cycle from `ruby-builder-versions.json`
+/// at the given [ref] (branch/tag) of `ruby/setup-ruby`, or null (with a
+/// warning) on failure.
+Future<(int, int)?> _fetchLatestRubyCycle(HttpClient client, String ref) async {
+  final request = await client.getUrl(
+    Uri.parse(
+      'https://raw.githubusercontent.com/ruby/setup-ruby/$ref/ruby-builder-versions.json',
+    ),
+  );
+  request.headers.set('User-Agent', 'tool/update_gha.dart');
+
+  final response = await request.close();
+  final body = await response.transform(utf8.decoder).join();
+  if (response.statusCode != 200) {
+    stderr.writeln(
+      '  WARNING: ruby/setup-ruby/$ref returned HTTP ${response.statusCode} — skipping.',
+    );
+    return null;
+  }
+  final latest = parseLatestRubyBuilderCycle(body);
+  if (latest == null) {
+    stderr.writeln(
+      '  WARNING: could not parse ruby-builder-versions.json — skipping.',
+    );
+  }
+  return latest;
+}
 
 // ---------------------------------------------------------------------------
 // Shared I/O helpers.

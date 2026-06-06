@@ -19,7 +19,7 @@ jobs:
   # APK live with the GitHub Release that needs them) and needs no keystore
   # or platform SDK — just Flutter — so it stays fast and platform-agnostic.
   # =====================================================================
-  build:
+  verify:
     runs-on: ubuntu-24.04
     outputs:
       name: ${{ steps.version.outputs.name }}
@@ -63,7 +63,7 @@ jobs:
   # The GitHub Release is a separate job, so it ships regardless.
   # =====================================================================
   release-android:
-    needs: build
+    needs: verify
     if: ${{ vars.ANDROID_RELEASE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     environment: play-store
@@ -83,8 +83,8 @@ jobs:
       - name: Build Android App Bundle (AAB)
         run: |
           flutter build appbundle --release \
-            --build-name=${{ needs.build.outputs.name }} \
-            --build-number=${{ needs.build.outputs.code }}
+            --build-name=${{ needs.verify.outputs.name }} \
+            --build-number=${{ needs.verify.outputs.code }}
 
       - name: Rename AAB
         run: |
@@ -101,6 +101,7 @@ jobs:
       - name: Setup Ruby (fastlane)
         uses: ruby/setup-ruby@v1
         with:
+          ruby-version: '4.0'
           working-directory: android
           bundler-cache: true
 
@@ -109,7 +110,7 @@ jobs:
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           AAB_PATH: ../bonken-${{ github.ref_name }}.aab
-        run: bundle exec fastlane alpha
+        run: fastlane alpha
 
   # =====================================================================
   # Create the public GitHub Release with the web (PWA) zip + the signed
@@ -120,7 +121,7 @@ jobs:
   # release) never blocks the GitHub Release.
   # =====================================================================
   release-github:
-    needs: build
+    needs: verify
     runs-on: ubuntu-24.04
     environment: play-store
     permissions:
@@ -141,8 +142,8 @@ jobs:
       - name: Build web (PWA)
         run: |
           flutter build web --release \
-            --build-name=${{ needs.build.outputs.name }} \
-            --build-number=${{ needs.build.outputs.code }}
+            --build-name=${{ needs.verify.outputs.name }} \
+            --build-number=${{ needs.verify.outputs.code }}
 
       - name: Zip web build
         run: |
@@ -152,8 +153,8 @@ jobs:
       - name: Build Android APK
         run: |
           flutter build apk --release \
-            --build-name=${{ needs.build.outputs.name }} \
-            --build-number=${{ needs.build.outputs.code }}
+            --build-name=${{ needs.verify.outputs.name }} \
+            --build-number=${{ needs.verify.outputs.code }}
 
       - name: Rename APK
         run: |
