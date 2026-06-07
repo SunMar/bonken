@@ -218,11 +218,16 @@ lib/
                              CalculatorNotifier (the in-game state machine);
                              activeSessionProvider narrows it to ActiveSession.
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→…→v7→v8) + runner.
-    theme_mode_provider.dart Light/dark/system theme, persisted; pre-loaded in main().
-    default_starter_variant_provider.dart  App-wide default StarterVariant; pre-loaded in main().
-    default_hearts_variant_provider.dart   App-wide default HeartsVariant; pre-loaded in main().
-    enum_preference_notifier.dart  Generic EnumPreferenceNotifier<T> base + loadPersistedEnum().
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→…→v9) + runner.
+    settings_storage.dart    Versioned `settings` blob: load, write, bootstrap from legacy keys,
+                             error types (UnsupportedSettingsVersionException / CorruptSettingsException),
+                             settingsLoadErrorProvider.
+    settings_migrations.dart Sequenced, frozen SettingsMigration steps + runner (mirrors migrations.dart).
+    storage_exceptions.dart  HasCause interface shared by CorruptStorageException + CorruptSettingsException.
+    theme_mode_provider.dart Light/dark/system theme, persisted via settings blob; pre-loaded in main().
+    default_starter_variant_provider.dart  App-wide default StarterVariant; persisted via settings blob; pre-loaded in main().
+    default_hearts_variant_provider.dart   App-wide default HeartsVariant; persisted via settings blob; pre-loaded in main().
+    enum_preference_notifier.dart  Generic EnumPreferenceNotifier<T> base (settingsKey + settingsSection).
     rules_edit_mode_provider.dart  RulesEditMode enum (default enabled); controls cog-icon behaviour
                              in variant-sensitive rule blocks. Overridden by RulesIconButton for
                              the pushed route: hidden (score input — hides cog), disabled
@@ -802,6 +807,70 @@ classes), so old steps keep working as the models evolve.
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step
 (they are historical) and never silently break old saves.**
+
+### Settings persistence ([`settings_storage.dart`](lib/state/settings_storage.dart))
+
+All app settings live in a single versioned blob under the `settings` key in
+`SharedPreferences`. The format mirrors `game_history` — envelope + migration
+framework — but operates independently (a change in one does not require a
+change in the other).
+
+**Key:** `settings`.  
+**Envelope (`currentSettingsVersion` = 1):** `{ "version": 1, … }`.
+
+**Shape (v1):**
+```jsonc
+{
+  "version": 1,
+  "themeMode": "system",          // ThemeMode enum name
+  "ruleVariants": {
+    "starterVariant": "dealerStarts",          // StarterVariant enum name
+    "heartsVariant": "onlyAfterPlayedHeart"    // HeartsVariant enum name
+  }
+}
+```
+
+`ruleVariants` uses the same field names as `RuleVariants.toJson()` in
+`game_history` (`starterVariant`, `heartsVariant`), but the two serialisations
+are independent — a future rename in one does not force a change in the other.
+
+**Load behavior (`loadPersistedSettings`, called in `main()` before `runApp`):**
+- Missing `settings` key → **bootstrap** from legacy flat keys
+  (`theme_mode`, `default_starter_variant`, `default_hearts_variant`) if
+  present; else build a fresh v1 defaults map. Write the versioned blob and
+  delete any legacy keys.
+- `version > currentSettingsVersion` → throw
+  `UnsupportedSettingsVersionException`.
+- `version < currentSettingsVersion` → run `runSettingsMigrations`, write
+  back.
+- Any JSON/cast error → throw `CorruptSettingsException`.
+- On error, `main()` catches and stores the error in
+  `settingsLoadErrorProvider`. `HomeScreen` watches it and shows a
+  `_StorageErrorScreen` in place of the home body ("Instellingen wissen"
+  resets to defaults without a restart).
+
+**Write path:** each notifier calls `updateSettingsField(section?, key, value)`
+after a user change — a read-modify-write on the `settings` blob.
+
+**Migration framework ([`settings_migrations.dart`](lib/state/settings_migrations.dart)).**
+Identical pattern to [`migrations.dart`](lib/state/migrations.dart):
+`SettingsMigration` declares `fromVersion` and `apply(Map<String, dynamic>)`;
+`runSettingsMigrations` chains the steps.
+
+**When you change a stored settings shape: append one new `SettingsMigration`
+step and bump `currentSettingsVersion` — same rules as game-history migrations.**
+
+**State files:**
+
+| File | Role |
+|------|------|
+| [`settings_storage.dart`](lib/state/settings_storage.dart) | Load, write, bootstrap, error types, `settingsLoadErrorProvider` |
+| [`settings_migrations.dart`](lib/state/settings_migrations.dart) | `SettingsMigration` base, `currentSettingsVersion`, registry |
+| [`storage_exceptions.dart`](lib/state/storage_exceptions.dart) | `HasCause` interface shared by `CorruptStorageException` and `CorruptSettingsException` |
+| [`theme_mode_provider.dart`](lib/state/theme_mode_provider.dart) | Writes `themeMode` field via `updateSettingsField` |
+| [`enum_preference_notifier.dart`](lib/state/enum_preference_notifier.dart) | Generic base; subclasses declare `settingsKey` + `settingsSection` |
+| [`default_starter_variant_provider.dart`](lib/state/default_starter_variant_provider.dart) | `ruleVariants.starterVariant` |
+| [`default_hearts_variant_provider.dart`](lib/state/default_hearts_variant_provider.dart) | `ruleVariants.heartsVariant` |
 
 ---
 

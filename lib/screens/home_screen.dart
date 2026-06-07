@@ -8,7 +8,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/game_session.dart';
 import '../state/calculator_provider.dart';
+import '../state/default_hearts_variant_provider.dart';
+import '../state/default_starter_variant_provider.dart';
 import '../state/game_history_provider.dart';
+import '../state/settings_storage.dart';
+import '../state/storage_exceptions.dart';
+import '../state/theme_mode_provider.dart';
 import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_bar_widgets.dart';
@@ -29,27 +34,111 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
-    final historyAsync = ref.watch(gameHistoryProvider);
 
+    final appBar = AppBar(
+      leading: const AboutIconButton(),
+      title: const TitleWithRules(title: Text('Bonken')),
+      actions: const [SettingsIconButton(), ThemeMenuButton()],
+    );
+
+    final settingsError = ref.watch(settingsLoadErrorProvider);
+    if (settingsError != null) {
+      final (e, st) = settingsError;
+      final kind = switch (e) {
+        UnsupportedSettingsVersionException() =>
+          _StorageErrorKind.unsupportedVersion,
+        CorruptSettingsException() => _StorageErrorKind.corrupt,
+        _ => _StorageErrorKind.unknown,
+      };
+      return AppScaffold(
+        appBar: appBar,
+        body: _StorageErrorScreen(
+          title: switch (kind) {
+            _StorageErrorKind.unsupportedVersion => 'App bijwerken vereist',
+            _StorageErrorKind.corrupt => 'Instellingen beschadigd',
+            _StorageErrorKind.unknown => 'Onbekende fout',
+          },
+          message: switch (kind) {
+            _StorageErrorKind.unsupportedVersion =>
+              'Je instellingen zijn opgeslagen door een nieuwere versie van '
+                  'de app en kunnen niet worden geladen. Update de app of wis de '
+                  'instellingen om verder te spelen.',
+            _StorageErrorKind.corrupt =>
+              'Je instellingen kunnen niet worden gelezen (mogelijk '
+                  'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
+                  'of wis de instellingen om verder te spelen.',
+            _StorageErrorKind.unknown =>
+              'Er is een onverwachte fout opgetreden bij het laden van de '
+                  'instellingen. Verstuur het foutrapport om dit probleem te '
+                  'melden, of wis de instellingen om verder te spelen.',
+          },
+          showReportButton: kind != _StorageErrorKind.unsupportedVersion,
+          exception: e,
+          stackTrace: st,
+          storageKey: settingsStorageKey,
+          clearLabel: 'Instellingen wissen',
+          clearConfirmTitle: 'Instellingen wissen',
+          clearConfirmText:
+              'Je instellingen worden teruggezet naar de standaardwaarden.',
+          clearIsDestructive: false,
+          onClear: () async {
+            await clearSettings();
+            ref.invalidate(themeModeProvider);
+            ref.invalidate(defaultStarterVariantProvider);
+            ref.invalidate(defaultHeartsVariantProvider);
+            ref.read(settingsLoadErrorProvider.notifier).clear();
+          },
+        ),
+      );
+    }
+
+    final historyAsync = ref.watch(gameHistoryProvider);
     return AppScaffold(
-      appBar: AppBar(
-        leading: const AboutIconButton(),
-        title: const TitleWithRules(title: Text('Bonken')),
-        actions: const [SettingsIconButton(), ThemeMenuButton()],
-      ),
+      appBar: appBar,
       body: historyAsync.when(
         skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => switch (e) {
-          UnsupportedStorageVersionException() => const _StorageErrorScreen(
-            kind: _StorageErrorKind.unsupportedVersion,
-          ),
-          CorruptStorageException() => const _StorageErrorScreen(
-            kind: _StorageErrorKind.corrupt,
-          ),
-          // Any other error (shouldn't happen — build() only throws the two
-          // above) still gets the corrupt screen rather than a silent blank.
-          _ => const _StorageErrorScreen(kind: _StorageErrorKind.unknown),
+        error: (e, st) {
+          final kind = switch (e) {
+            UnsupportedStorageVersionException() =>
+              _StorageErrorKind.unsupportedVersion,
+            CorruptStorageException() => _StorageErrorKind.corrupt,
+            _ => _StorageErrorKind.unknown,
+          };
+          return _StorageErrorScreen(
+            title: switch (kind) {
+              _StorageErrorKind.unsupportedVersion => 'App bijwerken vereist',
+              _StorageErrorKind.corrupt => 'Geschiedenis beschadigd',
+              _StorageErrorKind.unknown => 'Onbekende fout',
+            },
+            message: switch (kind) {
+              _StorageErrorKind.unsupportedVersion =>
+                'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
+                    'de app en kan niet worden geladen. Update de app om je '
+                    'geschiedenis te bekijken, of wis de geschiedenis om verder te '
+                    'spelen.',
+              _StorageErrorKind.corrupt =>
+                'Je opgeslagen spelgeschiedenis kan niet worden gelezen (mogelijk '
+                    'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
+                    'of wis de geschiedenis om verder te spelen.',
+              _StorageErrorKind.unknown =>
+                'Er is een onverwachte fout opgetreden bij het laden van de '
+                    'spelgeschiedenis. Verstuur het foutrapport om dit probleem te '
+                    'melden, of wis de geschiedenis om verder te spelen.',
+            },
+            showReportButton: kind != _StorageErrorKind.unsupportedVersion,
+            exception: e,
+            stackTrace: st,
+            storageKey: GameHistoryNotifier.storageKey,
+            clearLabel: 'Geschiedenis wissen',
+            clearConfirmTitle: 'Geschiedenis wissen',
+            clearConfirmText:
+                'Alle gespeelde spellen worden permanent verwijderd. '
+                'Dit kan niet ongedaan worden gemaakt.',
+            clearIsDestructive: true,
+            onClear: () =>
+                ref.read(gameHistoryProvider.notifier).clearHistory(),
+          );
         },
         data: (sessions) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -152,45 +241,47 @@ class HomeScreen extends ConsumerWidget {
 }
 
 // =============================================================================
-// Storage-error screen — surfaces both unsupported-version and corrupt-storage
-// cases with a "Geschiedenis wissen" escape hatch.
+// Storage-error screen — shared by game-history and settings error cases.
+// All variable content (text, actions, storage key) is supplied by the caller.
 // =============================================================================
 
 enum _StorageErrorKind { unsupportedVersion, corrupt, unknown }
 
-class _StorageErrorScreen extends ConsumerWidget {
-  const _StorageErrorScreen({required this.kind});
+class _StorageErrorScreen extends StatelessWidget {
+  const _StorageErrorScreen({
+    required this.title,
+    required this.message,
+    required this.showReportButton,
+    required this.exception,
+    required this.stackTrace,
+    required this.storageKey,
+    required this.clearLabel,
+    required this.clearConfirmTitle,
+    required this.clearConfirmText,
+    required this.clearIsDestructive,
+    required this.onClear,
+  });
 
-  final _StorageErrorKind kind;
+  final String title;
+  final String message;
+  final bool showReportButton;
+  final Object? exception;
+  final StackTrace? stackTrace;
+
+  /// SharedPreferences key whose raw value is included in the debug report.
+  final String storageKey;
+
+  final String clearLabel;
+  final String clearConfirmTitle;
+  final String clearConfirmText;
+  final bool clearIsDestructive;
+
+  /// Called (after confirmation) when the user taps the clear button.
+  final Future<void> Function() onClear;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (title, body) = switch (kind) {
-      _StorageErrorKind.unsupportedVersion => (
-        'App bijwerken vereist',
-        'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
-            'de app en kan niet worden geladen. Update de app om je '
-            'geschiedenis te bekijken, of wis de geschiedenis om verder te '
-            'spelen.',
-      ),
-      _StorageErrorKind.corrupt => (
-        'Geschiedenis beschadigd',
-        'Je opgeslagen spelgeschiedenis kan niet worden gelezen (mogelijk '
-            'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
-            'of wis de geschiedenis om verder te spelen.',
-      ),
-      _StorageErrorKind.unknown => (
-        'Onbekende fout',
-        'Er is een onverwachte fout opgetreden bij het laden van de '
-            'spelgeschiedenis. Verstuur het foutrapport om dit probleem te '
-            'melden, of wis de geschiedenis om verder te spelen.',
-      ),
-    };
-    final asyncValue = ref.watch(gameHistoryProvider);
-    final exception = asyncValue.error;
-    final stackTrace = asyncValue.stackTrace;
-    final showReportButton = kind != _StorageErrorKind.unsupportedVersion;
 
     return Center(
       child: Padding(
@@ -207,7 +298,7 @@ class _StorageErrorScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              body,
+              message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -216,8 +307,9 @@ class _StorageErrorScreen extends ConsumerWidget {
             const SizedBox(height: 24),
             if (showReportButton) ...[
               FilledButton.tonal(
-                onPressed: () =>
-                    unawaited(_sendErrorReport(context, exception, stackTrace)),
+                onPressed: () => unawaited(
+                  _sendErrorReport(context, exception, stackTrace, storageKey),
+                ),
                 child: const Text('Verstuur foutrapport'),
               ),
               const SizedBox(height: 8),
@@ -226,17 +318,15 @@ class _StorageErrorScreen extends ConsumerWidget {
               onPressed: () async {
                 final confirmed = await showConfirmDialog(
                   context,
-                  title: 'Geschiedenis wissen',
-                  contentText:
-                      'Alle gespeelde spellen worden permanent verwijderd. '
-                      'Dit kan niet ongedaan worden gemaakt.',
+                  title: clearConfirmTitle,
+                  contentText: clearConfirmText,
                   confirmLabel: 'Wissen',
-                  destructive: true,
+                  destructive: clearIsDestructive,
                 );
                 if (confirmed != true) return;
-                await ref.read(gameHistoryProvider.notifier).clearHistory();
+                await onClear();
               },
-              child: const Text('Geschiedenis wissen'),
+              child: Text(clearLabel),
             ),
           ],
         ),
@@ -265,12 +355,13 @@ Future<void> _sendErrorReport(
   BuildContext context,
   Object? exception,
   StackTrace? stackTrace,
+  String storageKey,
 ) async {
   final confirmed = await showConfirmDialog(
     context,
     title: 'Verstuur foutrapport',
     contentText:
-        'Het rapport bevat de volledige spelgeschiedenis, inclusief '
+        'Het rapport bevat de opgeslagen gegevens, inclusief '
         'spelersnamen. Er worden geen andere gegevens meegestuurd.',
     confirmLabel: 'Versturen',
   );
@@ -278,7 +369,7 @@ Future<void> _sendErrorReport(
   if (!context.mounted) return;
 
   final prefs = await SharedPreferences.getInstance();
-  final rawData = prefs.getString(GameHistoryNotifier.storageKey);
+  final rawData = prefs.getString(storageKey);
 
   final report = buildDebugReport(
     exception,
@@ -325,7 +416,7 @@ String buildDebugReport(
       ..writeln('=== Exception ===')
       ..writeln('${exception.runtimeType}: $exception');
   }
-  if (exception is CorruptStorageException) {
+  if (exception is HasCause) {
     buf
       ..writeln()
       ..writeln('=== Cause ===')

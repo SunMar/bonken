@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/settings_screen.dart';
 import 'package:bonken/state/default_hearts_variant_provider.dart';
 import 'package:bonken/state/default_starter_variant_provider.dart';
+import 'package:bonken/state/settings_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,7 +72,13 @@ void main() {
       StarterVariant.oppositeChooserStarts,
     );
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('default_starter_variant'), 'oppositeChooserStarts');
+    final blob =
+        jsonDecode(prefs.getString(settingsStorageKey)!)
+            as Map<String, dynamic>;
+    expect(
+      (blob['ruleVariants'] as Map)['starterVariant'],
+      'oppositeChooserStarts',
+    );
   });
 
   testWidgets('tapping HeartsVariant radio updates provider and persists', (
@@ -93,6 +102,9 @@ void main() {
       HeartsVariant.graduatedUnlock,
     );
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('default_hearts_variant'), 'graduatedUnlock');
+    final blob =
+        jsonDecode(prefs.getString(settingsStorageKey)!)
+            as Map<String, dynamic>;
+    expect((blob['ruleVariants'] as Map)['heartsVariant'], 'graduatedUnlock');
   });
 }

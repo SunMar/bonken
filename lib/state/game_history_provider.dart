@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/game_session.dart';
 import 'migrations.dart';
+import 'storage_exceptions.dart';
 
 class UnsupportedStorageVersionException implements Exception {
   const UnsupportedStorageVersionException(this.version);
@@ -20,8 +21,9 @@ class UnsupportedStorageVersionException implements Exception {
 /// structure, …). Surfaced to the UI instead of silently discarding the user's
 /// saved games — they see a "Geschiedenis beschadigd" screen with a clear
 /// button and can decide.
-class CorruptStorageException implements Exception {
+class CorruptStorageException implements Exception, HasCause {
   const CorruptStorageException(this.cause);
+  @override
   final Object cause;
 
   @override

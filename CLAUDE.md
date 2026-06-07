@@ -58,7 +58,8 @@ map, or invariants — not as a follow-up.
   `Semantics(header: true)`** (`FormSectionCard` does this automatically).
   `test/a11y_test.dart` gates four guidelines.
 - **UI strings Dutch, code identifiers English.**
-- **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored JSON (frozen, sequenced steps).
+- **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored game-history JSON (frozen, sequenced steps).
+- **Append a `SettingsMigration` step (`lib/state/settings_migrations.dart`) + bump `currentSettingsVersion`** when changing the `settings` JSON blob (same frozen/sequenced rules — see [ARCHITECTURE.md §9](ARCHITECTURE.md)).
 - **Game-rule variants** live in `lib/models/` (one enum each), grouped into a
   `RuleVariants` (`lib/models/rule_variants.dart`) carried by `GameSession` +
   `CalculatorState`; per-variant app-wide defaults in

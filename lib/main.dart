@@ -8,11 +8,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import 'models/hearts_variant.dart';
+import 'models/starter_variant.dart';
 import 'screens/home_screen.dart';
 import 'screens/rules_screen.dart';
 import 'services/app_updater.dart';
 import 'state/default_hearts_variant_provider.dart';
 import 'state/default_starter_variant_provider.dart';
+import 'state/settings_storage.dart';
 import 'state/theme_mode_provider.dart';
 import 'theme/app_theme_extensions.dart';
 
@@ -36,26 +39,41 @@ void main() async {
   unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
 
   // Pre-load persisted settings before the first frame paints to avoid flashes.
-  final initialThemeMode = await loadPersistedThemeMode();
-  final initialStarterVariant = await loadPersistedDefaultStarterVariant();
-  final initialHeartsVariant = await loadPersistedDefaultHeartsVariant();
+  // On error, the app starts with defaults and the home screen shows an error
+  // screen from which the user can reset settings.
+  PersistedSettings? settings;
+  (Object, StackTrace)? settingsLoadError;
+  try {
+    settings = await loadPersistedSettings();
+  } on Object catch (e, st) {
+    settingsLoadError = (e, st);
+  }
 
   runApp(
     ProviderScope(
       overrides: [
         themeModeProvider.overrideWith(
-          () => ThemeModeNotifier(initialMode: initialThemeMode),
+          () => ThemeModeNotifier(
+            initialMode: settings?.themeMode ?? ThemeMode.system,
+          ),
         ),
         defaultStarterVariantProvider.overrideWith(
           () => DefaultStarterVariantNotifier(
-            initialVariant: initialStarterVariant,
+            initialVariant:
+                settings?.defaultStarterVariant ?? StarterVariant.dealerStarts,
           ),
         ),
         defaultHeartsVariantProvider.overrideWith(
           () => DefaultHeartsVariantNotifier(
-            initialVariant: initialHeartsVariant,
+            initialVariant:
+                settings?.defaultHeartsVariant ??
+                HeartsVariant.onlyAfterPlayedHeart,
           ),
         ),
+        if (settingsLoadError != null)
+          settingsLoadErrorProvider.overrideWith(
+            () => SettingsLoadErrorNotifier(initialError: settingsLoadError),
+          ),
       ],
       child: const BonkenApp(),
     ),
