@@ -94,6 +94,7 @@ class GameSession {
     required this.id,
     required this.createdAt,
     required this.updatedAt,
+    required this.scoredAt,
     required this.players,
     required this.firstDealerId,
     required this.rounds,
@@ -106,6 +107,11 @@ class GameSession {
   final String id;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// When scores last changed — advances only when a [RoundRecord] is
+  /// committed (round appended, replaced, or deleted). Player/name/rule edits
+  /// leave this unchanged. Starts at [createdAt] for new sessions.
+  final DateTime scoredAt;
 
   /// Optional user-supplied name for this game session. Never the empty string
   /// — callers must pass null rather than `''`.
@@ -189,6 +195,7 @@ class GameSession {
     'id': id,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'scoredAt': scoredAt.toIso8601String(),
     'players': [for (final p in players) p.toJson()],
     'firstDealerId': firstDealerId,
     'ruleVariants': ruleVariants.toJson(),
@@ -207,6 +214,7 @@ class GameSession {
       id: json['id'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      scoredAt: DateTime.parse(json['scoredAt'] as String),
       players: players,
       firstDealerId: json['firstDealerId'] as String,
       ruleVariants: RuleVariants.fromJson(

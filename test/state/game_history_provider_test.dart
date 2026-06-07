@@ -27,6 +27,7 @@ GameSession session(
     id: id,
     createdAt: updatedAt,
     updatedAt: updatedAt,
+    scoredAt: updatedAt,
     players: players,
     firstDealerId: players[0].id,
     rounds: rounds,

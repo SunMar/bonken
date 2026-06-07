@@ -40,6 +40,7 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
     id: 'seed-session',
     createdAt: DateTime(2024),
     updatedAt: DateTime(2024),
+    scoredAt: DateTime(2024),
     players: players,
     firstDealerId: players[0].id,
     rounds: [

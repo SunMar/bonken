@@ -70,14 +70,14 @@ List<({String name, int score, int seat})> rankScores(
 @visibleForTesting
 String buildShareText({
   String? gameName,
-  required DateTime updatedAt,
+  required DateTime scoredAt,
   required List<({String name, int score, int seat})> entries,
 }) {
   final maxScore = entries.isEmpty ? 0 : entries.first.score;
   final lines = [
     'Bonken uitslag',
     ?gameName,
-    formatDate(updatedAt),
+    formatDate(scoredAt),
     for (final e in entries)
       '${e.name}  ${e.score} pt${e.score == maxScore ? ' 🏆' : ''}',
   ];
@@ -353,7 +353,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final session = ref.read(activeSessionProvider);
     return buildShareText(
       gameName: session.gameName,
-      updatedAt: session.updatedAt,
+      scoredAt: session.scoredAt,
       entries: rankScores(session.history, session.displayedPlayers),
     );
   }
@@ -729,9 +729,9 @@ class _LiveScoreboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final (history, displayedPlayers, updatedAt, gameName) = ref.watch(
+    final (history, displayedPlayers, scoredAt, gameName) = ref.watch(
       activeSessionProvider.select(
-        (a) => (a.history, a.displayedPlayers, a.updatedAt, a.gameName),
+        (a) => (a.history, a.displayedPlayers, a.scoredAt, a.gameName),
       ),
     );
 
@@ -760,7 +760,7 @@ class _LiveScoreboard extends ConsumerWidget {
         playerNames: [for (final p in displayedPlayers) p.name],
         scores: totals,
         winners: winners,
-        updatedAt: updatedAt,
+        scoredAt: scoredAt,
         gameName: gameName,
         headerTrailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1189,9 +1189,9 @@ class _ShareCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final (history, displayedPlayers, updatedAt, gameName) = ref.watch(
+    final (history, displayedPlayers, scoredAt, gameName) = ref.watch(
       activeSessionProvider.select(
-        (a) => (a.history, a.displayedPlayers, a.updatedAt, a.gameName),
+        (a) => (a.history, a.displayedPlayers, a.scoredAt, a.gameName),
       ),
     );
 
@@ -1242,14 +1242,14 @@ class _ShareCard extends ConsumerWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                formatDate(updatedAt),
+                formatDate(scoredAt),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: cs.onSurfaceVariant,
                 ),
               ),
             ] else
               Text(
-                formatDate(updatedAt),
+                formatDate(scoredAt),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),

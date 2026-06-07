@@ -21,6 +21,7 @@ GameSession _session(String id) {
     id: id,
     createdAt: DateTime(2026),
     updatedAt: DateTime(2026),
+    scoredAt: DateTime(2026),
     players: players,
     firstDealerId: players[0].id,
     rounds: const [],

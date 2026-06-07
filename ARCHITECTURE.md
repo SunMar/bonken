@@ -411,12 +411,15 @@ in-memory input via `countsToInput`), so it lives on `GameSession._roundFromJson
 keeping `RoundRecord` a catalog-free data class.
 
 ### `GameSession` + `PendingRound` ([`game_session.dart`](lib/models/game_session.dart))
-The persisted aggregate: `id`, `createdAt`/`updatedAt`, `players`,
+The persisted aggregate: `id`, `createdAt`/`updatedAt`/`scoredAt`, `players`,
 `firstDealerId`, `ruleVariants` (a `RuleVariants` grouping the per-game
 `starterVariant` + `heartsVariant`), `rounds: List<RoundRecord>`,
 optional `pendingRound`, and an optional user-supplied `gameName` (shown on the
 scoreboard cards and in the shared result; never the empty string — null when
-unset).
+unset). `scoredAt` records when scores last changed (round appended, replaced,
+or deleted); player/name/rule edits leave it unchanged. It is shown on scoreboard
+cards and in both share formats. `updatedAt` continues to track any meaningful
+save (including player/rule changes).
 Lazily-computed (`late final`) derived getters: `isFinished` (≥ `totalRounds`
 == 12), `finalScoresByPlayer`, `winnerIds`, and the display-ordered
 `displayedPlayers` / `displayedPlayerNames` / `displayedScores` /
@@ -544,7 +547,7 @@ ActiveSession` at every call site — the cast lives once, in that provider. It 
 
 | group | fields | notes |
 |-------|--------|-------|
-| identity | `sessionId`, `createdAt`, `updatedAt` | always present in `ActiveSession`; the idle signal is `NoSession`, not an empty `sessionId` |
+| identity | `sessionId`, `createdAt`, `updatedAt`, `scoredAt` | always present in `ActiveSession`; `scoredAt` advances only on `_exitSlot(historyChanged: true)` (round append/replace/delete); the idle signal is `NoSession`, not an empty `sessionId` |
 | players | `players`, `playerNames`*, `displayedPlayers`* | *stored derived, for `select()` stability |
 | seating | `firstDealerId`, `dealerId`, `chooserId` | IDs; seat indices via `dealerIndex`/`chooserIndex`/`firstDealerIndex`/`displayedChooserIndex` getters |
 | progress | `roundNumber` (1–12), `history: List<RoundRecord>` | |
@@ -615,7 +618,7 @@ delete flow, by `cancelPendingAutosave` before the pop.
 
 ### `gameHistoryProvider` — persistence & suggestions
 `AsyncNotifierProvider<GameHistoryNotifier, List<GameSession>>`. Loads + sorts
-saved sessions (newest `updatedAt` first); `saveGame` (upsert by id) /
+saved sessions (newest `scoredAt` first); `saveGame` (upsert by id) /
 `deleteGame` / `clearHistory`; and `playerNameSuggestions` — unique names across
 all sessions ranked by frequency (ties alphabetical, case-insensitive), cached
 and invalidated on mutation. See §9 for storage details.
@@ -683,12 +686,13 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 8):** `{ "version": 8, "games": [ … ] }`.
-- `GameSession.toJson`: `id`, `createdAt`/`updatedAt` (ISO-8601),
+- **Envelope (`currentStorageVersion` = 9):** `{ "version": 9, "games": [ … ] }`.
+- `GameSession.toJson`: `id`, `createdAt`/`updatedAt`/`scoredAt` (ISO-8601),
   `players:[{id,name}]`, `firstDealerId`,
   `ruleVariants:{starterVariant, heartsVariant}` (enum names), `rounds:[…]`,
   `pendingRound?`, `gameName?` (optional user-supplied label; omitted when null,
-  like `pendingRound`).
+  like `pendingRound`). `scoredAt` is always emitted; `fromJson` requires the key
+  (guaranteed by the v8→v9 migration for stored data; test fixtures include it directly).
 - `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
   `scores:{playerId:int}`, `input` (the **uniform** `{"counts":[ {uuid:int}, … ]}`
   form, regardless of game shape — see below), `doublesJson?` (omitted unless a
@@ -708,11 +712,12 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 8,
+  "version": 9,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
     "updatedAt": "2026-05-20T20:05:00.000",
+    "scoredAt": "2026-05-20T20:05:00.000",
     "gameName": "Kerst 2024",
     "players": [
       {"id": "a1", "name": "Alice"}, {"id": "b2", "name": "Bob"},
@@ -790,6 +795,9 @@ classes), so old steps keep working as the models evolve.
   game with no name. The bump exists only as a version gate, so an older v7-only
   build refuses a v8 file (`version > currentStorageVersion` → "App bijwerken
   vereist") instead of silently dropping a name a newer build wrote.
+- **`_V8ToV9`** — adds `scoredAt` to every game by copying `updatedAt`. This is
+  the best available approximation: prior builds did not record when scores
+  specifically changed, only when any meaningful save occurred.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step

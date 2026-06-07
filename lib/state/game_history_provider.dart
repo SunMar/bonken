@@ -80,7 +80,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
         for (final item in games)
           GameSession.fromJson(item as Map<String, dynamic>),
       ];
-      sessions.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      sessions.sort((a, b) => b.scoredAt.compareTo(a.scoredAt));
       return sessions;
     } on UnsupportedStorageVersionException {
       rethrow;
@@ -106,7 +106,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
     } else {
       updated.add(session);
     }
-    updated.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    updated.sort((a, b) => b.scoredAt.compareTo(a.scoredAt));
     _suggestionsCache = null;
     state = AsyncValue.data(updated);
     await _persist(updated);

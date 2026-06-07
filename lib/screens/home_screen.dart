@@ -397,7 +397,7 @@ class _GameSessionCard extends ConsumerWidget {
     );
 
     final names = session.displayedPlayerNames.join(', ');
-    final date = formatDate(session.updatedAt);
+    final date = formatDate(session.scoredAt);
     // Announce the custom game name (when set) so screen-reader users get the
     // same recognition cue sighted users see on the card.
     final namePart = session.gameName != null ? '"${session.gameName}" ' : '';
@@ -419,7 +419,7 @@ class _GameSessionCard extends ConsumerWidget {
         scores: session.displayedScores,
         winners: session.isFinished ? session.displayedWinnerIndices : const [],
         onTap: onTap,
-        updatedAt: session.updatedAt,
+        scoredAt: session.scoredAt,
         gameName: session.gameName,
         headerTrailing: IconButton(
           icon: const Icon(Symbols.delete),

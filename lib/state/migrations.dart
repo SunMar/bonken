@@ -17,7 +17,7 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 8;
+const int currentStorageVersion = 9;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
 const List<StorageMigration> _migrations = [
@@ -28,6 +28,7 @@ const List<StorageMigration> _migrations = [
   _V5ToV6(),
   _V6ToV7(),
   _V7ToV8(),
+  _V8ToV9(),
 ];
 
 /// Applies every registered step from [fromVersion] up to
@@ -499,4 +500,31 @@ class _V7ToV8 extends StorageMigration {
 
   @override
   List<dynamic> apply(List<dynamic> games) => games;
+}
+
+// =============================================================================
+// v8 → v9: add `scoredAt` — timestamp of the last committed round
+// =============================================================================
+//
+// v9 introduces `scoredAt`, which advances only when a RoundRecord is
+// committed (round appended, replaced, or deleted). For all existing games the
+// best approximation is `updatedAt`, so this step copies it verbatim.
+// GameSession.fromJson also falls back to `updatedAt` when `scoredAt` is
+// absent, so direct-model tests written against pre-v9 JSON keep working.
+
+class _V8ToV9 extends StorageMigration {
+  const _V8ToV9();
+
+  @override
+  int get fromVersion => 8;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games) _addScoredAt(raw as Map<String, dynamic>),
+  ];
+
+  static Map<String, dynamic> _addScoredAt(Map<String, dynamic> game) => {
+    ...game,
+    'scoredAt': game['updatedAt'],
+  };
 }

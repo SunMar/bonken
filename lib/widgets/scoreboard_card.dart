@@ -20,7 +20,7 @@ class ScoreboardCard extends StatelessWidget {
     required this.playerNames,
     required this.scores,
     required this.winners,
-    required this.updatedAt,
+    required this.scoredAt,
     this.gameName,
     this.headerTrailing,
     this.onTap,
@@ -44,9 +44,9 @@ class ScoreboardCard extends StatelessWidget {
 
   /// Shown as a muted subtitle (or as the sole header line when [gameName]
   /// is null).
-  final DateTime updatedAt;
+  final DateTime scoredAt;
 
-  /// Optional game name shown as the primary header line above [updatedAt].
+  /// Optional game name shown as the primary header line above [scoredAt].
   /// Never the empty string — pass null to show only the date.
   final String? gameName;
 
@@ -93,7 +93,7 @@ class ScoreboardCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                formatDate(updatedAt),
+                formatDate(scoredAt),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: cs.onSurfaceVariant,
                 ),
@@ -102,7 +102,7 @@ class ScoreboardCard extends StatelessWidget {
             ],
           )
         : Text(
-            formatDate(updatedAt),
+            formatDate(scoredAt),
             style: titleStyle,
             overflow: TextOverflow.ellipsis,
           );

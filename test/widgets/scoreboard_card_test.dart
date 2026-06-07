@@ -21,7 +21,7 @@ void main() {
             playerNames: playerNames,
             scores: const [10, 30, 20, 0],
             winners: const [],
-            updatedAt: testDate,
+            scoredAt: testDate,
           ),
         );
 
@@ -49,7 +49,7 @@ void main() {
             playerNames: playerNames,
             scores: const [40, 100, 30, -10],
             winners: const [1],
-            updatedAt: testDate,
+            scoredAt: testDate,
           ),
         );
 
@@ -69,7 +69,7 @@ void main() {
           playerNames: playerNames,
           scores: const [50, 50, 30, 20],
           winners: const [0, 1],
-          updatedAt: testDate,
+          scoredAt: testDate,
         ),
       );
 
@@ -86,7 +86,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          updatedAt: testDate,
+          scoredAt: testDate,
           gameName: 'Kerst 2024',
         ),
       );
@@ -103,7 +103,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          updatedAt: testDate,
+          scoredAt: testDate,
         ),
       );
 
@@ -121,7 +121,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          updatedAt: testDate,
+          scoredAt: testDate,
           onTap: () {},
           tapSemanticLabel: 'Open spel',
         ),
@@ -165,7 +165,7 @@ void main() {
             playerNames: playerNames,
             scores: const [0, 0, 0, 0],
             winners: const [],
-            updatedAt: testDate,
+            scoredAt: testDate,
           ),
         );
         expect(find.byType(InkWell), findsNothing);
@@ -179,7 +179,7 @@ void main() {
             playerNames: playerNames,
             scores: const [0, 0, 0, 0],
             winners: const [],
-            updatedAt: testDate,
+            scoredAt: testDate,
             onTap: () => taps++,
           ),
         );
@@ -199,7 +199,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          updatedAt: testDate,
+          scoredAt: testDate,
         ),
       );
       expect(find.byIcon(Symbols.delete), findsNothing);
@@ -211,7 +211,7 @@ void main() {
           playerNames: playerNames,
           scores: const [0, 0, 0, 0],
           winners: const [],
-          updatedAt: testDate,
+          scoredAt: testDate,
           headerTrailing: IconButton(
             icon: const Icon(Symbols.delete),
             onPressed: () {},
@@ -248,7 +248,7 @@ void main() {
             playerNames: playerNames,
             scores: const [0, 0, 0, 0],
             winners: const [],
-            updatedAt: testDate,
+            scoredAt: testDate,
           ),
         );
         expect(find.byIcon(glyph), findsOneWidget);

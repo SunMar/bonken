@@ -64,6 +64,7 @@ class ActiveSession extends CalculatorState {
     required String sessionId,
     required DateTime createdAt,
     DateTime? updatedAt,
+    DateTime? scoredAt,
     required List<Player> players,
     required String firstDealerId,
     required String dealerId,
@@ -87,6 +88,7 @@ class ActiveSession extends CalculatorState {
       sessionId: sessionId,
       createdAt: createdAt,
       updatedAt: updatedAt ?? createdAt,
+      scoredAt: scoredAt ?? createdAt,
       players: players,
       playerNames: List.unmodifiable([for (final p in players) p.name]),
       firstDealerId: firstDealerId,
@@ -118,6 +120,7 @@ class ActiveSession extends CalculatorState {
     required this.sessionId,
     required this.createdAt,
     required this.updatedAt,
+    required this.scoredAt,
     required this.players,
     required this.playerNames,
     required this.firstDealerId,
@@ -150,6 +153,11 @@ class ActiveSession extends CalculatorState {
   /// reorder, player/dealer name change). Not updated on load or on
   /// cancelled edits.
   final DateTime updatedAt;
+
+  /// When scores last changed — advances only when a round is committed
+  /// (appended, replaced, or deleted). Player/name/rule edits leave this
+  /// unchanged. Starts at [createdAt] for new sessions.
+  final DateTime scoredAt;
 
   /// Players in seat order. UUIDs are stable across renames and reorders.
   final List<Player> players;
@@ -301,6 +309,7 @@ class ActiveSession extends CalculatorState {
     String? sessionId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? scoredAt,
     List<Player>? players,
     String? firstDealerId,
     String? dealerId,
@@ -340,6 +349,7 @@ class ActiveSession extends CalculatorState {
       sessionId: sessionId ?? this.sessionId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      scoredAt: scoredAt ?? this.scoredAt,
       players: newPlayers,
       playerNames: newPlayerNames,
       firstDealerId: newFirstDealerId,
@@ -538,6 +548,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       clearPartialResult: true,
       clearEditState: true,
       updatedAt: historyChanged ? DateTime.now() : s.updatedAt,
+      scoredAt: historyChanged ? DateTime.now() : s.scoredAt,
       pending:
           overridePending, // null → preserve s.pending; non-null → override
     );
@@ -781,6 +792,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     state = ActiveSession(
       sessionId: '${now.microsecondsSinceEpoch}',
       createdAt: now,
+      scoredAt: now,
       players: List<Player>.from(players),
       firstDealerId: players[dealerIndex].id,
       dealerId: players[dealerIndex].id,
@@ -814,6 +826,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       id: s.sessionId,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
+      scoredAt: s.scoredAt,
       players: s.players,
       firstDealerId: s.firstDealerId,
       ruleVariants: s.ruleVariants,
@@ -863,6 +876,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       sessionId: session.id,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
+      scoredAt: session.scoredAt,
       players: players,
       firstDealerId: session.firstDealerId,
       dealerId: dealerId,

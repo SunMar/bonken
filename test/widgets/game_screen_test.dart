@@ -54,6 +54,7 @@ GameSession _session({
   id: 'seed',
   createdAt: DateTime(2024),
   updatedAt: DateTime(2024),
+  scoredAt: DateTime(2024),
   players: players,
   firstDealerId: players[0].id,
   rounds: rounds,
@@ -183,7 +184,7 @@ void main() {
       final date = DateTime(2024, 6, 15);
       final lines = buildShareText(
         gameName: 'Kerst 2024',
-        updatedAt: date,
+        scoredAt: date,
         entries: entries,
       ).split('\n');
 
@@ -200,7 +201,7 @@ void main() {
     test('buildShareText: omits the name line when gameName is null', () {
       const entries = [(name: 'Alice', score: 5, seat: 0)];
       // gameName omitted (defaults to null).
-      final text = buildShareText(updatedAt: DateTime(2024), entries: entries);
+      final text = buildShareText(scoredAt: DateTime(2024), entries: entries);
       final lines = text.split('\n');
       // Date follows the header directly — no blank/`null` name line.
       expect(lines[1], formatDate(DateTime(2024)));
