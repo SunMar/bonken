@@ -16,6 +16,7 @@ import '../widgets/amber_warning_box.dart';
 import '../widgets/app_bar_widgets.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/disabled_tap_detector.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_input/game_input_form.dart';
@@ -122,7 +123,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
               showHeader: false,
             ),
           ),
-          confirmLabel: 'Opslaan',
+          confirmLabel: kSaveLabel,
         );
         if (confirm != true) return;
       }
@@ -133,7 +134,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
     void showSaveIncompleteSnackbar() {
       showIncompleteFormSnackBar(
         ScaffoldMessenger.of(context),
-        message: 'Vul de score volledig in om op te slaan',
+        message: 'Vul de score volledig in om op te slaan.',
       );
     }
 
@@ -181,28 +182,13 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
                 child: const Text(kDiscardLabel),
               ),
               const Spacer(),
-              // Truly disabled when incomplete so native disabled colours
-              // are used (WCAG-exempt). A transparent GestureDetector on
-              // top catches taps when disabled and shows a snackbar
-              // explaining what's still missing, so users understand why
-              // the button isn't active yet.
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  FilledButton(
-                    onPressed: isComplete ? confirmAndSave : null,
-                    child: const Text('Opslaan'),
-                  ),
-                  if (!isComplete)
-                    Positioned.fill(
-                      child: ExcludeSemantics(
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: showSaveIncompleteSnackbar,
-                        ),
-                      ),
-                    ),
-                ],
+              DisabledTapDetector(
+                enabled: !isComplete,
+                onTap: showSaveIncompleteSnackbar,
+                child: FilledButton(
+                  onPressed: isComplete ? confirmAndSave : null,
+                  child: const Text(kSaveLabel),
+                ),
               ),
             ],
           ),

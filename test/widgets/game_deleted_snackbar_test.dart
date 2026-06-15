@@ -33,43 +33,47 @@ void main() {
   setUpPrefs();
 
   group('showGameDeletedSnackBar', () {
-    testWidgets('shows "Spel verwijderd" with an "Ongedaan maken" action', (
-      tester,
-    ) async {
-      late ScaffoldMessengerState messenger;
-      late ProviderContainer container;
-      final session = _session(kGameId1);
+    testWidgets(
+      'shows "Het spel is verwijderd." with an "Ongedaan maken" action',
+      (tester) async {
+        late ScaffoldMessengerState messenger;
+        late ProviderContainer container;
+        final session = _session(kGameId1);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: Builder(
-                builder: (ctx) {
-                  messenger = ScaffoldMessenger.of(ctx);
-                  container = ProviderScope.containerOf(ctx, listen: false);
-                  return ElevatedButton(
-                    onPressed: () =>
-                        showGameDeletedSnackBar(messenger, container, session),
-                    child: const Text('open'),
-                  );
-                },
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(
+                body: Builder(
+                  builder: (ctx) {
+                    messenger = ScaffoldMessenger.of(ctx);
+                    container = ProviderScope.containerOf(ctx, listen: false);
+                    return ElevatedButton(
+                      onPressed: () => showGameDeletedSnackBar(
+                        messenger,
+                        container,
+                        session,
+                      ),
+                      child: const Text('open'),
+                    );
+                  },
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await container.read(gameHistoryProvider.future);
+        );
+        await container.read(gameHistoryProvider.future);
 
-      await tester.tap(find.text('open'));
-      await tester.pump();
+        await tester.tap(find.text('open'));
+        await tester.pump();
 
-      expect(find.text('Spel verwijderd'), findsOneWidget);
-      expect(find.text('Ongedaan maken'), findsOneWidget);
+        expect(find.text('Het spel is verwijderd.'), findsOneWidget);
+        expect(find.text('Ongedaan maken'), findsOneWidget);
 
-      // Drain the actionable snackbar's 6 s force-close timer.
-      await tester.pumpAndSettle(const Duration(seconds: 7));
-    });
+        // Drain the actionable snackbar's 6 s force-close timer.
+        await tester.pumpAndSettle(const Duration(seconds: 7));
+      },
+    );
 
     testWidgets('tapping "Ongedaan maken" re-saves the deleted session', (
       tester,
@@ -208,7 +212,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('older'), findsNothing);
-      expect(find.text('Spel verwijderd'), findsOneWidget);
+      expect(find.text('Het spel is verwijderd.'), findsOneWidget);
 
       // Drain the actionable snackbar's 6 s force-close timer.
       await tester.pumpAndSettle(const Duration(seconds: 7));

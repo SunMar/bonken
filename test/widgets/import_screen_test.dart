@@ -143,6 +143,34 @@ void main() {
     expect(find.text('Gegevens vervangen'), findsOneWidget);
   });
 
+  testWidgets('confirming import shows success snackbar', (tester) async {
+    final zip = await _buildZip(
+      sessions: [_session()],
+      settingsJson: _validSettingsJson,
+    );
+    await _pump(tester, pick: () async => zip);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Kies bestand'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Importeer'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Vervangen'));
+    // Can't use pumpAndSettle here: the _Applying state shows a
+    // CircularProgressIndicator (looping animation) that never settles.
+    // pump(duration) advances fake time enough for the SharedPreferences
+    // writes to complete and the success snackbar to appear.
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.text('De gegevens zijn geïmporteerd (instellingen en 1 spel).'),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(seconds: 5)); // drain snackbar
+  });
+
   testWidgets('corrupt file → shows error dialog and returns to idle', (
     tester,
   ) async {

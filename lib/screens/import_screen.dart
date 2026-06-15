@@ -196,7 +196,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         '${result.gamesImported} ${result.gamesImported == 1 ? 'spel' : 'spellen'}',
       );
     }
-    return 'Gegevens geïmporteerd (${parts.join(' en ')}).';
+    return 'De gegevens zijn geïmporteerd (${parts.join(' en ')}).';
   }
 
   @override

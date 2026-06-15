@@ -128,7 +128,7 @@ void main() {
       container.read(gameHistoryProvider).value?.any((g) => g.id == kGameId1),
       isFalse,
     );
-    expect(find.text('Spel verwijderd'), findsOneWidget);
+    expect(find.text('Het spel is verwijderd.'), findsOneWidget);
     expect(find.text('Ongedaan maken'), findsOneWidget);
 
     // Invoke the undo action directly (tapping it also hides the snackbar,

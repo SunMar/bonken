@@ -21,6 +21,7 @@ import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
 import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
+import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
 import 'game_screen.dart';
 
@@ -138,8 +139,24 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     });
   }
 
+  void _showStartValidationSnackbar() {
+    final trimmedNames = [for (final c in _controllers) c.text.trim()];
+    if (!allPlayerNamesFilled(trimmedNames)) {
+      showIncompleteFormSnackBar(
+        ScaffoldMessenger.of(context),
+        message: 'Vul alle spelersnamen in.',
+      );
+      return;
+    }
+    showIncompleteFormSnackBar(
+      ScaffoldMessenger.of(context),
+      message: 'Spelersnamen moeten uniek zijn.',
+    );
+  }
+
   Future<void> _handleStart() async {
-    final players = [for (final c in _controllers) Player(name: c.text.trim())];
+    final trimmedNames = [for (final c in _controllers) c.text.trim()];
+    final players = [for (final n in trimmedNames) Player(name: n)];
 
     final dealerWasRandom = _dealerIndex == null;
     final dealerIndex = _dealerIndex ?? Random().nextInt(playerCount);
@@ -181,7 +198,6 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     final suggestions = ref
         .watch(gameHistoryProvider.notifier)
         .playerNameSuggestions;
-
     final trimmedNames = [for (final c in _controllers) c.text.trim()];
     final canStart =
         allPlayerNamesFilled(trimmedNames) &&
@@ -209,6 +225,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
           icon: const Icon(Symbols.play_arrow),
           label: const Text('Start spel'),
           onPressed: canStart ? _handleStart : null,
+          onDisabledTap: _showStartValidationSnackbar,
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),

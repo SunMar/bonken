@@ -28,7 +28,7 @@ void showGameDeletedSnackBar(
 ) {
   showTimedSnackBar(
     messenger,
-    content: const Text('Spel verwijderd'),
+    content: const Text('Het spel is verwijderd.'),
     action: SnackBarAction(
       label: 'Ongedaan maken',
       onPressed: () {

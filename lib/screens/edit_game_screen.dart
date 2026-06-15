@@ -16,6 +16,7 @@ import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/disabled_tap_detector.dart';
 import '../widgets/form_section_card.dart';
 import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
@@ -170,22 +171,22 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _save() async {
+  void _showSaveValidationSnackbar() {
     final trimmed = _controllers.map((c) => c.text.trim()).toList();
     if (!allPlayerNamesFilled(trimmed)) {
       showIncompleteFormSnackBar(
         ScaffoldMessenger.of(context),
-        message: 'Vul alle spelersnamen in',
+        message: 'Vul alle spelersnamen in.',
       );
       return;
     }
-    if (hasDuplicatePlayerNames(trimmed)) {
-      showIncompleteFormSnackBar(
-        ScaffoldMessenger.of(context),
-        message: 'Spelersnamen moeten uniek zijn',
-      );
-      return;
-    }
+    showIncompleteFormSnackBar(
+      ScaffoldMessenger.of(context),
+      message: 'Spelersnamen moeten uniek zijn.',
+    );
+  }
+
+  Future<void> _save() async {
     final dealerChanged = _dealerPlayerChanged;
     final orderChanged = _orderChanged;
     if (_gameInProgress && (dealerChanged || orderChanged)) {
@@ -267,7 +268,25 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                 child: const Text(kDiscardLabel),
               ),
               const Spacer(),
-              FilledButton(onPressed: _save, child: const Text('Opslaan')),
+              ListenableBuilder(
+                listenable: _formChanges,
+                builder: (context, _) {
+                  final trimmed = _controllers
+                      .map((c) => c.text.trim())
+                      .toList();
+                  final canSave =
+                      allPlayerNamesFilled(trimmed) &&
+                      !hasDuplicatePlayerNames(trimmed);
+                  return DisabledTapDetector(
+                    enabled: !canSave,
+                    onTap: _showSaveValidationSnackbar,
+                    child: FilledButton(
+                      onPressed: canSave ? _save : null,
+                      child: const Text(kSaveLabel),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),

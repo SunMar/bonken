@@ -91,7 +91,7 @@ void main() {
   });
 
   testWidgets(
-    'initial state: 4 empty fields, random-dealer hint, Start disabled',
+    'initial state: 4 empty fields, random-dealer hint, tapping Start shows snackbar',
     (tester) async {
       await pumpSetup(tester);
 
@@ -102,14 +102,18 @@ void main() {
       }
       expect(find.text('Willekeurige deler'), findsWidgets);
 
-      final startButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Start spel'),
-      );
-      expect(startButton.onPressed, isNull);
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tester.pump();
+
+      expect(find.text('Vul alle spelersnamen in.'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
     },
   );
 
-  testWidgets('Start enabled once 4 unique names are entered', (tester) async {
+  testWidgets('Start proceeds normally once 4 unique names are entered', (
+    tester,
+  ) async {
     await pumpSetup(tester);
 
     for (int i = 0; i < 4; i++) {
@@ -117,15 +121,12 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    final startButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Start spel'),
-    );
-    expect(startButton.onPressed, isNotNull);
     expect(find.text('Twee spelers hebben dezelfde naam.'), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets(
-    'duplicate names (case-insensitive) show warning and disable Start',
+    'duplicate names (case-insensitive) show warning and snackbar on tap',
     (tester) async {
       await pumpSetup(tester);
       await enterName(tester, 0, 'Alice');
@@ -134,23 +135,31 @@ void main() {
       await enterName(tester, 3, 'alice'); // case-insensitive duplicate
 
       expect(find.text('Twee spelers hebben dezelfde naam.'), findsOneWidget);
-      final startButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Start spel'),
-      );
-      expect(startButton.onPressed, isNull);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tester.pump();
+
+      expect(find.text('Spelersnamen moeten uniek zijn.'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
     },
   );
 
-  testWidgets('Start disabled while any name slot is empty', (tester) async {
+  testWidgets('tapping Start with an empty slot shows snackbar', (
+    tester,
+  ) async {
     await pumpSetup(tester);
     await enterName(tester, 0, 'Alice');
     await enterName(tester, 1, 'Bob');
     await enterName(tester, 2, 'Carol');
     // slot 3 left empty
-    final startButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Start spel'),
-    );
-    expect(startButton.onPressed, isNull);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+    await tester.pump();
+
+    expect(find.text('Vul alle spelersnamen in.'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
   });
 
   testWidgets('does NOT mutate calculatorProvider while typing', (

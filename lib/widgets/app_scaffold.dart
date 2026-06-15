@@ -1,33 +1,47 @@
 import 'package:flutter/material.dart';
 
+import 'disabled_tap_detector.dart';
+
 /// Full-width [FilledButton.icon] for use as the sole action in a
 /// [BottomAppBar]. Uses a 48 dp minimum height so the button looks visually
 /// proportional at full screen width (wide buttons appear shorter at 40 dp).
+///
+/// When [onPressed] is null and [onDisabledTap] is provided, a transparent
+/// [GestureDetector] overlay sits on top of the truly-disabled button
+/// (native M3 disabled colours preserved) and fires [onDisabledTap] on tap,
+/// so users learn *why* the action is not available yet.
 class FullWidthBottomBarButton extends StatelessWidget {
   const FullWidthBottomBarButton({
     super.key,
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.onDisabledTap,
   });
 
   final Widget icon;
   final Widget label;
   final VoidCallback? onPressed;
+  final VoidCallback? onDisabledTap;
 
   @override
   Widget build(BuildContext context) {
+    final button = FilledButton.icon(
+      icon: icon,
+      label: label,
+      style: const ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(Size(0, 48)),
+      ),
+      onPressed: onPressed,
+    );
     return BottomAppBar(
       child: Row(
         children: [
           Expanded(
-            child: FilledButton.icon(
-              icon: icon,
-              label: label,
-              style: const ButtonStyle(
-                minimumSize: WidgetStatePropertyAll(Size(0, 48)),
-              ),
-              onPressed: onPressed,
+            child: DisabledTapDetector(
+              enabled: onPressed == null && onDisabledTap != null,
+              onTap: onDisabledTap ?? () {},
+              child: button,
             ),
           ),
         ],

@@ -146,7 +146,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text('Vul alle spelersnamen in'), findsOneWidget);
+      expect(find.text('Vul alle spelersnamen in.'), findsOneWidget);
       // Screen did not pop.
       expect(find.byType(EditGameScreen), findsOneWidget);
 
@@ -169,7 +169,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text('Spelersnamen moeten uniek zijn'), findsOneWidget);
+      expect(find.text('Spelersnamen moeten uniek zijn.'), findsOneWidget);
       expect(find.byType(EditGameScreen), findsOneWidget);
 
       await tester.pump(const Duration(seconds: 5));

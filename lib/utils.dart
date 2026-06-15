@@ -29,6 +29,9 @@ const String kDiscardInputMessage = 'Je invoer gaat verloren.';
 /// Label for every discard confirm button, tooltip, and action.
 const String kDiscardLabel = 'Verwerpen';
 
+/// Label for every save button and confirm action.
+const String kSaveLabel = 'Opslaan';
+
 /// Title used both for the "another game is still pending" info dialog
 /// (game screen) and for the "discard the in-progress round" confirm
 /// dialog (round input screen).

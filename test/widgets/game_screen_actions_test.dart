@@ -143,7 +143,7 @@ void main() {
     );
 
     // Snackbar with undo action.
-    expect(find.text('Spel verwijderd'), findsOneWidget);
+    expect(find.text('Het spel is verwijderd.'), findsOneWidget);
     expect(find.text('Ongedaan maken'), findsOneWidget);
 
     // Tapping "Ongedaan maken" re-saves the deleted session. We invoke

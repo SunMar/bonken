@@ -256,7 +256,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         showTimedSnackBar(
           ScaffoldMessenger.of(context),
           content: const Text(
-            'Afbeelding delen wordt niet ondersteund op dit apparaat',
+            'Afbeelding delen wordt niet ondersteund op dit apparaat.',
           ),
         );
       }

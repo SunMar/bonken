@@ -202,7 +202,7 @@ void main() {
       // Snackbar appears with the expected text; no modal dialog.
       expect(find.byType(SnackBar), findsOneWidget);
       expect(
-        find.text('Vul de score volledig in om op te slaan'),
+        find.text('Vul de score volledig in om op te slaan.'),
         findsOneWidget,
       );
       expect(find.text('Score niet compleet'), findsNothing);

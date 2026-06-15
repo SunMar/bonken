@@ -85,4 +85,48 @@ void main() {
 
     await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
   });
+
+  testWidgets('export throws → error snackbar, stays on screen', (
+    tester,
+  ) async {
+    PackageInfo.setMockInitialValues(
+      appName: 'bonken',
+      packageName: 'org.example.bonken',
+      version: '1.0.0',
+      buildNumber: '1',
+      buildSignature: '',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          shareFileProvider.overrideWithValue(
+            ({
+              required bytes,
+              required filename,
+              required mimeType,
+              subject,
+              text,
+            }) async => throw Exception('share boom'),
+          ),
+        ],
+        child: const MaterialApp(home: ExportScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Games-only avoids needing a settings blob in prefs.
+    await tester.tap(find.text('Alleen speelgeschiedenis'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Exporteer'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Het is mislukt om de gegevens te exporteren.'),
+      findsOneWidget,
+    );
+    expect(find.byType(ExportScreen), findsOneWidget); // did not pop
+
+    await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+  });
 }

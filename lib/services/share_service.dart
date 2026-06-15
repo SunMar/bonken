@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 /// (e.g. the Web Share API is not supported). Shared by every caller of
 /// [shareFile] so the wording stays consistent.
 const String kShareUnsupportedMessage =
-    'Delen wordt niet ondersteund op dit apparaat';
+    'Delen wordt niet ondersteund op dit apparaat.';
 
 /// Shares a file via the system share sheet (Android / iOS share intent,
 /// Web Share API). Writes bytes to a temp file on mobile; creates an in-memory

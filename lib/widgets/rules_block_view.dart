@@ -364,7 +364,7 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
-        FilledButton(onPressed: _save, child: const Text('Opslaan')),
+        FilledButton(onPressed: _save, child: const Text(kSaveLabel)),
       ],
     );
   }

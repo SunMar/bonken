@@ -115,6 +115,15 @@ most of the structure exists to serve one of these.
   `showModalBottomSheet` are forbidden and caught by the same test in
   [`test/architecture_test.dart`](test/architecture_test.dart).
 
+- **Primary form actions look disabled but stay tappable.** Save/start buttons
+  pass `onPressed: null` (truly disabled — native M3 colours, WCAG-exempt) when
+  the form is incomplete or invalid. A transparent `GestureDetector` overlay
+  (`ExcludeSemantics`, `HitTestBehavior.opaque`) sits on top and calls
+  `showIncompleteFormSnackBar` with a specific reason when tapped — the user
+  sees the form is not ready *and* learns why when they tap anyway.
+  `incomplete_form_snackbar.dart` is the shared helper; `DisabledTapDetector`
+  (`lib/widgets/disabled_tap_detector.dart`) is the shared Stack+overlay widget.
+
 - **Guide with the rules, don't hard-enforce them.** The app *surfaces* the
   game's rules (amber `Note` callouts, disabled-looking affordances) but lets
   players override them — *what happens at the physical table is authoritative,

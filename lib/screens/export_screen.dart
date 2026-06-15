@@ -75,7 +75,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       setState(() => _busy = false);
       showTimedSnackBar(
         ScaffoldMessenger.of(context),
-        content: const Text('Exporteren mislukt. Probeer opnieuw.'),
+        content: const Text('Het is mislukt om de gegevens te exporteren.'),
       );
     }
   }
