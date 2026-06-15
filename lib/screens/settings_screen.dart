@@ -7,11 +7,15 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/form_section_card.dart';
 import '../widgets/game_rules_card.dart';
 import '../widgets/info_banner.dart';
+import 'export_screen.dart';
+import 'import_screen.dart';
 
-/// Full-screen dialog for configuring app-wide default settings.
-/// Pushed with `fullscreenDialog: true`.
+/// Screen for configuring app-wide default settings.
+///
+/// Pushed from [HomeScreen] via [SettingsIconButton].
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -21,14 +25,7 @@ class SettingsScreen extends ConsumerWidget {
     final heartsVariant = ref.watch(defaultHeartsVariantProvider);
 
     return AppScaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Symbols.close),
-          tooltip: 'Sluiten',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text('Instellingen'),
-      ),
+      appBar: AppBar(title: const Text('Instellingen')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -45,6 +42,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
             showDefaultBadge: false,
           ),
+          const SizedBox(height: 12),
+          const _DataSection(),
         ],
       ),
     );
@@ -63,6 +62,58 @@ class _SettingsNote extends StatelessWidget {
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: cs.onSecondaryContainer),
+      ),
+    );
+  }
+}
+
+class _DataSection extends StatelessWidget {
+  const _DataSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return FormSectionCard(
+      title: 'Gegevens',
+      childPadding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          MergeSemantics(
+            child: Semantics(
+              button: true,
+              child: ListTile(
+                leading: const Icon(Symbols.upload),
+                minVerticalPadding: 14,
+                title: const Text('Exporteer gegevens'),
+                subtitle: const Text('Maak een backupbestand'),
+                onTap: () => unawaited(
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ExportScreen(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          MergeSemantics(
+            child: Semantics(
+              button: true,
+              child: ListTile(
+                leading: const Icon(Symbols.download),
+                minVerticalPadding: 14,
+                title: const Text('Importeer gegevens'),
+                subtitle: const Text('Herstel vanuit een backupbestand'),
+                onTap: () => unawaited(
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ImportScreen(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

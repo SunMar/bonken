@@ -37,7 +37,7 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
   // and the scoreboard shows realistic non-zero scores.
   final players = [for (final name in _names) Player(name: name)];
   final session = GameSession(
-    id: 'seed-session',
+    id: kGameId1,
     createdAt: DateTime(2024),
     updatedAt: DateTime(2024),
     scoredAt: DateTime(2024),
@@ -49,12 +49,12 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
         game: const Dominoes(),
         chooserId: players[1].id,
         scoresByPlayer: {
-          players[0].id: 10,
-          players[1].id: -10,
-          players[2].id: 5,
-          players[3].id: -5,
+          players[0].id: -100,
+          players[1].id: 0,
+          players[2].id: 0,
+          players[3].id: 0,
         },
-        input: const RecipientInput([null]),
+        input: RecipientInput([players[0].id]),
         doubles: const DoubleMatrix(),
       ),
     ],
@@ -150,8 +150,8 @@ void main() {
     // the action callback directly (rather than tapping the widget) so
     // we don't double-close the snackbar — `SnackBarAction` calls
     // `hideCurrentSnackBar` on tap, while the snackbar's
-    // belt-and-suspenders `Timer` (in `showGameDeletedSnackBar`) also
-    // calls `controller.close` after its 5s duration.
+    // belt-and-suspenders `Timer` (in `showTimedSnackBar`) also
+    // calls `controller.close` after its 4s duration.
     final action = tester.widget<SnackBarAction>(find.byType(SnackBarAction));
     action.onPressed();
     await tester.pump();

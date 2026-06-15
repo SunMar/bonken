@@ -10,6 +10,10 @@
 //   • textContrastGuideline      — text meets 4.5:1 contrast
 // These ride the normal `flutter test` gate (no separate CI step).
 
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:bonken/models/app_version.dart';
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/games/negative_games.dart';
@@ -18,17 +22,24 @@ import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/edit_game_screen.dart';
+import 'package:bonken/screens/export_screen.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
+import 'package:bonken/screens/import_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/screens/rules_screen.dart';
 import 'package:bonken/screens/settings_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
+import 'package:bonken/state/export_import_notifier.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/state/migrations.dart' show currentStorageVersion;
+import 'package:bonken/state/platform_io_providers.dart';
+import 'package:bonken/state/settings_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'test_helpers.dart';
 
@@ -38,13 +49,18 @@ RoundRecord _dominoesRound(int n, List<Player> players) => RoundRecord(
   roundNumber: n,
   game: const Dominoes(),
   chooserId: players[1].id,
-  scoresByPlayer: {for (final p in players) p.id: 0},
-  input: const RecipientInput([null]),
+  scoresByPlayer: {
+    players[0].id: -100,
+    players[1].id: 0,
+    players[2].id: 0,
+    players[3].id: 0,
+  },
+  input: RecipientInput([players[0].id]),
   doubles: const DoubleMatrix(),
 );
 
 GameSession _session(List<Player> players) => GameSession(
-  id: 'seed',
+  id: kGameId1,
   createdAt: DateTime(2024),
   updatedAt: DateTime(2024),
   scoredAt: DateTime(2024),
@@ -56,7 +72,7 @@ GameSession _session(List<Player> players) => GameSession(
 /// A finished (12-round) session with a name — exercises the finished-state UI
 /// (the share action in the app bar).
 GameSession _finishedSession(List<Player> players) => GameSession(
-  id: 'seed',
+  id: kGameId1,
   createdAt: DateTime(2024),
   updatedAt: DateTime(2024),
   scoredAt: DateTime(2024),
@@ -186,4 +202,79 @@ void main() {
     await _expectA11y(tester);
     handle.dispose();
   });
+
+  testWidgets('ImportScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, const ImportScreen());
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('ImportScreen (analyzed) meets a11y guidelines', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final zip = await _backupZip();
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [pickBackupBytesProvider.overrideWithValue(() async => zip)],
+        child: const MaterialApp(home: ImportScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Kies bestand'));
+    await tester.pumpAndSettle();
+    // We are now in the analyzed state with the stream checkboxes shown.
+    expect(find.byType(CheckboxListTile), findsWidgets);
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('ExportScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, const ExportScreen());
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+}
+
+/// Builds a valid backup ZIP (one game + settings) for driving [ImportScreen]
+/// into its analyzed state in a11y checks.
+Future<Uint8List> _backupZip() async {
+  final players = [for (final n in _names) Player(name: n)];
+  final dt = DateTime(2024);
+  final game = GameSession(
+    id: kGameId1,
+    createdAt: dt,
+    updatedAt: dt,
+    scoredAt: dt,
+    players: players,
+    firstDealerId: players[0].id,
+    rounds: const [],
+  );
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(
+    GameHistoryNotifier.storageKey,
+    jsonEncode({
+      'version': currentStorageVersion,
+      'games': [game.toJson()],
+    }),
+  );
+  await prefs.setString(
+    settingsStorageKey,
+    jsonEncode({
+      'version': 1,
+      'themeMode': 'dark',
+      'ruleVariants': {
+        'starterVariant': 'dealerStarts',
+        'heartsVariant': 'onlyAfterPlayedHeart',
+      },
+    }),
+  );
+  return exportBackup(
+    prefs: prefs,
+    appVersion: const AppVersion(version: '1.0.0', buildNumber: '1'),
+    includeGames: true,
+    includeSettings: true,
+  );
 }

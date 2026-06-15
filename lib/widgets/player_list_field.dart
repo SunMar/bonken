@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../models/game_constraints.dart';
 import '../models/mini_game.dart';
 import 'drag_handle.dart';
 import 'player_name_field.dart';
@@ -37,9 +38,7 @@ class PlayerListField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trimmedNames = [for (final c in controllers) c.text.trim()];
-    final lowerNames = trimmedNames.map((n) => n.toLowerCase()).toList();
-    final nonEmptyLower = lowerNames.where((n) => n.isNotEmpty).toList();
-    final hasDuplicates = nonEmptyLower.length != nonEmptyLower.toSet().length;
+    final hasDuplicates = hasDuplicatePlayerNames(trimmedNames);
 
     // Pre-compute the per-row "names taken by other slots" sets once instead
     // of allocating a fresh Set inside the loop body for every rebuild.

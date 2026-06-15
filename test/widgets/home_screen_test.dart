@@ -36,8 +36,13 @@ GameSession _session(String id) {
         roundNumber: 1,
         game: const Dominoes(),
         chooserId: players[1].id,
-        scoresByPlayer: {for (final p in players) p.id: 0},
-        input: const RecipientInput([null]),
+        scoresByPlayer: {
+          players[0].id: -100,
+          players[1].id: 0,
+          players[2].id: 0,
+          players[3].id: 0,
+        },
+        input: RecipientInput([players[0].id]),
         doubles: const DoubleMatrix(),
       ),
     ],
@@ -81,7 +86,7 @@ void main() {
   ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    await _pumpHome(tester, container, saved: [_session('g1')]);
+    await _pumpHome(tester, container, saved: [_session(kGameId1)]);
 
     expect(find.text('Spellen'), findsOneWidget);
     expect(find.byType(ScoreboardCard), findsOneWidget);
@@ -93,7 +98,7 @@ void main() {
   ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    await _pumpHome(tester, container, saved: [_session('g1')]);
+    await _pumpHome(tester, container, saved: [_session(kGameId1)]);
 
     await tester.tap(find.byType(ScoreboardCard));
     await tester.pumpAndSettle();
@@ -101,7 +106,7 @@ void main() {
     expect(find.byType(GameScreen), findsOneWidget);
     expect(
       (container.read(calculatorProvider) as ActiveSession).sessionId,
-      'g1',
+      kGameId1,
     );
 
     // Drain the autosave debounce scheduled by loadSession.
@@ -114,13 +119,13 @@ void main() {
   ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    await _pumpHome(tester, container, saved: [_session('g1')]);
+    await _pumpHome(tester, container, saved: [_session(kGameId1)]);
 
     await tester.tap(find.byTooltip('Verwijderen'));
     await tester.pumpAndSettle();
 
     expect(
-      container.read(gameHistoryProvider).value?.any((g) => g.id == 'g1'),
+      container.read(gameHistoryProvider).value?.any((g) => g.id == kGameId1),
       isFalse,
     );
     expect(find.text('Spel verwijderd'), findsOneWidget);
@@ -132,7 +137,7 @@ void main() {
     action.onPressed();
     await tester.pump();
     expect(
-      container.read(gameHistoryProvider).value?.any((g) => g.id == 'g1'),
+      container.read(gameHistoryProvider).value?.any((g) => g.id == kGameId1),
       isTrue,
     );
 
@@ -285,7 +290,7 @@ void main() {
   });
 
   group('buildDebugReport', () {
-    final when = DateTime.utc(2024, 1, 2, 3, 4, 5);
+    final when = DateTime(2024, 1, 2, 3, 4, 5);
 
     test('caps an oversized raw-storage blob with a marker', () {
       final huge = 'x' * 5000;

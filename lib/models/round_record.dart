@@ -28,7 +28,6 @@ class RoundRecord {
 
   Map<String, dynamic> toJson() => {
     'roundNumber': roundNumber,
-    'gameName': game.name,
     'gameId': game.id,
     'chooserId': chooserId,
     'scores': scoresByPlayer,

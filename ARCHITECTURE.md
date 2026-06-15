@@ -199,6 +199,13 @@ lib/
     mini_game.dart           MiniGame abstract base + calculateScores engine; GameSymbol
                              sealed union; GameCategory; playerCount(4); doublingTurnIndex.
     game_mechanics.dart      dealerIndexFor / starterIndexFor — ONLY home of seat relationships.
+    game_constraints.dart    Single source of truth for valid game data: kPlayerNameMaxLength /
+                             kGameNameMaxLength + predicate/normalizer functions (name trim,
+                             length, case-insensitive uniqueness). Composed by game_invariants,
+                             validation.dart, and the create/edit UI alike. Pure Dart, no Flutter.
+    game_invariants.dart     GameInvariantError + assertGameInvariants(GameSession): models-layer
+                             checks (4 players, no dup ids/names, rounds ≤ 12, Σ scores invariant,
+                             mini-game-specific input checks). Used by the import validation path.
     input_descriptor.dart    Sealed GameInput (CountsInput/RecipientInput) + sealed InputDescriptor.
     player.dart              Player (stable UUID id + name).
     double_matrix.dart       DoubleMatrix: per-pair doubling state + initiator, UUID-keyed.
@@ -218,7 +225,8 @@ lib/
                              CalculatorNotifier (the in-game state machine);
                              activeSessionProvider narrows it to ActiveSession.
     game_history_provider.dart Persistence (SharedPreferences) + versioning; runs migrations on load.
-    migrations.dart          Sequenced, frozen StorageMigration steps (v1→…→v9) + runner.
+                             Also owns replaceAll(List<GameSession>) used by the import path.
+    migrations.dart          Sequenced, frozen StorageMigration steps (v1→…→v10) + runner. currentStorageVersion = 10.
     settings_storage.dart    Versioned `settings` blob: load, write, bootstrap from legacy keys,
                              error types (UnsupportedSettingsVersionException / CorruptSettingsException),
                              settingsLoadErrorProvider.
@@ -232,6 +240,15 @@ lib/
                              in variant-sensitive rule blocks. Overridden by RulesIconButton for
                              the pushed route: hidden (score input — hides cog), disabled
                              (game screen — cog shown but shows a snackbar directing to Spel bewerken).
+    backup_migrations.dart   BackupData typedef + BackupMigration abstract class + backupMigrations
+                             registry (currently empty) + currentBackupVersion (1). Append here
+                             when the ZIP envelope structure changes.
+    export_import_notifier.dart  exportBackup() top-level function + ImportAnalysis + analyzeBackup()
+                             (read-only analyze pass) + ImportResult + ImportNotifier (applyImport —
+                             all-or-nothing commit). See §9 "Backup / export-import".
+    validation.dart          ValidationError + validateManifest / validateMigratedGames /
+                             validateMigratedSettings — state-layer gate between raw JSON and
+                             live providers. Catches GameInvariantError from the models layer.
 
   screens/                   Full-screen routes (all use AppScaffold).
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
@@ -243,7 +260,10 @@ lib/
     rules_screen.dart        Renders rules content (full doc or single game); variant text and
                              whether the alternative is shown come from the variant providers +
                              rulesEditModeProvider (overridden per-route when opened in-game).
-    settings_screen.dart     App-wide default settings: StarterVariant + HeartsVariant.
+    settings_screen.dart     App-wide default settings: StarterVariant + HeartsVariant + Gegevens
+                             (export + import entry points).
+    import_screen.dart       Full-screen import flow (idle → analyzing → analyzed → applying);
+                             uses ImportNotifier.applyImport.
 
   widgets/                   Reusable UI.
     app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens); body wrapped in a
@@ -288,7 +308,8 @@ lib/
     info_banner.dart         Shared secondaryContainer Card with info icon + arbitrary child;
                              used by _RoundInfoBanner (game screen) and _SettingsNote (settings).
     form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
-                             + subtitle + child); used on new-game, edit-game, settings.
+                             + subtitle + child); used on new-game, edit-game, settings, import.
+    export_screen.dart       Full-screen route for the export flow; scope radio group + share button.
     game_input/              Round-input building blocks: form, counts input, player picker.
     …                        dealer_picker_dialog.dart, dialogs.dart,
                              timed_snackbar.dart + game_deleted_snackbar.dart
@@ -309,6 +330,13 @@ lib/
                              shows a variant picker dialog via a settings icon.
   theme/app_theme_extensions.dart  ThemeExtensions: Warning/GameSuit/DoubleState/Score colors.
   services/app_updater.dart  Fire-and-forget Google Play in-app update check (Android only).
+  services/share_service.dart  shareFile() (web/mobile XFile creation) + shareText() — share-sheet
+                             helpers with PlatformException handling; used by game_screen (score
+                             PNG + text) and export_screen (backup ZIP), via platform_io_providers.
+  services/file_pick_service.dart  pickBackupBytes() — picks a .zip via FilePicker, returns bytes;
+                             used by import_screen via platform_io_providers.
+  state/platform_io_providers.dart  shareFileProvider / shareTextProvider / pickBackupBytesProvider
+                             — DI seams over the two services; overridden in tests (see §11).
 ```
 
 ---
@@ -416,7 +444,7 @@ in-memory input via `countsToInput`), so it lives on `GameSession._roundFromJson
 keeping `RoundRecord` a catalog-free data class.
 
 ### `GameSession` + `PendingRound` ([`game_session.dart`](lib/models/game_session.dart))
-The persisted aggregate: `id`, `createdAt`/`updatedAt`/`scoredAt`, `players`,
+The persisted aggregate: `id` (UUID v4), `createdAt`/`updatedAt`/`scoredAt`, `players`,
 `firstDealerId`, `ruleVariants` (a `RuleVariants` grouping the per-game
 `starterVariant` + `heartsVariant`), `rounds: List<RoundRecord>`,
 optional `pendingRound`, and an optional user-supplied `gameName` (shown on the
@@ -431,7 +459,7 @@ Lazily-computed (`late final`) derived getters: `isFinished` (≥ `totalRounds`
 `displayedWinnerIndices` (rotated so the round-1 dealer is first). `fromJson`
 resolves each round's `gameId` against `allGames`.
 **`PendingRound`** is a round started but not yet scored — it stores
-`gameId`/`gameName` strings + `input` + optional `doublesJson` so partial work
+`gameId` string + `input` + optional `doublesJson` so partial work
 survives an app restart. Its `toJson`/`fromJson` resolve the game by `gameId` to
 convert `input` to/from the uniform counts form, same as a round.
 
@@ -691,14 +719,15 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
 Backend: `SharedPreferences` ([`game_history_provider.dart`](lib/state/game_history_provider.dart)).
 
 - **Current key:** `game_history`. **Legacy key:** `bonken_game_history`.
-- **Envelope (`currentStorageVersion` = 9):** `{ "version": 9, "games": [ … ] }`.
-- `GameSession.toJson`: `id`, `createdAt`/`updatedAt`/`scoredAt` (ISO-8601),
+- **Envelope (`currentStorageVersion` = 10):** `{ "version": 10, "games": [ … ] }`.
+- `GameSession.toJson`: `id`, `createdAt`/`updatedAt`/`scoredAt` (bare local
+  ISO-8601, no timezone suffix — e.g. `"2026-05-20T19:30:00.000"`),
   `players:[{id,name}]`, `firstDealerId`,
   `ruleVariants:{starterVariant, heartsVariant}` (enum names), `rounds:[…]`,
   `pendingRound?`, `gameName?` (optional user-supplied label; omitted when null,
   like `pendingRound`). `scoredAt` is always emitted; `fromJson` requires the key
-  (guaranteed by the v8→v9 migration for stored data; test fixtures include it directly).
-- `RoundRecord.toJson`: `roundNumber`, `gameName`, `gameId`, `chooserId`,
+  (guaranteed by the v8→v9 migration).
+- `RoundRecord.toJson`: `roundNumber`, `gameId`, `chooserId`,
   `scores:{playerId:int}`, `input` (the **uniform** `{"counts":[ {uuid:int}, … ]}`
   form, regardless of game shape — see below), `doublesJson?` (omitted unless a
   double exists).
@@ -717,7 +746,7 @@ wins 1, B doubled A):
 
 ```jsonc
 {
-  "version": 9,
+  "version": 10,
   "games": [{
     "id": "1716200000000000",
     "createdAt": "2026-05-20T19:30:00.000",
@@ -735,7 +764,7 @@ wins 1, B doubled A):
     },
     "rounds": [{
       "roundNumber": 1,
-      "gameName": "Vrouwen", "gameId": "queens",
+      "gameId": "queens",
       "chooserId": "b2",
       "scores": {"a1": -225, "b2": 45, "c3": 0, "d4": 0},
       // uniform counts list; Queens is a counts game → one element
@@ -746,7 +775,7 @@ wins 1, B doubled A):
       }
     }],
     "pendingRound": {
-      "gameId": "duck", "gameName": "Bukken", "chooserId": "c3",
+      "gameId": "duck", "chooserId": "c3",
       "input": {"counts": [{"a1": 4, "b2": 0, "c3": 0, "d4": 0}]}
     }
   }]
@@ -803,6 +832,11 @@ classes), so old steps keep working as the models evolve.
 - **`_V8ToV9`** — adds `scoredAt` to every game by copying `updatedAt`. This is
   the best available approximation: prior builds did not record when scores
   specifically changed, only when any meaningful save occurred.
+- **`_V9ToV10`** — strips the redundant `gameName` field from every round and
+  pending round. The field was written alongside `gameId` as a human-readable
+  label but was never read back — all load paths look up the game exclusively by
+  `gameId`. Removing it keeps stored data lean and the model the canonical source
+  of names.
 
 **When you change a stored shape: append one new `StorageMigration` step, add it
 to the registry, and bump `currentStorageVersion` — never edit an existing step
@@ -872,6 +906,89 @@ step and bump `currentSettingsVersion` — same rules as game-history migrations
 | [`default_starter_variant_provider.dart`](lib/state/default_starter_variant_provider.dart) | `ruleVariants.starterVariant` |
 | [`default_hearts_variant_provider.dart`](lib/state/default_hearts_variant_provider.dart) | `ruleVariants.heartsVariant` |
 
+### Backup / export-import ([`export_import_notifier.dart`](lib/state/export_import_notifier.dart))
+
+The export-import subsystem lets users back up both persisted streams (game
+history + settings) to a ZIP file and restore them on the same or a different
+device. Stored blobs flow through their normal migration runners at import time;
+the subsystem adds no extra migration hooks of its own. `currentBackupVersion = 1`
+(in `backup_migrations.dart`) versions the ZIP envelope.
+
+**ZIP envelope.** `exportBackup()` writes a ZIP with up to three entries:
+
+```
+manifest.json   {"version":1, "appVersion":"…", "exportedAt":"… (local ISO-8601)",
+                 "utcOffset":"+HH:MM", "contains":[…], "hashes":{…}}
+games.json      raw SharedPreferences blob — exactly the {version, games} JSON
+settings.json   raw SharedPreferences blob — exactly the {version, themeMode, …} JSON
+```
+
+Each file's SHA-256 is stored in the manifest. Neither blob is transformed —
+the import path runs the normal migration runners on them.
+
+**Two-phase import.** `analyzeBackup()` is a **read-only** pass: it decodes,
+validates hashes, runs migrations, and runs content validation — but writes
+nothing. It returns `ImportAnalysis` describing what the backup contains and
+whether each stream can be imported. `ImportNotifier.applyImport()` (a
+`Notifier<void>`) re-runs the same migrate+validate pass as its authoritative
+gate, then commits the streams. Validating both before the first write makes the
+commit **validation-atomic**: a *validation* failure in either stream leaves
+storage untouched. The two streams live under separate SharedPreferences keys
+with no cross-key transaction, so the residual case — a low-level write failure
+*after* one stream already committed — is surfaced, not hidden: `applyImport`
+throws `PartialImportException` carrying what did commit, and `ImportScreen`
+tells the user exactly which data was/wasn't restored. (A failure with nothing
+committed is surfaced as the original error.) The commit calls
+`GameHistoryNotifier.replaceAll()` for games and `ThemeModeNotifier.setMode()` +
+variant notifier setters for settings (never `ref.invalidate` — that would
+rebuild from the old startup value). The calculator is reset **only when games
+are replaced** (so a pending autosave can't resurrect the overwritten session);
+a settings-only import leaves any in-progress game untouched.
+
+**Zip-bomb protection.** Two guards: a raw-input-size check (`_maxBackupFileBytes`,
+on the actual file length, which can't lie) before decoding, and — after decode —
+a rejection of archives with > 3 entries or > 10 MB *declared* uncompressed total
+(best-effort, since a crafted header could understate sizes) before reading any
+content. Both run in `analyzeBackup` and `applyImport`.
+
+**Validation layers.**
+- `lib/models/game_constraints.dart` — pure domain; the single source of the
+  *rules*: `kPlayerNameMaxLength` / `kGameNameMaxLength` and predicate/normalizer
+  functions (`normalizePlayerName`, `duplicatePlayerNameIndices`,
+  `allPlayerNamesFilled`, `normalizeGameName`, …).
+- `lib/models/game_invariants.dart` — pure domain; `GameInvariantError` +
+  `assertGameInvariants(GameSession)` (engine-level: score sums, round sequence,
+  counts; name uniqueness via the `game_constraints` predicate).
+- `lib/state/validation.dart` — `ValidationError`; `validateManifest` (version,
+  appVersion, exportedAt, contains, hashes), `validateMigratedGames` (calls
+  `assertGameInvariants` + composes the `game_constraints` predicates for player
+  name length/non-empty/case-insensitive uniqueness, gameName length/non-empty),
+  `validateMigratedSettings`; `validateGameSession` (per-game subset of
+  `validateMigratedGames` without duplicate-id check).
+
+**`game_constraints.dart` is the single source of truth for valid game data.**
+The rules for player/game names live there once, as **predicates** (boolean /
+normalizer functions) so every layer composes the same logic rather than
+re-deriving it:
+
+- **Engine asserts + import/write validation** — `game_invariants` and
+  `validation.dart` call the predicates and throw their own error type on
+  failure. `gameHistoryProvider.saveGame` calls `validateGameSession` before
+  persisting; `settings_storage.updateSettingsField` calls
+  `validateMigratedSettings` before every write.
+- **Create/edit UI** — `new_game_screen` (`canStart`), `edit_game_screen`, and
+  `player_list_field` (duplicate highlight) call the predicates directly; input
+  field `maxLength` / formatters reference `kPlayerNameMaxLength` /
+  `kGameNameMaxLength` from `game_constraints`, never re-declaring them.
+- **`replaceAll`** (import commit path) is the deliberate exception: it is called
+  only after `validateMigratedGames` has already run in the analyze pass, so
+  double-validation is skipped.
+
+**Backup migrations** (`backup_migrations.dart`). Same frozen/sequenced pattern
+as `StorageMigration` / `SettingsMigration`. Currently empty (`backupMigrations
+= []`, `currentBackupVersion = 1`). Append a `BackupMigration` step here when
+the ZIP envelope structure changes (never reorder or remove).
+
 ---
 
 ## 10. UI layer
@@ -891,6 +1008,18 @@ delegates are registered.
   `HeartsVariant` from the default providers; commits via `startNewGame`.
 - **`SettingsScreen`** — app-wide default `StarterVariant` + `HeartsVariant`
   (`RadioListTile` per value with label + description); changes persist immediately.
+  Also has a "Gegevens" `FormSectionCard` with two `ListTile`s that push
+  navigation screens (back arrow, not fullscreen dialog):
+  - *Exporteer gegevens* → `ExportScreen`; scope radio (all / games only /
+    settings only) + share via `shareFile()`.
+  - *Importeer gegevens* → `ImportScreen`.
+- **`ExportScreen`** — scope selection + export trigger; pushes onto the
+  navigator stack (back arrow). Calls `exportBackup` + `shareFile`; pops on
+  success, shows snackbar on failure.
+- **`ImportScreen`** — sealed state machine (`_Idle → _Analyzing → _Analyzed →
+  _Applying`); idle shows "Kies bestand" (`FilePicker.pickFile`); analyzed shows
+  `_BackupInfoCard` + `_ImportOptionsCard` (checkboxes) + zero-games warning;
+  applies via `ImportNotifier.applyImport`; success snackbar shown before pop.
 - **`GameScreen`** — the in-game hub; a `ConsumerStatefulWidget` whose `dispose()`
   schedules `flushAndReset()` via `addPostFrameCallback` (subscriptions are
   cancelled by Riverpod only after `dispose()` returns; the callback fires after
@@ -959,9 +1088,18 @@ Run with `flutter test`. Layout mirrors `lib/`:
   `mini_game_test` (incl. the input↔counts storage converters),
   `game_mechanics_test` (dealer rotation + per-chooser quota + `seatIndexOf`
   throw-on-unknown), `score_result_test`.
+- **`test/models/`** also has `game_invariants_test.dart` —
+  `assertGameInvariants` happy path + each invariant violation — and
+  `game_constraints_test.dart` (the shared name predicates/normalizers).
 - **`test/state/`** — `calculator_provider_test`, `game_history_provider_test`
   (incl. migration, corrupt data, unsupported-version handling, and
-  `CorruptStorageException` end-to-end for dangling player-id references).
+  `CorruptStorageException` end-to-end for dangling player-id references),
+  `validation_test` (`validateManifest` / `validateMigratedGames` /
+  `validateMigratedSettings`), `export_import_test` (`exportBackup` round-trip,
+  hash verification, `analyzeBackup` valid/corrupt/version/stream errors,
+  zip-bomb guard), `apply_import_test` (`replaceAll`, `applyImport` full
+  round-trip, games-only, settings-only live update, pending round,
+  no-partial-write guard).
 - **`test/widgets/`** — one file per screen/widget.
 - **`test/data/`** — `game_rules_test.dart`: variant coverage + coupling test
   (every `kGameSections.gameId` exists in `allGames`).
@@ -1000,6 +1138,21 @@ ensures the binding.
   `Bad state: No element` on the second close.
 - Construct fixtures with real model objects (e.g. `const Dominoes()`,
   `RoundRecord(...)`), not hand-rolled JSON, so they stay in sync with the code.
+- **Platform side-effects are injected via providers, never via test-only
+  constructor params.** The share sheet and file picker are reached through
+  `shareFileProvider` / `shareTextProvider` / `pickBackupBytesProvider`
+  ([`platform_io_providers.dart`](lib/state/platform_io_providers.dart), thin
+  wrappers over [`share_service.dart`](lib/services/share_service.dart) /
+  [`file_pick_service.dart`](lib/services/file_pick_service.dart)). Tests swap
+  them with `ProviderScope.overrides` / `ProviderContainer(overrides: …)` to
+  drive the share-refused and file-pick flows. **Do not** inject test behaviour
+  through `@visibleForTesting` constructor params or runtime debug branches —
+  that ships a never-taken branch and a test-only API in the production widget.
+  (`@visibleForTesting` on a *pure function that production also calls*, e.g.
+  `rankScores` / `buildShareText`, is fine — it only relaxes visibility, adds no
+  runtime branch.) Note `_captureShareCard`'s real PNG capture is left
+  un-mocked rather than seamed, so `GameScreen`'s image path isn't widget-tested
+  (its boolean handling mirrors the export-refused path that is).
 
 ---
 
@@ -1190,6 +1343,22 @@ DSL. Watch Flutter release notes for "AGP 9 new DSL" or "newDsl" mentions.
 **What to do:** Set `android.newDsl=true` in `android/gradle.properties` and
 migrate `android/app/build.gradle.kts` from the legacy `BaseAppModuleExtension`
 (`android { }`) to `ApplicationExtension`.
+
+---
+
+### `file_picker` stable 12.x (currently pinned to a beta)
+
+**What:** `pubspec.yaml` pins `file_picker: '>=12.0.0-0 <13.0.0'` — a
+pre-release. It is the cross-platform picker for importing backup ZIPs.
+
+**Blocked by:** `file_picker` v8–11 depend on `win32 ^6`, which conflicts with
+`package_info_plus ^10`'s `win32` constraint; only the v12 beta resolves it
+without a manual `win32` dependency override.
+
+**When to retry:** When `file_picker` publishes a stable 12.x.
+
+**What to do:** Tighten the constraint to the stable release (e.g.
+`file_picker: ^12.0.0`) and re-run `fvm flutter pub get`.
 
 ---
 

@@ -52,6 +52,7 @@ map, or invariants — not as a follow-up.
   errors — throwing makes them loud.
 - **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`).
 - **Bottom sheets use `showAppBottomSheet`** (`lib/widgets/app_bottom_sheet.dart`), never `showModalBottomSheet` directly.
+- **Platform side-effects (share sheet, file picker) go through a `Provider`** (`lib/state/platform_io_providers.dart`, over `lib/services/`), overridden in tests via `ProviderScope`/`ProviderContainer`. Never inject test behaviour through `@visibleForTesting` constructor params or runtime debug branches — that ships a never-taken branch + a test-only API. (`@visibleForTesting` on a *pure function production also calls* is fine; it only relaxes visibility.) See [ARCHITECTURE.md §11](ARCHITECTURE.md).
 - **Accessible by default** ([ARCHITECTURE.md §2](ARCHITECTURE.md)): interactive
   tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout
   spacers use `ExcludeSemantics`; **section titles wrapped in
@@ -60,9 +61,17 @@ map, or invariants — not as a follow-up.
 - **UI strings Dutch, code identifiers English.**
 - **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored game-history JSON (frozen, sequenced steps).
 - **Append a `SettingsMigration` step (`lib/state/settings_migrations.dart`) + bump `currentSettingsVersion`** when changing the `settings` JSON blob (same frozen/sequenced rules — see [ARCHITECTURE.md §9](ARCHITECTURE.md)).
+- **Append a `BackupMigration` step (`lib/state/backup_migrations.dart`) + bump `currentBackupVersion`** when changing the ZIP envelope structure (same frozen/sequenced rules — see [ARCHITECTURE.md §9](ARCHITECTURE.md)).
+- **Import settings through notifier setters** (`setMode`, `setValue`), never `ref.invalidate` — invalidating settings providers rebuilds from the old startup value and silently drops the import.
 - **Game-rule variants** live in `lib/models/` (one enum each), grouped into a
   `RuleVariants` (`lib/models/rule_variants.dart`) carried by `GameSession` +
   `CalculatorState`; per-variant app-wide defaults in
   `lib/state/default_*_variant_provider.dart`, pre-loaded in `main()`.
+- **`lib/models/game_constraints.dart` (pure) is the single source of truth for
+  valid game data** — name-length consts + the rules as predicates/normalizers
+  (trim, non-empty, case-insensitive uniqueness). The engine asserts, the
+  `validation.dart` import/write gate, and the create/edit UI all compose these;
+  never re-derive a rule or re-declare a limit. Enum/settings/manifest checks
+  stay in `validation.dart`. Details: [ARCHITECTURE.md §9](ARCHITECTURE.md).
 
 Full invariant list + the "why": [ARCHITECTURE.md §14](ARCHITECTURE.md).

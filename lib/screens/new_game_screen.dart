@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../models/game_constraints.dart';
 import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
@@ -21,14 +22,14 @@ import '../widgets/form_section_card.dart';
 import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
 import '../widgets/player_list_field.dart';
-import '../widgets/primary_action_button.dart';
 import 'game_screen.dart';
 
-/// Second screen: enter player names and pick the dealer for the first game.
+/// Full-screen dialog for entering player names and picking the dealer.
 ///
 /// Holds purely local working state — the [calculatorProvider] is only
-/// mutated when the user confirms "Start spel". Backing out of this screen
-/// therefore requires no cleanup.
+/// mutated when the user confirms "Start spel". Closing via the ✕ button
+/// (or back gesture) shows a discard-confirmation dialog whenever any field
+/// has been filled in; tapping ✕ on a blank form pops immediately.
 class NewGameScreen extends ConsumerStatefulWidget {
   const NewGameScreen({super.key});
 
@@ -46,6 +47,9 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
 
   late StarterVariant _starterVariant;
   late HeartsVariant _heartsVariant;
+  // Listenable that fires on any controller text change — drives the
+  // [ListenableBuilder] that keeps [PopScope.canPop] in sync with [_hasInput].
+  late final Listenable _formChanges;
 
   @override
   void initState() {
@@ -65,6 +69,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     });
     _focusNodes = List.generate(playerCount, (_) => FocusNode());
     _nameController = TextEditingController();
+    _formChanges = Listenable.merge([..._controllers, _nameController]);
   }
 
   @override
@@ -83,6 +88,28 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
 
   void _onAnyChange() {
     if (mounted) setState(() {});
+  }
+
+  /// True when any field has been touched — used to decide whether closing
+  /// should ask for confirmation.
+  bool get _hasInput =>
+      _controllers.any((c) => c.text.trim().isNotEmpty) ||
+      _nameController.text.trim().isNotEmpty ||
+      _dealerIndex != null;
+
+  Future<void> _confirmAndCancel() async {
+    if (_hasInput) {
+      final confirmed = await showConfirmDialog(
+        context,
+        title: kDiscardInputTitle,
+        contentText: kDiscardInputMessage,
+        confirmLabel: kDiscardLabel,
+        destructive: true,
+      );
+      if (confirmed != true) return;
+      if (!mounted) return;
+    }
+    Navigator.of(context).pop();
   }
 
   /// Called when the user presses Enter on the slot at [index].
@@ -125,7 +152,6 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       if (!mounted) return;
     }
 
-    final trimmedName = _nameController.text.trim();
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.startNewGame(
       players: players,
@@ -134,7 +160,7 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
         starterVariant: _starterVariant,
         heartsVariant: _heartsVariant,
       ),
-      gameName: trimmedName.isEmpty ? null : trimmedName,
+      gameName: normalizeGameName(_nameController.text),
     );
     final session = notifier.buildSession();
     if (session != null) {
@@ -157,72 +183,75 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
         .playerNameSuggestions;
 
     final trimmedNames = [for (final c in _controllers) c.text.trim()];
-    final lowerNames = trimmedNames.map((n) => n.toLowerCase()).toList();
     final canStart =
-        trimmedNames.every((n) => n.isNotEmpty) &&
-        lowerNames.toSet().length == playerCount;
+        allPlayerNamesFilled(trimmedNames) &&
+        !hasDuplicatePlayerNames(trimmedNames);
 
-    return AppScaffold(
-      appBar: AppBar(title: const Text('Nieuw spel')),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Scrollable options — players, dealer, variant
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                FormSectionCard(
-                  title: kPlayersSectionTitle,
-                  subtitle: kPlayersSectionSubtitle,
-                  child: PlayerListField(
-                    controllers: _controllers,
-                    focusNodes: _focusNodes,
-                    suggestions: suggestions,
-                    onReorderItem: _handleReorder,
-                    onSubmitted: _handleFieldSubmitted,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                FormSectionCard(
-                  title: kDealerSectionTitle,
-                  subtitle: kDealerSectionSubtitle,
-                  child: DealerDropdownField(
-                    controllers: _controllers,
-                    value: _dealerIndex,
-                    allowRandomDealer: true,
-                    onChanged: (v) => setState(() => _dealerIndex = v),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                GameNameField(controller: _nameController),
-
-                const SizedBox(height: 12),
-
-                GameRulesCard(
-                  starterVariant: _starterVariant,
-                  heartsVariant: _heartsVariant,
-                  onStarterChanged: (v) => setState(() => _starterVariant = v),
-                  onHeartsChanged: (v) => setState(() => _heartsVariant = v),
-                ),
-              ],
-            ),
+    return ListenableBuilder(
+      listenable: _formChanges,
+      builder: (context, child) => PopScope(
+        canPop: !_hasInput,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_confirmAndCancel());
+        },
+        child: child!,
+      ),
+      child: AppScaffold(
+        appBar: AppBar(
+          title: const Text('Nieuw spel'),
+          leading: IconButton(
+            icon: const Icon(Symbols.close),
+            tooltip: kDiscardLabel,
+            onPressed: _confirmAndCancel,
           ),
-
-          // Fixed Start button — always visible without scrolling
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            child: PrimaryActionButton(
-              icon: const Icon(Symbols.play_arrow),
-              label: const Text('Start spel'),
-              onPressed: canStart ? _handleStart : null,
+        ),
+        bottomBar: FullWidthBottomBarButton(
+          icon: const Icon(Symbols.play_arrow),
+          label: const Text('Start spel'),
+          onPressed: canStart ? _handleStart : null,
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            FormSectionCard(
+              title: kPlayersSectionTitle,
+              subtitle: kPlayersSectionSubtitle,
+              child: PlayerListField(
+                controllers: _controllers,
+                focusNodes: _focusNodes,
+                suggestions: suggestions,
+                onReorderItem: _handleReorder,
+                onSubmitted: _handleFieldSubmitted,
+              ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 12),
+
+            FormSectionCard(
+              title: kDealerSectionTitle,
+              subtitle: kDealerSectionSubtitle,
+              child: DealerDropdownField(
+                controllers: _controllers,
+                value: _dealerIndex,
+                allowRandomDealer: true,
+                onChanged: (v) => setState(() => _dealerIndex = v),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            GameNameField(controller: _nameController),
+
+            const SizedBox(height: 12),
+
+            GameRulesCard(
+              starterVariant: _starterVariant,
+              heartsVariant: _heartsVariant,
+              onStarterChanged: (v) => setState(() => _starterVariant = v),
+              onHeartsChanged: (v) => setState(() => _heartsVariant = v),
+            ),
+          ],
+        ),
       ),
     );
   }

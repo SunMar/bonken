@@ -14,10 +14,16 @@
 //      alone, matching `tool/update_deps.dart`).
 //   4. Run `fvm install` to install the pinned SDK (fast no-op if already
 //      installed).
-//   5. Sync Android toolchain versions (AGP, Kotlin, Gradle) from the Flutter
+//   5. Delete `.dart_tool` so cached `.dill` files compiled against the old SDK
+//      are not picked up by VS Code or other tools ("Invalid SDK hash" errors).
+//      VS Code resolves the SDK via the `.fvm/flutter_sdk` symlink
+//      (`dart.flutterSdkPath` in `.vscode/settings.json`) which FVM keeps
+//      up to date — no manual settings change needed.
+//   6. Run `fvm flutter pub get` to rebuild `.dart_tool` against the new SDK.
+//   7. Sync Android toolchain versions (AGP, Kotlin, Gradle) from the Flutter
 //      SDK's own pinned defaults (read from the installed SDK's gradle_utils.dart).
 //
-// Steps 4–5 only run when an update is applied. Pass --force to run them even
+// Steps 4–7 only run when an update is applied. Pass --force to run them even
 // when the pin is already current (e.g. to re-sync Android after a manual SDK
 // change without bumping the Flutter version).
 //
@@ -122,6 +128,25 @@ Future<void> main(List<String> args) async {
     exit(1);
   }
 
+  // The compiled-artifact cache in .dart_tool is tied to the Dart SDK hash.
+  // Deleting it prevents "Invalid SDK hash" errors in VS Code and other tools
+  // that load cached .dill files without checking whether the SDK changed.
+  print('==> Clearing .dart_tool (stale compiled artifacts)');
+  final dartToolDir = Directory('.dart_tool');
+  if (dartToolDir.existsSync()) {
+    dartToolDir.deleteSync(recursive: true);
+  }
+
+  print('==> Running fvm flutter pub get');
+  final pubGetProcess = await Process.start('fvm', [
+    'flutter',
+    'pub',
+    'get',
+  ], mode: ProcessStartMode.inheritStdio);
+  if (await pubGetProcess.exitCode != 0) {
+    exit(1);
+  }
+
   // ── Android toolchain versions ─────────────────────────────────────────────
   // AGP, Kotlin, and Gradle versions are pinned by the Flutter SDK itself.
   // Sync them from the SDK installed above.
@@ -182,14 +207,13 @@ Future<void> main(List<String> args) async {
   }
 
   if (needsFlutterUpdate) {
-    print(
-      '''
+    print('''
 ==> Pin updated. Next steps:
-      1. `fvm flutter pub get` to re-resolve against the new Dart SDK.
-      2. Run the CI gates: fvm dart format ., fvm flutter analyze --fatal-infos,
-         fvm flutter test.
-      3. Review with: git diff $_fvmrc $_pubspec $_settingsGradle $_gradleWrapper''',
-    );
+      1. Review with: git diff $_fvmrc $_pubspec $_settingsGradle $_gradleWrapper
+      2. Run the CI gates:
+            fvm dart format .
+            fvm flutter analyze --fatal-infos
+            fvm flutter test''');
   } else if (androidChanges > 0) {
     print('==> Done. Review with: git diff $_settingsGradle $_gradleWrapper');
   }

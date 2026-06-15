@@ -15,12 +15,5 @@ void showIncompleteFormSnackBar(
   ScaffoldMessengerState messenger, {
   required String message,
 }) {
-  showTimedSnackBar(
-    messenger,
-    SnackBar(
-      content: Text(message),
-      behavior: SnackBarBehavior.floating,
-      showCloseIcon: true,
-    ),
-  );
+  showTimedSnackBar(messenger, content: Text(message));
 }

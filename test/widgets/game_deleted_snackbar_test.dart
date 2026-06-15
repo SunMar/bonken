@@ -38,7 +38,7 @@ void main() {
     ) async {
       late ScaffoldMessengerState messenger;
       late ProviderContainer container;
-      final session = _session('s1');
+      final session = _session(kGameId1);
 
       await tester.pumpWidget(
         ProviderScope(
@@ -67,9 +67,8 @@ void main() {
       expect(find.text('Spel verwijderd'), findsOneWidget);
       expect(find.text('Ongedaan maken'), findsOneWidget);
 
-      // Drain the helper's belt-and-suspenders 5s Timer.
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      // Drain the actionable snackbar's 6 s force-close timer.
+      await tester.pumpAndSettle(const Duration(seconds: 7));
     });
 
     testWidgets('tapping "Ongedaan maken" re-saves the deleted session', (
@@ -77,7 +76,7 @@ void main() {
     ) async {
       late ScaffoldMessengerState messenger;
       late ProviderContainer container;
-      final session = _session('s1');
+      final session = _session(kGameId1);
 
       await tester.pumpWidget(
         ProviderScope(
@@ -114,11 +113,10 @@ void main() {
       // Undo re-saves through the root container.
       final restored = container.read(gameHistoryProvider).value;
       expect(restored, hasLength(1));
-      expect(restored!.single.id, 's1');
+      expect(restored!.single.id, kGameId1);
 
-      // Drain the helper's belt-and-suspenders 5s Timer.
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      // Drain the actionable snackbar's 6 s force-close timer.
+      await tester.pumpAndSettle(const Duration(seconds: 7));
     });
 
     testWidgets('survives the originating widget being disposed', (
@@ -130,7 +128,7 @@ void main() {
       // delete), and the undo callback silently no-op'd.
       late ScaffoldMessengerState messenger;
       late ProviderContainer container;
-      final session = _session('s1');
+      final session = _session(kGameId1);
 
       await tester.pumpWidget(
         ProviderScope(
@@ -176,11 +174,10 @@ void main() {
 
       final restored = container.read(gameHistoryProvider).value;
       expect(restored, hasLength(1));
-      expect(restored!.single.id, 's1');
+      expect(restored!.single.id, kGameId1);
 
-      // Drain the helper's belt-and-suspenders 5s Timer.
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      // Drain the actionable snackbar's 6 s force-close timer.
+      await tester.pumpAndSettle(const Duration(seconds: 7));
     });
 
     testWidgets('replaces a previously visible snackbar', (tester) async {
@@ -207,15 +204,14 @@ void main() {
       await tester.pump();
       expect(find.text('older'), findsOneWidget);
 
-      showGameDeletedSnackBar(messenger, container, _session('s1'));
+      showGameDeletedSnackBar(messenger, container, _session(kGameId1));
       await tester.pump();
 
       expect(find.text('older'), findsNothing);
       expect(find.text('Spel verwijderd'), findsOneWidget);
 
-      // Drain the helper's belt-and-suspenders 5s Timer.
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      // Drain the actionable snackbar's 6 s force-close timer.
+      await tester.pumpAndSettle(const Duration(seconds: 7));
     });
   });
 }

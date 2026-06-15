@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../data/game_rules.dart';
 import '../models/hearts_variant.dart';
@@ -77,11 +78,11 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
         final confirmed =
             await showConfirmDialog(
               context,
-              title: isEditing ? 'Wijzigingen verwerpen' : 'Ronde verwerpen',
+              title: isEditing ? kDiscardChangesTitle : 'Ronde verwerpen',
               contentText: isEditing
                   ? kDiscardChangesMessage
                   : 'De dubbels en scores van de huidige ronde worden verworpen.',
-              confirmLabel: 'Verwerpen',
+              confirmLabel: kDiscardLabel,
               destructive: true,
             ) ==
             true;
@@ -90,40 +91,21 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
       cancelInputPhase();
     }
 
-    Future<void> saveOrConfirmBack() async {
-      if (!isEditing) {
-        // Pending round: if nothing was changed from defaults, discard silently
-        // so going back without input doesn't leave a stale pending marker.
-        final hasChanges = ref.read(
-          activeSessionProvider.select((a) => a.hasActiveChanges),
-        );
-        if (hasChanges) {
-          ref.read(calculatorProvider.notifier).exitPendingSlot();
-        } else {
-          ref.read(calculatorProvider.notifier).discardGame();
-        }
-        popIfMounted();
-        return;
-      }
-      // Editing a completed round: block navigation if there are unsaved changes.
+    // Only called for pending rounds (isEditing uses confirmAndCancelInput).
+    Future<void> exitPendingRound() async {
       final hasChanges = ref.read(
         activeSessionProvider.select((a) => a.hasActiveChanges),
       );
-      if (!hasChanges) {
-        cancelInputPhase();
-        return;
+      if (hasChanges) {
+        ref.read(calculatorProvider.notifier).exitPendingSlot();
+      } else {
+        ref.read(calculatorProvider.notifier).discardGame();
       }
-      await showInfoDialog(
-        context,
-        title: 'Scores aangepast',
-        contentText:
-            'Je aanpassingen zijn nog niet opgeslagen. '
-            'Sla de scores op of verwerp ze om terug te gaan.',
-      );
+      popIfMounted();
     }
 
     // Only called when isComplete (button is enabled only then).
-    Future<void> saveOrConfirmDone() async {
+    Future<void> confirmAndSave() async {
       final s = ref.read(activeSessionProvider);
       if (s.hasActiveChanges) {
         if (!context.mounted) return;
@@ -156,10 +138,12 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
     }
 
     return PopScope(
-      // Always intercept back so the discard-confirmation can run.
+      // Always intercept back so the appropriate discard handler can run.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(saveOrConfirmBack());
+        if (!didPop) {
+          unawaited(isEditing ? confirmAndCancelInput() : exitPendingRound());
+        }
       },
       child: AppScaffold(
         appBar: AppBar(
@@ -178,17 +162,23 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
             ),
             editMode: RulesEditMode.hidden,
           ),
-          leading: Tooltip(
-            message: 'Terug',
-            child: BackButton(onPressed: saveOrConfirmBack),
-          ),
+          leading: isEditing
+              ? IconButton(
+                  icon: const Icon(Symbols.close),
+                  tooltip: kDiscardLabel,
+                  onPressed: confirmAndCancelInput,
+                )
+              : Tooltip(
+                  message: 'Terug',
+                  child: BackButton(onPressed: exitPendingRound),
+                ),
         ),
         bottomBar: BottomAppBar(
           child: Row(
             children: [
               TextButton(
                 onPressed: confirmAndCancelInput,
-                child: const Text('Verwerpen'),
+                child: const Text(kDiscardLabel),
               ),
               const Spacer(),
               // Truly disabled when incomplete so native disabled colours
@@ -200,7 +190,7 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
                 alignment: Alignment.center,
                 children: [
                   FilledButton(
-                    onPressed: isComplete ? saveOrConfirmDone : null,
+                    onPressed: isComplete ? confirmAndSave : null,
                     child: const Text('Opslaan'),
                   ),
                   if (!isComplete)

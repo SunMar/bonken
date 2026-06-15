@@ -19,11 +19,15 @@ import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
+import 'package:bonken/services/share_service.dart'
+    show kShareUnsupportedMessage;
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/state/platform_io_providers.dart';
 import 'package:bonken/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -51,7 +55,7 @@ GameSession _session({
   PendingRound? pendingRound,
   String? gameName,
 }) => GameSession(
-  id: 'seed',
+  id: kGameId1,
   createdAt: DateTime(2024),
   updatedAt: DateTime(2024),
   scoredAt: DateTime(2024),
@@ -65,8 +69,9 @@ GameSession _session({
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   required GameSession session,
+  List<Override> overrides = const [],
 }) async {
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: overrides);
   addTearDown(container.dispose);
   // Tall surface so every game tile lays out — a ListView doesn't build
   // children far outside the default 800×600 viewport, which would hide the
@@ -238,6 +243,68 @@ void main() {
       expect(find.text('Tekst'), findsOneWidget);
       expect(find.text('Annuleren'), findsOneWidget);
     });
+
+    testWidgets('explicit "Tekst" choice shares the result as text', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      String? sharedText;
+      await _pump(
+        tester,
+        session: _session(
+          players: players,
+          rounds: finishedRounds(players),
+          gameName: 'Kerst 2024',
+        ),
+        overrides: [
+          shareTextProvider.overrideWithValue(({required text, subject}) async {
+            sharedText = text;
+            return true;
+          }),
+        ],
+      );
+
+      await tester.longPress(find.byIcon(Symbols.share));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tekst'));
+      await tester.pumpAndSettle();
+
+      // The text payload reached the share provider (no platform involved).
+      expect(sharedText, isNotNull);
+      expect(sharedText, contains('Bonken uitslag'));
+      expect(sharedText, contains('Kerst 2024'));
+    });
+
+    testWidgets('text share refused → kShareUnsupportedMessage snackbar', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+        overrides: [
+          shareTextProvider.overrideWithValue(
+            ({required text, subject}) async => false,
+          ),
+        ],
+      );
+
+      await tester.longPress(find.byIcon(Symbols.share));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tekst'));
+      await tester.pumpAndSettle();
+
+      expect(find.text(kShareUnsupportedMessage), findsOneWidget);
+
+      await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+    });
+
+    // The image path (_shareImage) is intentionally not widget-tested: reaching
+    // its share call requires _captureShareCard's real RepaintBoundary→PNG
+    // capture, which is non-deterministic under the test binding. Its
+    // boolean-handling is identical to the export-refused path covered by
+    // export_screen_test.dart; adding a capture seam purely for tests would
+    // reintroduce the very smell this change removes.
   });
 
   testWidgets(
@@ -315,7 +382,6 @@ void main() {
       players: players,
       pendingRound: PendingRound(
         gameId: 'duck',
-        gameName: 'Bukken',
         chooserId: players[1].id,
         input: input,
       ),

@@ -1,5 +1,41 @@
 import 'package:flutter/material.dart';
 
+/// Full-width [FilledButton.icon] for use as the sole action in a
+/// [BottomAppBar]. Uses a 48 dp minimum height so the button looks visually
+/// proportional at full screen width (wide buttons appear shorter at 40 dp).
+class FullWidthBottomBarButton extends StatelessWidget {
+  const FullWidthBottomBarButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final Widget icon;
+  final Widget label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomAppBar(
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              icon: icon,
+              label: label,
+              style: const ButtonStyle(
+                minimumSize: WidgetStatePropertyAll(Size(0, 48)),
+              ),
+              onPressed: onPressed,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Project-standard [Scaffold] wrapper that automatically wraps [body] in a
 /// [SafeArea] so screen content never draws under the system navigation bar.
 ///

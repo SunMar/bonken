@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/double_matrix.dart';
 import '../models/game_mechanics.dart';
@@ -790,7 +791,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     _flushPendingAutosaveForOutgoingSession();
     final now = DateTime.now();
     state = ActiveSession(
-      sessionId: '${now.microsecondsSinceEpoch}',
+      sessionId: const Uuid().v4(),
       createdAt: now,
       scoredAt: now,
       players: List<Player>.from(players),
@@ -815,7 +816,6 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     if (p is ActivePendingRound) {
       pendingRound = PendingRound(
         gameId: p.game.id,
-        gameName: p.game.name,
         chooserId: s.chooserId,
         input: p.input,
         doublesJson: p.doubles.hasAnyDouble ? p.doubles.toJson() : null,

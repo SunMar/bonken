@@ -998,7 +998,6 @@ void main() {
           rounds: const [],
           pendingRound: PendingRound(
             gameId: 'kingOfHearts',
-            gameName: 'Hartenheer',
             chooserId: pA[1].id,
             input: RecipientInput([pA[0].id]),
           ),
@@ -1029,7 +1028,6 @@ void main() {
           rounds: const [],
           pendingRound: PendingRound(
             gameId: 'seventhAndThirteenth',
-            gameName: '7e / 13e',
             chooserId: pA[1].id,
             input: RecipientInput([null, pA[0].id]),
           ),

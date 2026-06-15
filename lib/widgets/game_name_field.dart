@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/game_constraints.dart';
 import 'form_section_card.dart';
-
-/// Maximum number of characters allowed in a game name.
-const int kGameNameMaxLength = 50;
 
 const String kGameNameSectionTitle = 'Spelnaam';
 const String kGameNameSectionSubtitle =

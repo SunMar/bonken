@@ -13,12 +13,21 @@ T enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
   return fallback;
 }
 
-/// Maximum number of characters allowed in a player name.
-const int kPlayerNameMaxLength = 20;
+/// Title for every "discard your edits" confirmation dialog.
+const String kDiscardChangesTitle = 'Wijzigingen verwerpen';
 
 /// Body text reused by every "discard your edits" confirmation dialog
 /// (round input screen, edit-game screen, …).
 const String kDiscardChangesMessage = 'Je wijzigingen gaan verloren.';
+
+/// Title for the "discard new-game input" confirmation dialog.
+const String kDiscardInputTitle = 'Invoer verwerpen';
+
+/// Body text for the "discard new-game input" confirmation dialog.
+const String kDiscardInputMessage = 'Je invoer gaat verloren.';
+
+/// Label for every discard confirm button, tooltip, and action.
+const String kDiscardLabel = 'Verwerpen';
 
 /// Title used both for the "another game is still pending" info dialog
 /// (game screen) and for the "discard the in-progress round" confirm

@@ -1,5 +1,6 @@
 // Tests for [showTimedSnackBar]: it hides any current snackbar, shows the
-// new one, and force-closes it after the SnackBar's [duration] elapses.
+// new one, and force-closes it after its duration — 4 s without an action,
+// 6 s with one (actionable snackbars stay longer so users can act).
 
 import 'package:bonken/widgets/timed_snackbar.dart';
 import 'package:flutter/material.dart';
@@ -28,19 +29,16 @@ void main() {
   ) async {
     final messenger = await _pumpMessenger(tester);
 
-    showTimedSnackBar(
-      messenger,
-      const SnackBar(content: Text('hello'), duration: Duration(seconds: 2)),
-    );
+    showTimedSnackBar(messenger, content: const Text('hello'));
     await tester.pump(); // start show animation
     expect(find.text('hello'), findsOneWidget);
 
-    // Just before duration elapses it should still be visible.
-    await tester.pump(const Duration(milliseconds: 1500));
+    // Just before 4 s elapses it should still be visible.
+    await tester.pump(const Duration(seconds: 3));
     expect(find.text('hello'), findsOneWidget);
 
-    // After the duration + close animation, the snackbar is gone.
-    await tester.pump(const Duration(seconds: 1));
+    // After 4 s the Timer fires; let the close animation finish.
+    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.text('hello'), findsNothing);
   });
@@ -50,17 +48,54 @@ void main() {
   ) async {
     final messenger = await _pumpMessenger(tester);
 
-    showTimedSnackBar(messenger, const SnackBar(content: Text('first')));
+    showTimedSnackBar(messenger, content: const Text('first'));
     await tester.pump();
     expect(find.text('first'), findsOneWidget);
 
-    showTimedSnackBar(messenger, const SnackBar(content: Text('second')));
+    showTimedSnackBar(messenger, content: const Text('second'));
     await tester.pumpAndSettle();
     expect(find.text('first'), findsNothing);
     expect(find.text('second'), findsOneWidget);
 
     // Drain the second snackbar's timer. The first call's timer was
     // cancelled by the second call, so only one timer is pending here.
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+  });
+
+  testWidgets('actionable snackbar stays 6 s; plain one 4 s', (tester) async {
+    final messenger = await _pumpMessenger(tester);
+
+    showTimedSnackBar(messenger, content: const Text('plain'));
+    await tester.pump();
+    expect(
+      tester.widget<SnackBar>(find.byType(SnackBar)).duration,
+      const Duration(seconds: 4),
+    );
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+
+    showTimedSnackBar(
+      messenger,
+      content: const Text('with action'),
+      action: SnackBarAction(label: 'Undo', onPressed: () {}),
+    );
+    await tester.pump();
+    expect(
+      tester.widget<SnackBar>(find.byType(SnackBar)).duration,
+      const Duration(seconds: 6),
+    );
+    await tester.pumpAndSettle(const Duration(seconds: 7));
+  });
+
+  testWidgets('always shows close icon and floating behavior', (tester) async {
+    final messenger = await _pumpMessenger(tester);
+
+    showTimedSnackBar(messenger, content: const Text('test'));
+    await tester.pump();
+
+    final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(snackBar.showCloseIcon, isTrue);
+    expect(snackBar.behavior, SnackBarBehavior.floating);
+
     await tester.pumpAndSettle(const Duration(seconds: 5));
   });
 }

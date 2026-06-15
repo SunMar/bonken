@@ -1,4 +1,8 @@
+import 'package:uuid/uuid.dart';
+
 import '../models/player.dart';
+
+const _uuid = Uuid();
 
 /// One forward storage step: data at [fromVersion] → data at [fromVersion] + 1.
 ///
@@ -17,7 +21,7 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 9;
+const int currentStorageVersion = 10;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
 const List<StorageMigration> _migrations = [
@@ -29,6 +33,7 @@ const List<StorageMigration> _migrations = [
   _V6ToV7(),
   _V7ToV8(),
   _V8ToV9(),
+  _V9ToV10(),
 ];
 
 /// Applies every registered step from [fromVersion] up to
@@ -526,5 +531,50 @@ class _V8ToV9 extends StorageMigration {
   static Map<String, dynamic> _addScoredAt(Map<String, dynamic> game) => {
     ...game,
     'scoredAt': game['updatedAt'],
+  };
+}
+
+// =============================================================================
+// v9 → v10: replace timestamp game id with UUID v4; strip redundant `gameName`
+// =============================================================================
+//
+// Two changes bundled in one step:
+//
+// 1. Game `id` was previously a microseconds-since-epoch string. Each stored
+//    game gets a fresh UUID v4, making ids consistent with player ids and
+//    satisfying the UUID v4 check added to `validateGameSession`.
+//
+// 2. `gameName` was written alongside `gameId` in every round and pending round
+//    as a human-readable label, but was never read back — all loading paths look
+//    up the game exclusively by `gameId`. This step strips the dead field so
+//    stored data stays lean and the model stays the canonical source of names.
+
+class _V9ToV10 extends StorageMigration {
+  const _V9ToV10();
+
+  @override
+  int get fromVersion => 9;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games) _migrateGame(raw as Map<String, dynamic>),
+  ];
+
+  static Map<String, dynamic> _migrateGame(Map<String, dynamic> game) => {
+    ...game,
+    'id': _uuid.v4(),
+    'rounds': [
+      for (final r in (game['rounds'] as List<dynamic>? ?? const []))
+        _dropGameName(r as Map<String, dynamic>),
+    ],
+    if (game['pendingRound'] != null)
+      'pendingRound': _dropGameName(
+        game['pendingRound'] as Map<String, dynamic>,
+      ),
+  };
+
+  static Map<String, dynamic> _dropGameName(Map<String, dynamic> holder) => {
+    for (final e in holder.entries)
+      if (e.key != 'gameName') e.key: e.value,
   };
 }

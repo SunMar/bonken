@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:bonken/models/double_matrix.dart';
+import 'package:bonken/models/game_constraints.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/input_descriptor.dart';
@@ -9,6 +10,7 @@ import 'package:bonken/models/round_record.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/migrations.dart' show currentStorageVersion;
+import 'package:bonken/state/validation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -164,10 +166,10 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('id1', DateTime(2024)));
+          .saveGame(session(kGameId1, DateTime(2024)));
       final list = c.read(gameHistoryProvider).value!;
       expect(list.length, 1);
-      expect(list.first.id, 'id1');
+      expect(list.first.id, kGameId1);
     });
 
     test('updates a session in place when id matches', () async {
@@ -177,12 +179,16 @@ void main() {
       await c
           .read(gameHistoryProvider.notifier)
           .saveGame(
-            session('id1', DateTime(2024), names: ['A', 'B', 'C', 'D']),
+            session(kGameId1, DateTime(2024), names: ['A', 'B', 'C', 'D']),
           );
       await c
           .read(gameHistoryProvider.notifier)
           .saveGame(
-            session('id1', DateTime(2024, 1, 2), names: ['X', 'Y', 'Z', 'W']),
+            session(
+              kGameId1,
+              DateTime(2024, 1, 2),
+              names: ['X', 'Y', 'Z', 'W'],
+            ),
           );
       final list = c.read(gameHistoryProvider).value!;
       expect(list.length, 1);
@@ -195,15 +201,15 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('old', DateTime(2024)));
+          .saveGame(session(kGameId1, DateTime(2024)));
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('new', DateTime(2024, 1, 5)));
+          .saveGame(session(kGameId2, DateTime(2024, 1, 5)));
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('mid', DateTime(2024, 1, 3)));
+          .saveGame(session(kGameId3, DateTime(2024, 1, 3)));
       final ids = c.read(gameHistoryProvider).value!.map((s) => s.id).toList();
-      expect(ids, ['new', 'mid', 'old']);
+      expect(ids, [kGameId2, kGameId3, kGameId1]);
     });
 
     test('persists across container rebuilds', () async {
@@ -211,15 +217,64 @@ void main() {
       await c1.read(gameHistoryProvider.future);
       await c1
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('persisted', DateTime(2024)));
+          .saveGame(session(kGameId1, DateTime(2024)));
       c1.dispose();
 
       final c2 = ProviderContainer();
       addTearDown(c2.dispose);
       final list = await c2.read(gameHistoryProvider.future);
       expect(list.length, 1);
-      expect(list.first.id, 'persisted');
+      expect(list.first.id, kGameId1);
     });
+
+    test(
+      'throws ValidationError when a player name exceeds max length',
+      () async {
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await c.read(gameHistoryProvider.future);
+        final longName = 'A' * (kPlayerNameMaxLength + 1);
+        await expectLater(
+          c
+              .read(gameHistoryProvider.notifier)
+              .saveGame(
+                session(
+                  kGameId1,
+                  DateTime(2024),
+                  names: [longName, 'B', 'C', 'D'],
+                ),
+              ),
+          throwsA(isA<ValidationError>()),
+        );
+      },
+    );
+
+    test(
+      'throws ValidationError when a game name exceeds max length',
+      () async {
+        final c = ProviderContainer();
+        addTearDown(c.dispose);
+        await c.read(gameHistoryProvider.future);
+        final dt = DateTime(2024);
+        final players = [
+          for (final n in ['A', 'B', 'C', 'D']) Player(name: n),
+        ];
+        final badSession = GameSession(
+          id: kGameId1,
+          createdAt: dt,
+          updatedAt: dt,
+          scoredAt: dt,
+          players: players,
+          firstDealerId: players[0].id,
+          rounds: const [],
+          gameName: 'G' * (kGameNameMaxLength + 1),
+        );
+        await expectLater(
+          c.read(gameHistoryProvider.notifier).saveGame(badSession),
+          throwsA(isA<ValidationError>()),
+        );
+      },
+    );
   });
 
   group('unsupported storage version', () {
@@ -293,14 +348,14 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('keep', DateTime(2024, 1, 2)));
+          .saveGame(session(kGameId1, DateTime(2024, 1, 2)));
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('drop', DateTime(2024)));
-      await c.read(gameHistoryProvider.notifier).deleteGame('drop');
+          .saveGame(session(kGameId2, DateTime(2024)));
+      await c.read(gameHistoryProvider.notifier).deleteGame(kGameId2);
       final list = c.read(gameHistoryProvider).value!;
       expect(list.length, 1);
-      expect(list.first.id, 'keep');
+      expect(list.first.id, kGameId1);
     });
 
     test('is a no-op when id is unknown', () async {
@@ -309,7 +364,7 @@ void main() {
       await c.read(gameHistoryProvider.future);
       await c
           .read(gameHistoryProvider.notifier)
-          .saveGame(session('keep', DateTime(2024)));
+          .saveGame(session(kGameId1, DateTime(2024)));
       await c.read(gameHistoryProvider.notifier).deleteGame('does-not-exist');
       expect(c.read(gameHistoryProvider).value!.length, 1);
     });
@@ -1112,18 +1167,22 @@ void main() {
       await c.read(gameHistoryProvider.future);
       final n = c.read(gameHistoryProvider.notifier);
       await n.saveGame(
-        session('1', DateTime(2024), names: ['Alice', 'Bob', 'Carol', 'Dan']),
+        session(
+          kGameId1,
+          DateTime(2024),
+          names: ['Alice', 'Bob', 'Carol', 'Dan'],
+        ),
       );
       await n.saveGame(
         session(
-          '2',
+          kGameId2,
           DateTime(2024, 1, 2),
           names: ['Alice', 'Bob', 'Eve', 'Frank'],
         ),
       );
       await n.saveGame(
         session(
-          '3',
+          kGameId3,
           DateTime(2024, 1, 3),
           names: ['Alice', 'Gina', 'Hank', 'Iris'],
         ),
@@ -1134,15 +1193,27 @@ void main() {
       expect(suggestions[1], 'Bob');
     });
 
-    test('deduplicates names', () async {
+    test('deduplicates names that appear in multiple sessions', () async {
       final c = ProviderContainer();
       addTearDown(c.dispose);
       await c.read(gameHistoryProvider.future);
       final n = c.read(gameHistoryProvider.notifier);
       await n.saveGame(
-        session('1', DateTime(2024), names: ['Alice', 'Alice', 'Bob', 'Bob']),
+        session(
+          kGameId1,
+          DateTime(2024),
+          names: ['Alice', 'Bob', 'Carol', 'Dan'],
+        ),
+      );
+      await n.saveGame(
+        session(
+          kGameId2,
+          DateTime(2024, 1, 2),
+          names: ['Alice', 'Eve', 'Frank', 'Gina'],
+        ),
       );
       final s = n.playerNameSuggestions;
+      // Alice appears in both sessions but must appear only once in suggestions.
       expect(s.toSet().length, s.length);
     });
 
@@ -1155,7 +1226,11 @@ void main() {
       // Names are inserted in non-alphabetical insertion order to make
       // sure the sort, not insertion order, drives the result.
       await n.saveGame(
-        session('1', DateTime(2024), names: ['carol', 'Alice', 'bob', 'Dan']),
+        session(
+          kGameId1,
+          DateTime(2024),
+          names: ['carol', 'Alice', 'bob', 'Dan'],
+        ),
       );
       expect(n.playerNameSuggestions, ['Alice', 'bob', 'carol', 'Dan']);
     });

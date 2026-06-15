@@ -81,6 +81,16 @@ void main() {
     );
   });
 
+  testWidgets('shows "Gegevens" section with export and import tiles', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.scrollUntilVisible(find.text('Gegevens'), 100);
+    expect(find.text('Gegevens'), findsOneWidget);
+    expect(find.text('Exporteer gegevens'), findsOneWidget);
+    expect(find.text('Importeer gegevens'), findsOneWidget);
+  });
+
   testWidgets('tapping HeartsVariant radio updates provider and persists', (
     tester,
   ) async {
@@ -94,6 +104,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text(HeartsVariant.graduatedUnlock.label));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(HeartsVariant.graduatedUnlock.label));
     await tester.pumpAndSettle();
 

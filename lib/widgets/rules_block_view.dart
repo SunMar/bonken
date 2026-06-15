@@ -347,11 +347,13 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
                 values: StarterVariant.values,
                 value: _pending as StarterVariant,
                 onChanged: (v) => setState(() => _pending = v),
+                contentPadding: EdgeInsets.zero,
               ),
               VariantKind.hearts => VariantRadioList<HeartsVariant>(
                 values: HeartsVariant.values,
                 value: _pending as HeartsVariant,
                 onChanged: (v) => setState(() => _pending = v),
+                contentPadding: EdgeInsets.zero,
               ),
             },
           ],

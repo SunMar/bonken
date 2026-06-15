@@ -45,14 +45,12 @@ List<int> leaderIndices(List<int> totals) {
 class PendingRound {
   const PendingRound({
     required this.gameId,
-    required this.gameName,
     required this.chooserId,
     this.input,
     this.doublesJson,
   });
 
   final String gameId;
-  final String gameName;
 
   /// The player ID of the chooser for this round.
   ///
@@ -64,7 +62,6 @@ class PendingRound {
 
   Map<String, dynamic> toJson() => {
     'gameId': gameId,
-    'gameName': gameName,
     'chooserId': chooserId,
     'input': {
       'counts': input == null
@@ -78,7 +75,6 @@ class PendingRound {
     final gameId = json['gameId'] as String;
     return PendingRound(
       gameId: gameId,
-      gameName: json['gameName'] as String,
       chooserId: json['chooserId'] as String,
       input: gameById(gameId).countsToInput(
         _countsFromInputJson(json['input'] as Map<String, dynamic>?),
@@ -103,7 +99,7 @@ class GameSession {
     this.gameName,
   });
 
-  /// Unique identifier – microseconds-since-epoch string generated at start.
+  /// Unique identifier – UUID v4 generated at session start.
   final String id;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -196,12 +192,12 @@ class GameSession {
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'scoredAt': scoredAt.toIso8601String(),
+    if (gameName != null) 'gameName': gameName,
     'players': [for (final p in players) p.toJson()],
     'firstDealerId': firstDealerId,
     'ruleVariants': ruleVariants.toJson(),
     'rounds': [for (final r in rounds) r.toJson()],
     if (pendingRound != null) 'pendingRound': pendingRound!.toJson(),
-    if (gameName != null) 'gameName': gameName,
   };
 
   factory GameSession.fromJson(Map<String, dynamic> json) {

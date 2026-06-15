@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../models/game_constraints.dart';
 import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
@@ -158,9 +159,9 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     if (_hasChanges) {
       final confirmed = await showConfirmDialog(
         context,
-        title: 'Wijzigingen verwerpen',
+        title: kDiscardChangesTitle,
         contentText: kDiscardChangesMessage,
-        confirmLabel: 'Verwerpen',
+        confirmLabel: kDiscardLabel,
         destructive: true,
       );
       if (confirmed != true) return;
@@ -171,14 +172,14 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
 
   Future<void> _save() async {
     final trimmed = _controllers.map((c) => c.text.trim()).toList();
-    if (trimmed.any((n) => n.isEmpty)) {
+    if (!allPlayerNamesFilled(trimmed)) {
       showIncompleteFormSnackBar(
         ScaffoldMessenger.of(context),
         message: 'Vul alle spelersnamen in',
       );
       return;
     }
-    if (trimmed.map((n) => n.toLowerCase()).toSet().length != trimmed.length) {
+    if (hasDuplicatePlayerNames(trimmed)) {
       showIncompleteFormSnackBar(
         ScaffoldMessenger.of(context),
         message: 'Spelersnamen moeten uniek zijn',
@@ -224,12 +225,11 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
           );
         }(),
     ];
-    final trimmedName = _nameController.text.trim();
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.setPlayersAndDealer(newPlayers, _firstDealerIndex);
     notifier.setStarterVariant(_starterVariant);
     notifier.setHeartsVariant(_heartsVariant);
-    notifier.setGameName(trimmedName.isEmpty ? null : trimmedName);
+    notifier.setGameName(normalizeGameName(_nameController.text));
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -255,7 +255,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
           title: const Text('Spel bewerken'),
           leading: IconButton(
             icon: const Icon(Symbols.close),
-            tooltip: 'Verwerpen',
+            tooltip: kDiscardLabel,
             onPressed: _confirmAndCancel,
           ),
         ),
@@ -264,7 +264,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
             children: [
               TextButton(
                 onPressed: _confirmAndCancel,
-                child: const Text('Verwerpen'),
+                child: const Text(kDiscardLabel),
               ),
               const Spacer(),
               FilledButton(onPressed: _save, child: const Text('Opslaan')),

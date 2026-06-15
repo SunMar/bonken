@@ -8,6 +8,10 @@
 //    system navigation bar inset as bottom padding) rather than the raw
 //    [showModalBottomSheet].
 //
+// 3. Every snackbar MUST use [showTimedSnackBar] (which enforces showCloseIcon,
+//    floating behavior, and reliable web auto-dismiss) rather than calling
+//    [showSnackBar] directly.
+//
 // The app runs in [SystemUiMode.edgeToEdge], so unguarded surfaces draw
 // behind system bars.  See lib/widgets/app_scaffold.dart and
 // lib/widgets/app_bottom_sheet.dart.
@@ -81,4 +85,33 @@ void main() {
       );
     },
   );
+
+  test('all snackbars use showTimedSnackBar instead of raw showSnackBar', () {
+    const allowList = <String>{
+      'lib/widgets/timed_snackbar.dart', // the implementation — calls showSnackBar directly
+    };
+
+    final libDir = Directory('lib');
+    expect(libDir.existsSync(), isTrue, reason: 'lib not found');
+
+    final offenders = <String>[];
+    for (final entity in libDir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      if (allowList.contains(entity.path)) continue;
+      final source = entity.readAsStringSync();
+      if (source.contains('showSnackBar(')) {
+        offenders.add(entity.path);
+      }
+    }
+
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'These files call showSnackBar directly:\n'
+          '  ${offenders.join('\n  ')}\n'
+          'Use showTimedSnackBar from lib/widgets/timed_snackbar.dart so\n'
+          'showCloseIcon and the web auto-dismiss timer are always applied.',
+    );
+  });
 }

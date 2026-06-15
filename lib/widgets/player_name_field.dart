@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../utils.dart';
+import '../models/game_constraints.dart';
 
 /// Text field for a player's name with autocomplete from previously used names,
 /// Tab/Enter handling that advances to the next empty slot, and a max-length

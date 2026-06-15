@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/app_version.dart';
 import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
 import '../screens/rules_screen.dart';
@@ -29,9 +30,10 @@ const _aboutRepoUrl = 'https://github.com/SunMar/bonken';
 const _aboutPrivacyUrl = 'https://sunmar.github.io/bonken/privacy.html';
 
 /// Compile-time commit hash injected by the deploy-to-Pages workflow.
-/// Empty for local / store builds — see [resolveAboutVersionLine].
+/// Empty for local / store builds. Consumed by [resolveAppVersion], which feeds
+/// both the About dialog and the export manifest — hence not About-specific.
 @visibleForTesting
-const aboutGitCommit = String.fromEnvironment('GIT_COMMIT');
+const gitCommit = String.fromEnvironment('GIT_COMMIT');
 
 /// Asset path of the launcher icon shown in the About dialog header.
 const _aboutIconAsset = 'assets/icon/icon_bonken.png';
@@ -195,7 +197,7 @@ class TitleWithRules extends StatelessWidget {
   }
 }
 
-/// AppBar action that opens the [SettingsScreen] full-screen dialog.
+/// AppBar action that pushes [SettingsScreen] onto the navigator.
 class SettingsIconButton extends StatelessWidget {
   const SettingsIconButton({super.key});
 
@@ -204,12 +206,9 @@ class SettingsIconButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Symbols.settings),
       tooltip: 'Instellingen',
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => const SettingsScreen(),
-          fullscreenDialog: true,
-        ),
-      ),
+      onPressed: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
     );
   }
 }
@@ -261,9 +260,7 @@ Future<void> openAboutDialog(BuildContext context) async {
   showAboutDialog(
     context: context,
     applicationName: 'Bonken',
-    applicationVersion:
-        versionLine ??
-        (aboutGitCommit.isNotEmpty ? 'Commit $aboutGitCommit' : null),
+    applicationVersion: versionLine,
     applicationIcon: Image.asset(_aboutIconAsset, width: 48, height: 48),
     children: [
       _AboutLink(
@@ -286,22 +283,45 @@ Future<void> openAboutDialog(BuildContext context) async {
   );
 }
 
+/// Returns the resolved app version for embedding in exports and the About
+/// dialog. Returns `null` for dev/profile builds where no meaningful version
+/// exists. The record's [buildNumber] is `null` when not applicable (e.g.
+/// web CI builds where the commit hash is the identifier).
+///
+/// Both [resolveAboutVersionLine] and the export path call this so they
+/// always agree on what "the current version" is.
+AppVersion resolveAppVersion(PackageInfo info) {
+  if (kDebugMode || kProfileMode) return const AppVersion();
+  if (gitCommit.isNotEmpty) {
+    return const AppVersion(version: gitCommit);
+  }
+  return AppVersion(
+    version: info.version == '0.0.0' ? null : info.version,
+    buildNumber: info.buildNumber.isEmpty ? null : info.buildNumber,
+  );
+}
+
 /// Resolves the human-readable version string shown in the About dialog.
 ///
-/// Returns `null` when [aboutGitCommit] is set: the deploy-to-Pages
-/// workflow injects `GIT_COMMIT` and never builds from a tag, so the
-/// `PackageInfo` version would always be the meaningless `0.0.0` default
-/// — we fall back to showing the commit alone via `applicationVersion`.
+/// Delegates version derivation to [resolveAppVersion] so the about dialog
+/// and the export manifest always agree on what "the current version" is.
 ///
 /// Pure (no [BuildContext], no widget pumping) so it can be unit-tested
 /// directly.
 @visibleForTesting
-Future<String?> resolveAboutVersionLine() async {
-  if (aboutGitCommit.isNotEmpty) return null;
+Future<String> resolveAboutVersionLine() async {
+  // Early-return before the async platform call so tests (which run in debug
+  // mode) never hit PackageInfo.fromPlatform(), which has no platform host.
   if (kDebugMode || kProfileMode) return 'Ontwikkelversie';
   try {
     final info = await PackageInfo.fromPlatform();
-    return 'Versie ${info.version} (build ${info.buildNumber})';
+    final v = resolveAppVersion(info);
+    final version = v.version;
+    if (version == null) return 'Versie onbekend';
+    final build = v.buildNumber;
+    if (build != null) return 'Versie $version (build $build)';
+    // No build number: git-commit build — show the hash.
+    return 'Commit $version';
   } on Exception catch (_) {
     return 'Versie onbekend';
   }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/settings_storage.dart';
+import 'package:bonken/state/validation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -193,6 +194,13 @@ void main() {
       expect(rv['starterVariant'], 'oppositeChooserStarts');
       // heartsVariant written first must still be present.
       expect(rv['heartsVariant'], 'graduatedUnlock');
+    });
+
+    test('throws ValidationError for an invalid field value', () async {
+      await expectLater(
+        updateSettingsField(null, 'themeMode', 'neon'),
+        throwsA(isA<ValidationError>()),
+      );
     });
   });
 }

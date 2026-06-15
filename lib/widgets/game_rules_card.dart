@@ -159,7 +159,7 @@ class GameRulesSections extends ConsumerWidget {
           title: kStarterVariantSectionTitle,
           subtitle: kStarterVariantSectionSubtitle,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          childSpacing: 0,
+          childPadding: EdgeInsets.zero,
           child: VariantRadioList<StarterVariant>(
             values: StarterVariant.values,
             value: starterVariant,
@@ -172,7 +172,7 @@ class GameRulesSections extends ConsumerWidget {
           title: kHeartsVariantSectionTitle,
           subtitle: kHeartsVariantSectionSubtitle,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          childSpacing: 0,
+          childPadding: EdgeInsets.zero,
           child: VariantRadioList<HeartsVariant>(
             values: HeartsVariant.values,
             value: heartsVariant,

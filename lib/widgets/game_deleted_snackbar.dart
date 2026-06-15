@@ -28,24 +28,14 @@ void showGameDeletedSnackBar(
 ) {
   showTimedSnackBar(
     messenger,
-    SnackBar(
-      content: const Text('Spel verwijderd'),
-      duration: const Duration(seconds: 5),
-      // Floating: detached pill with side margins instead of a
-      // full-width bar flush to the bottom edge.
-      behavior: SnackBarBehavior.floating,
-      // Built-in M3 dismiss affordance: a small ✕ next to the action
-      // button so users can get rid of the snackbar without waiting for
-      // the auto-dismiss timer.
-      showCloseIcon: true,
-      action: SnackBarAction(
-        label: 'Ongedaan maken',
-        onPressed: () {
-          unawaited(
-            container.read(gameHistoryProvider.notifier).saveGame(session),
-          );
-        },
-      ),
+    content: const Text('Spel verwijderd'),
+    action: SnackBarAction(
+      label: 'Ongedaan maken',
+      onPressed: () {
+        unawaited(
+          container.read(gameHistoryProvider.notifier).saveGame(session),
+        );
+      },
     ),
   );
 }

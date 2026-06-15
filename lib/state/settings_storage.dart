@@ -9,6 +9,7 @@ import '../models/starter_variant.dart';
 import '../utils.dart';
 import 'settings_migrations.dart';
 import 'storage_exceptions.dart';
+import 'validation.dart';
 
 /// Raised when the stored settings were written by a newer version of the app.
 class UnsupportedSettingsVersionException implements Exception {
@@ -143,6 +144,7 @@ Future<void> updateSettingsField(
   } else {
     settings[key] = value;
   }
+  validateMigratedSettings(settings);
   await prefs.setString(settingsStorageKey, jsonEncode(settings));
 }
 

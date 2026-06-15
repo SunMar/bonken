@@ -1,18 +1,13 @@
 import 'dart:async';
-import 'dart:io' show File;
 import 'dart:math' show Random;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
-import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../models/game_mechanics.dart';
 import '../models/game_session.dart';
@@ -20,8 +15,10 @@ import '../models/games/game_catalog.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/round_record.dart';
+import '../services/share_service.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
+import '../state/platform_io_providers.dart';
 import '../state/rules_edit_mode_provider.dart';
 import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
@@ -33,9 +30,9 @@ import '../widgets/doubles_chips.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/info_banner.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/scoreboard_card.dart';
+import '../widgets/timed_snackbar.dart';
 import 'edit_game_screen.dart';
 import 'round_input_screen.dart';
 
@@ -240,60 +237,43 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   Future<void> _shareImage() => _share(fallbackToText: false);
 
   Future<void> _share({bool fallbackToText = true}) async {
+    // Read the provider before the capture await: ref is unsafe once the widget
+    // is unmounted (e.g. the user navigates away mid-capture).
+    final share = ref.read(shareFileProvider);
     final text = _buildShareText();
     final Uint8List? bytes = await _captureShareCard();
     if (bytes != null) {
-      try {
-        final XFile imageFile;
-        if (kIsWeb) {
-          imageFile = XFile.fromData(
-            bytes,
-            mimeType: 'image/png',
-            name: 'bonken_uitslag.png',
-          );
-        } else {
-          final dir = await getTemporaryDirectory();
-          final file = File('${dir.path}/bonken_uitslag.png');
-          await file.writeAsBytes(bytes);
-          imageFile = XFile(file.path);
-        }
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [imageFile],
-            text: text,
-            subject: 'Bonken uitslag',
+      final shared = await share(
+        bytes: bytes,
+        filename: 'bonken_uitslag.png',
+        mimeType: 'image/png',
+        subject: 'Bonken uitslag',
+        text: text,
+      );
+      if (shared) return;
+      // Image share not supported (e.g. Web Share API Level 2 unavailable).
+      if (!fallbackToText && mounted) {
+        showTimedSnackBar(
+          ScaffoldMessenger.of(context),
+          content: const Text(
+            'Afbeelding delen wordt niet ondersteund op dit apparaat',
           ),
         );
-        return;
-      } on PlatformException catch (_) {
-        // Image share not supported (e.g. Web Share API Level 2 unavailable).
-        if (!fallbackToText && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Afbeelding delen wordt niet ondersteund op dit apparaat',
-              ),
-            ),
-          );
-        }
       }
     }
-    if (fallbackToText) await _shareText();
+    if (fallbackToText && mounted) await _shareText();
   }
 
   Future<void> _shareText() async {
-    try {
-      await SharePlus.instance.share(
-        ShareParams(text: _buildShareText(), subject: 'Bonken uitslag'),
+    final shared = await ref.read(shareTextProvider)(
+      text: _buildShareText(),
+      subject: 'Bonken uitslag',
+    );
+    if (!shared && mounted) {
+      showTimedSnackBar(
+        ScaffoldMessenger.of(context),
+        content: const Text(kShareUnsupportedMessage),
       );
-    } on PlatformException catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Delen wordt niet ondersteund op dit apparaat'),
-          ),
-        );
-      }
     }
   }
 
@@ -828,7 +808,7 @@ class _NewGameSamePlayersButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return PrimaryActionButton(
+    return FilledButton.icon(
       icon: const Icon(Symbols.replay),
       label: const Text('Nieuw spel met dezelfde spelers'),
       onPressed: () => _onPressed(context, ref),
@@ -1058,6 +1038,7 @@ class _HistoryRow extends StatelessWidget {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const RoundInputScreen(),
+                      fullscreenDialog: true,
                     ),
                   ),
                 );

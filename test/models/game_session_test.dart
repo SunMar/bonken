@@ -103,7 +103,6 @@ void main() {
         ],
         pending: PendingRound(
           gameId: 'duck',
-          gameName: 'Bukken',
           chooserId: testPlayers[2].id,
           input: CountsInput({pa.id: 10, pb.id: 1, pc.id: 1, pd.id: 1}),
         ),
@@ -389,7 +388,6 @@ void main() {
         ],
         pending: PendingRound(
           gameId: 'queens',
-          gameName: 'Vrouwen',
           chooserId: testPlayers[3].id,
           input: CountsInput({pa.id: 1, pb.id: 0, pc.id: 0, pd.id: 0}),
         ),
@@ -424,7 +422,7 @@ void main() {
       final json = r.toJson();
       expect(json['roundNumber'], r.roundNumber);
       expect(json['gameId'], r.game.id);
-      expect(json['gameName'], r.game.name);
+      expect(json.containsKey('gameName'), isFalse);
       expect(json['chooserId'], r.chooserId);
       expect(json['scores'], r.scoresByPlayer);
     });
@@ -432,7 +430,6 @@ void main() {
     test('PendingRound roundtrip preserves all fields including doubles', () {
       final p = PendingRound(
         gameId: 'duck',
-        gameName: 'Bukken',
         chooserId: testPlayers[2].id,
         input: CountsInput({pa.id: 3, pb.id: 4, pc.id: 0, pd.id: 0}),
         doublesJson: DoubleMatrix.empty()
@@ -441,7 +438,6 @@ void main() {
       );
       final back = PendingRound.fromJson(p.toJson());
       expect(back.gameId, p.gameId);
-      expect(back.gameName, p.gameName);
       expect(back.chooserId, p.chooserId);
       expect(back.input, p.input);
       expect(back.doublesJson, isNotNull);

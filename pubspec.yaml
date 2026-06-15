@@ -52,6 +52,17 @@ dependencies:
   # UUID generation for stable player identifiers.
   uuid: ^4.5.3
 
+  # File picker for importing backup ZIP files (cross-platform, returns bytes).
+  # v12 resolves the win32 ^6 conflict with package_info_plus ^10 that affects
+  # v8–11; using the beta as a one-off exception to avoid a win32 override.
+  file_picker: '>=12.0.0-0 <13.0.0'
+
+  # Pure-Dart ZIP encoder/decoder for export/import backup archives.
+  archive: ^4.0.0
+
+  # SHA-256 hashing for backup file integrity verification.
+  crypto: ^3.0.6
+
   # Material Symbols (variable-font icon set) — used app-wide as the
   # canonical icon set in place of Flutter's built-in `Icons`. The
   # built-in set ships an outdated subset, so the codebase never

@@ -19,6 +19,7 @@ class VariantRadioList<T extends LabeledVariant> extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.defaultValue,
+    this.contentPadding,
   });
 
   /// All selectable values (typically `StarterVariant.values`).
@@ -28,6 +29,12 @@ class VariantRadioList<T extends LabeledVariant> extends StatelessWidget {
 
   /// The global default — its tile receives a "standaard" badge.
   final T? defaultValue;
+
+  /// Content padding for each [RadioListTile]. Null uses the tile default
+  /// (16 dp horizontal), which is correct when the parent card manages no
+  /// horizontal padding for the tile area. Pass [EdgeInsets.zero] when the
+  /// parent already provides the horizontal indent (e.g. inside a dialog).
+  final EdgeInsetsGeometry? contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +48,9 @@ class VariantRadioList<T extends LabeledVariant> extends StatelessWidget {
         children: [
           for (final v in values)
             RadioListTile<T>(
-              contentPadding: EdgeInsets.zero,
+              contentPadding: contentPadding,
+              // 14dp triggers compact stacking layout (symmetric gaps, same 72dp tile height as M3 default).
+              minVerticalPadding: 14,
               title: Row(
                 children: [
                   Text(v.label),

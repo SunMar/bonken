@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/game_session.dart';
 import 'migrations.dart';
 import 'storage_exceptions.dart';
+import 'validation.dart';
 
 class UnsupportedStorageVersionException implements Exception {
   const UnsupportedStorageVersionException(this.version);
@@ -100,6 +101,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   /// If a session with the same [GameSession.id] already exists it is replaced
   /// in place. Otherwise the new session is inserted at the front (newest first).
   Future<void> saveGame(GameSession session) async {
+    validateGameSession(session);
     final current = await future;
     final idx = current.indexWhere((g) => g.id == session.id);
     final updated = List<GameSession>.from(current);
@@ -119,6 +121,20 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
     await prefs.remove(storageKey);
     _suggestionsCache = null;
     state = const AsyncValue.data([]);
+  }
+
+  /// Replaces the entire game history with [sessions].
+  ///
+  /// Called exclusively by the import path after both streams have been
+  /// validated (ARCHITECTURE.md §9). Serialises the `{version, games}` envelope,
+  /// writes it under [storageKey], and updates state — so the storage shape
+  /// stays owned here (never duplicated in the import code, ARCH §2).
+  Future<void> replaceAll(List<GameSession> sessions) async {
+    final sorted = List<GameSession>.from(sessions)
+      ..sort((a, b) => b.scoredAt.compareTo(a.scoredAt));
+    _suggestionsCache = null;
+    state = AsyncValue.data(sorted);
+    await _persist(sorted);
   }
 
   Future<void> deleteGame(String id) async {

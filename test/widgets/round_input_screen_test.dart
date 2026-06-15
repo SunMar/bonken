@@ -292,11 +292,50 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Terug'));
+      await tester.tap(find.byTooltip('Verwerpen'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Scores aangepast'), findsNothing);
+      expect(find.text('Wijzigingen verwerpen'), findsNothing);
       expect(find.byType(RoundInputScreen), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'back WITH changes while editing shows the discard dialog; cancel stays',
+    (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(calculatorProvider.notifier);
+      notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
+      final ps = (container.read(calculatorProvider) as ActiveSession).players;
+      notifier.selectGame(const Clubs());
+      notifier.updateInput(
+        CountsInput({ps[0].id: 4, ps[1].id: 4, ps[2].id: 2, ps[3].id: 3}),
+      );
+      notifier.deselectGame();
+      final round =
+          (container.read(calculatorProvider) as ActiveSession).history.first;
+      notifier.restoreRound(round);
+      // Make a real change so hasActiveChanges is true.
+      notifier.updateInput(
+        CountsInput({ps[0].id: 13, ps[1].id: 0, ps[2].id: 0, ps[3].id: 0}),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      await tester.pumpWidget(_wrapWithNavigator(container));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Verwerpen'));
+      await tester.pumpAndSettle();
+
+      // Discard confirmation is shown for the unsaved edit.
+      expect(find.text('Wijzigingen verwerpen'), findsOneWidget);
+
+      // Cancelling keeps the user on the screen.
+      await tester.tap(find.widgetWithText(TextButton, 'Annuleren'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RoundInputScreen), findsOneWidget);
     },
   );
 
