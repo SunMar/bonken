@@ -263,7 +263,7 @@ lib/
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
     new_game_screen.dart     Enter names (with suggestions) + pick first dealer + pick variants.
     game_screen.dart         In-game hub: game selection, live scoreboard, history, edit/delete;
-                             share result (image/text) when finished.
+                             share / save / copy the result (image or text) when finished.
     round_input_screen.dart  Per-round: chooser, doubles, input form, live/final result.
     edit_game_screen.dart Rename/reorder players + change first dealer + change variants mid-game.
     rules_screen.dart        Renders rules content (full doc or single game); variant text and
@@ -351,12 +351,13 @@ lib/
                              used by import_screen via platform_io_providers.
   services/save_service.dart  saveFile() — saves bytes to device storage without a share sheet
                              (Android SAF picker / iOS Documents / web download), plus the
-                             saveZipFile wrapper. Web download is split out into
+                             saveZipFile / saveImageFile wrappers. Web download is split out into
                              save_service_io.dart (stub) + save_service_web.dart (package:web)
-                             via a conditional import. Used by export_screen via
-                             platform_io_providers.
+                             via a conditional import. Used by export_screen (ZIP) + game_screen
+                             (result PNG), via platform_io_providers.
   state/platform_io_providers.dart  shareFileProvider / shareTextProvider / pickBackupBytesProvider /
-                             saveZipFileProvider — DI seams over the services; overridden in tests (see §11).
+                             saveZipFileProvider / saveImageFileProvider — DI seams over the
+                             services; overridden in tests (see §11).
 ```
 
 ---

@@ -3,9 +3,11 @@ import 'dart:math' show Random;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -40,7 +42,7 @@ import 'round_input_screen.dart';
 // GameScreen — top-level screen
 // =============================================================================
 
-enum _ShareFormat { image, text }
+enum _ShareDialogResult { shareImage, shareText, saveImage, copyText }
 
 /// Players ranked highest score first for the share views. Ties keep the
 /// players' seat (display) order so the output is deterministic across renders
@@ -173,6 +175,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 unawaited(_shareImage()),
             const CustomSemanticsAction(label: 'Deel als tekst'): () =>
                 unawaited(_shareText()),
+            const CustomSemanticsAction(label: 'Bewaar als afbeelding'): () =>
+                unawaited(_saveImage()),
+            const CustomSemanticsAction(label: 'Kopieer als tekst'): () =>
+                unawaited(_copyText()),
           },
           child: GestureDetector(
             onLongPress: () => unawaited(_showShareDialog()),
@@ -188,31 +194,72 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   /// Popup dialog (consistent with the app's dialog/popup convention — no menus)
-  /// letting the user pick the share format. Reached by long-press or the
+  /// letting the user pick format and action. Reached by long-press or the
   /// screen-reader custom action; a plain tap never opens it.
   Future<void> _showShareDialog() async {
-    final mode = await showDialog<_ShareFormat>(
+    final result = await showDialog<_ShareDialogResult>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        // M3 hero icon, no title (the title read as redundant beside it). The
-        // semanticLabel gives screen readers the context the title would have.
-        icon: const Icon(Symbols.share, semanticLabel: 'Deel uitslag'),
         // Zero horizontal padding so the option rows span the dialog width;
         // each ListTile keeps its own inset.
+        semanticLabel: 'Uitslag delen',
         contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        actionsPadding: const EdgeInsetsDirectional.only(
+          start: 16,
+          end: 16,
+          bottom: 8,
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Symbols.image),
               title: const Text('Afbeelding'),
-              onTap: () => Navigator.of(dialogContext).pop(_ShareFormat.image),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Symbols.share),
+                    tooltip: 'Afbeelding delen',
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_ShareDialogResult.shareImage),
+                  ),
+                  IconButton(
+                    icon: const Icon(Symbols.download),
+                    tooltip: 'Afbeelding opslaan',
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_ShareDialogResult.saveImage),
+                  ),
+                ],
+              ),
             ),
+            const Divider(height: 1),
             ListTile(
               leading: const Icon(Symbols.article),
               title: const Text('Tekst'),
-              onTap: () => Navigator.of(dialogContext).pop(_ShareFormat.text),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Symbols.share),
+                    tooltip: 'Tekst delen',
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_ShareDialogResult.shareText),
+                  ),
+                  IconButton(
+                    icon: const Icon(Symbols.content_copy),
+                    tooltip: 'Tekst kopiëren',
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_ShareDialogResult.copyText),
+                  ),
+                ],
+              ),
             ),
+            const Divider(height: 1),
           ],
         ),
         actions: [
@@ -223,11 +270,16 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         ],
       ),
     );
-    if (!mounted || mode == null) return;
-    if (mode == _ShareFormat.image) {
-      await _shareImage();
-    } else {
-      await _shareText();
+    if (!mounted || result == null) return;
+    switch (result) {
+      case _ShareDialogResult.shareImage:
+        await _shareImage();
+      case _ShareDialogResult.shareText:
+        await _shareText();
+      case _ShareDialogResult.saveImage:
+        await _saveImage();
+      case _ShareDialogResult.copyText:
+        await _copyText();
     }
   }
 
@@ -245,7 +297,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     if (bytes != null) {
       final shared = await share(
         bytes: bytes,
-        filename: 'bonken_uitslag.png',
+        filename: 'bonken-uitslag.png',
         mimeType: 'image/png',
         subject: 'Bonken uitslag',
         text: text,
@@ -273,6 +325,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       showTimedSnackBar(
         ScaffoldMessenger.of(context),
         content: const Text(kShareUnsupportedMessage),
+      );
+    }
+  }
+
+  Future<void> _copyText() async {
+    await Clipboard.setData(ClipboardData(text: _buildShareText()));
+    if (!mounted) return;
+    showTimedSnackBar(
+      ScaffoldMessenger.of(context),
+      content: const Text('Tekst gekopieerd naar klembord'),
+    );
+  }
+
+  Future<void> _saveImage() async {
+    final scoredAt = ref.read(activeSessionProvider).scoredAt;
+    final save = ref.read(saveImageFileProvider);
+    final bytes = await _captureShareCard();
+    if (bytes == null || !mounted) return;
+    try {
+      final saved = await save(
+        bytes: bytes,
+        filename: 'bonken-uitslag-${formatFileDate(scoredAt)}.png',
+      );
+      if (!mounted) return;
+      if (saved && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        showTimedSnackBar(
+          ScaffoldMessenger.of(context),
+          content: const Text('Afbeelding opgeslagen in Bestanden → Bonken'),
+        );
+      }
+    } on Object {
+      if (!mounted) return;
+      showTimedSnackBar(
+        ScaffoldMessenger.of(context),
+        content: const Text('Het is mislukt om de afbeelding op te slaan.'),
       );
     }
   }

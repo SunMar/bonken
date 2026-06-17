@@ -26,6 +26,7 @@ import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/platform_io_providers.dart';
 import 'package:bonken/utils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -244,6 +245,38 @@ void main() {
       expect(find.text('Annuleren'), findsOneWidget);
     });
 
+    testWidgets('"Afbeelding" row exposes both "Delen" and "Opslaan" buttons', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+      );
+
+      await tester.longPress(find.byIcon(Symbols.share));
+      await tester.pumpAndSettle();
+
+      final afbeeldingTile = find.ancestor(
+        of: find.text('Afbeelding'),
+        matching: find.byType(ListTile),
+      );
+      expect(
+        find.descendant(
+          of: afbeeldingTile,
+          matching: find.byTooltip('Afbeelding delen'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: afbeeldingTile,
+          matching: find.byTooltip('Afbeelding opslaan'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('explicit "Tekst" choice shares the result as text', (
       tester,
     ) async {
@@ -266,7 +299,15 @@ void main() {
 
       await tester.longPress(find.byIcon(Symbols.share));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Tekst'));
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Tekst'),
+            matching: find.byType(ListTile),
+          ),
+          matching: find.byTooltip('Tekst delen'),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // The text payload reached the share provider (no platform involved).
@@ -291,7 +332,15 @@ void main() {
 
       await tester.longPress(find.byIcon(Symbols.share));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Tekst'));
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Tekst'),
+            matching: find.byType(ListTile),
+          ),
+          matching: find.byTooltip('Tekst delen'),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text(kShareUnsupportedMessage), findsOneWidget);
@@ -299,12 +348,67 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
     });
 
-    // The image path (_shareImage) is intentionally not widget-tested: reaching
-    // its share call requires _captureShareCard's real RepaintBoundary→PNG
-    // capture, which is non-deterministic under the test binding. Its
-    // boolean-handling is identical to the export-refused path covered by
-    // export_screen_test.dart; adding a capture seam purely for tests would
-    // reintroduce the very smell this change removes.
+    testWidgets('"Tekst kopiëren" copies the result to the clipboard', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      String? clipboardText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboardText = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pump(
+        tester,
+        session: _session(
+          players: players,
+          rounds: finishedRounds(players),
+          gameName: 'Kerst 2024',
+        ),
+      );
+
+      await tester.longPress(find.byIcon(Symbols.share));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Tekst'),
+            matching: find.byType(ListTile),
+          ),
+          matching: find.byTooltip('Tekst kopiëren'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The payload reached the clipboard (no platform involved) and the user
+      // got confirmation.
+      expect(clipboardText, isNotNull);
+      expect(clipboardText, contains('Bonken uitslag'));
+      expect(clipboardText, contains('Kerst 2024'));
+      expect(find.text('Tekst gekopieerd naar klembord'), findsOneWidget);
+
+      await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+    });
+
+    // The image paths (_shareImage, _saveImage) are intentionally not
+    // widget-tested: reaching their share/save call requires _captureShareCard's
+    // real RepaintBoundary→PNG capture, which is non-deterministic under the
+    // test binding. Both route through the platform_io_providers seam
+    // (shareFileProvider / saveImageFileProvider) and their boolean/error
+    // handling mirrors the export paths covered by export_screen_test.dart;
+    // adding a capture seam purely for tests would reintroduce the very smell
+    // this change removes.
   });
 
   testWidgets(

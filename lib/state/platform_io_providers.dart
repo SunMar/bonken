@@ -37,6 +37,9 @@ typedef SaveFileFn =
 /// Saves a ZIP file to device storage without a share sheet. Defaults to [saveZipFile].
 final saveZipFileProvider = Provider<SaveFileFn>((ref) => saveZipFile);
 
+/// Saves a PNG image to device storage without a share sheet. Defaults to [saveImageFile].
+final saveImageFileProvider = Provider<SaveFileFn>((ref) => saveImageFile);
+
 typedef PickBackupBytesFn = Future<Uint8List?> Function();
 
 /// Picks a backup file and returns its bytes. Defaults to [pickBackupBytes].

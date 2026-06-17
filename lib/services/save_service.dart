@@ -51,3 +51,12 @@ Future<bool> saveZipFile({
   filename: filename,
   allowedExtensions: const ['zip'],
 );
+
+Future<bool> saveImageFile({
+  required Uint8List bytes,
+  required String filename,
+}) => saveFile(
+  bytes: bytes,
+  filename: filename,
+  allowedExtensions: const ['png'],
+);
