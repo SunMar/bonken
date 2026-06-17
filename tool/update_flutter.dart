@@ -14,12 +14,10 @@
 //      alone, matching `tool/update_deps.dart`).
 //   4. Run `fvm install` to install the pinned SDK (fast no-op if already
 //      installed).
-//   5. Delete `.dart_tool` so cached `.dill` files compiled against the old SDK
-//      are not picked up by VS Code or other tools ("Invalid SDK hash" errors).
-//      VS Code resolves the SDK via the `.fvm/flutter_sdk` symlink
-//      (`dart.flutterSdkPath` in `.vscode/settings.json`) which FVM keeps
-//      up to date — no manual settings change needed.
-//   6. Run `fvm flutter pub get` to rebuild `.dart_tool` against the new SDK.
+//   5. Run `fvm flutter clean` to wipe stale build artifacts and the cached
+//      `.dill` files in `.dart_tool` that are tied to the old SDK hash
+//      ("Invalid SDK hash" errors in VS Code / other tools).
+//   6. Run `fvm flutter pub get` to restore project dependencies.
 //   7. Sync Android toolchain versions (AGP, Kotlin, Gradle) from the Flutter
 //      SDK's own pinned defaults (read from the installed SDK's gradle_utils.dart).
 //
@@ -128,13 +126,13 @@ Future<void> main(List<String> args) async {
     exit(1);
   }
 
-  // The compiled-artifact cache in .dart_tool is tied to the Dart SDK hash.
-  // Deleting it prevents "Invalid SDK hash" errors in VS Code and other tools
-  // that load cached .dill files without checking whether the SDK changed.
-  print('==> Clearing .dart_tool (stale compiled artifacts)');
-  final dartToolDir = Directory('.dart_tool');
-  if (dartToolDir.existsSync()) {
-    dartToolDir.deleteSync(recursive: true);
+  print('==> Running fvm flutter clean');
+  final cleanProcess = await Process.start('fvm', [
+    'flutter',
+    'clean',
+  ], mode: ProcessStartMode.inheritStdio);
+  if (await cleanProcess.exitCode != 0) {
+    exit(1);
   }
 
   print('==> Running fvm flutter pub get');

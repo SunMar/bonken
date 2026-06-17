@@ -3,7 +3,7 @@
 > Engineering reference for developers and coding agents working in this repo.
 > This document is the authoritative *deep* reference (how the code is built and
 > why); for the day-to-day quick-start (commands, CI gates, top invariants) see
-> [`CLAUDE.md`](CLAUDE.md), which is auto-loaded by coding agents and points
+> [`AGENTS.md`](AGENTS.md), which is auto-loaded by coding agents and points
 > here for detail. For player-facing install/play docs (in Dutch), see
 > [`README.md`](README.md); the in-app rules text lives in
 > [`lib/data/game_rules.dart`](lib/data/game_rules.dart).
@@ -1304,6 +1304,30 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
   flattens onto `background_color_ios` (`#283593`); the source is already opaque.
   Generating the iOS `AppIcon.appiconset` (the `flutter_launcher_icons` iOS pass)
   needs the `ios/` Runner project present and runs only on macOS/Xcode.)
+- **Store screenshots:** `./tool/generate_screenshots.sh` takes all store screenshots
+  in one command.  It uses Flutter's `integration_test` SDK package (moved
+  first-party into the Flutter SDK) with `flutter drive`: the integration test
+  (`integration_test/screenshot_test.dart`) navigates the app to each UI state
+  and calls `IntegrationTestWidgetsFlutterBinding.takeScreenshot('name')`, which
+  passes the bytes back to the host driver (`test_driver/screenshot_driver.dart`)
+  via a platform channel; the driver writes them to
+  `screenshots/<device-type>/<name>.png`.  Two `testWidgets` sessions use a
+  pre-seeded SharedPreferences fixture
+  (`integration_test/screenshot_fixtures.dart`) — session A covers the home,
+  new-game, and final-score screens; session B covers the round-input screens and
+  the rules page.  Manual triggers
+  [`Screenshots – Android`](.github/workflows/screenshots-android.yml) and
+  [`Screenshots – iOS`](.github/workflows/screenshots-ios.yml) run the pipeline
+  in CI (three device sizes: phone + two tablet formats for each platform) using
+  `reactivecircus/android-emulator-runner@v2` for Android and the pre-installed
+  Xcode + simulators on `macos-latest` for iOS; the result is uploaded as a
+  downloadable artifact for review before manual store upload.  Locally:
+  `./tool/generate_screenshots.sh --android phone` (or `--ios iphone` on macOS);
+  local Android mode manages the AVD lifecycle (dependency-preflight, create +
+  boot + test + kill); pass `--keep-running` to leave the device alive for
+  inspection.  `integration_test` and `flutter_driver` are declared as
+  `dev_dependencies` with `sdk: flutter` — they live in the Flutter SDK and are
+  skipped by `update_deps.dart` (no version field in `pubspec.lock`).
 - **Updates:** `services/app_updater.dart` checks Google Play for a newer build
   (Android only; no-op on web/iOS/sideloaded; never blocks startup).
 
@@ -1410,7 +1434,7 @@ Things to *not* break:
 - **UI strings in Dutch, code identifiers in English.**
 - **Run `fvm dart format .` before committing** — CI's `verify` action fails on
   unformatted Dart (`dart format --output=none --set-exit-if-changed .`).
-- **Update CLAUDE.md / ARCHITECTURE.md as part of the change** when it affects
+- **Update AGENTS.md / ARCHITECTURE.md as part of the change** when it affects
   documented architecture, conventions, the storage version, the directory map,
   or invariants — not as a follow-up.
 

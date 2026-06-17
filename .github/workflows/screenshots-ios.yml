@@ -1,0 +1,39 @@
+name: Screenshots – iOS
+
+# Manual trigger only.  Download the screenshots-ios artifact after the run,
+# review the PNGs, then upload them to App Store Connect manually.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    # macos-latest comes with Xcode and iOS simulators pre-installed;
+    # no additional action is needed to set up the simulator environment.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # setup-build installs Flutter (from .fvmrc), runs pub get, and generates
+      # launcher icons.  On macOS it uses brew for rsvg-convert + fontconfig
+      # instead of apt-get.
+      - uses: ./.github/actions/setup-build
+
+      # The script manages the simulator lifecycle (boot → test → shutdown).
+      # --ci switches fvm flutter → PATH flutter; keep-running is not passed
+      # so simulators are shut down after each run.
+
+      - name: Screenshots – iPhone
+        run: dart tool/generate_screenshots.dart --ci --ios iphone
+
+      - name: Screenshots – iPad
+        run: dart tool/generate_screenshots.dart --ci --ios ipad
+
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots-ios
+          path: screenshots/
+          retention-days: 30

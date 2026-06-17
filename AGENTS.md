@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Bonken — offline score calculator (Flutter PWA + Android) for the Dutch
 4-player card game Bonken. Pure Dart domain → Riverpod state → Material 3 UI.
@@ -33,7 +33,7 @@ The analyzer is **strict** — the full, authoritative rule set is
 return types, wrap fire-and-forget futures in `unawaited(...)`, then run
 `fvm dart fix --apply` + `fvm dart format .` before pushing.
 
-**Update `CLAUDE.md` and `ARCHITECTURE.md` as part of the change** when it
+**Update `AGENTS.md` and `ARCHITECTURE.md` as part of the change** when it
 affects documented architecture, conventions, the storage version, the directory
 map, or invariants — not as a follow-up.
 

@@ -110,7 +110,7 @@ jobs:
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           AAB_PATH: ../bonken-${{ github.ref_name }}.aab
-        run: fastlane alpha
+        run: bundle exec fastlane alpha
 
   # =====================================================================
   # Create the public GitHub Release with the web (PWA) zip + the signed

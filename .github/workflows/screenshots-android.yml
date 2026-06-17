@@ -1,0 +1,52 @@
+name: Screenshots – Android
+
+# Manual trigger only.  Download the screenshots-android artifact after the
+# run, review the PNGs, then upload them to the Play Console manually.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-build
+        with:
+          android: 'true'
+
+      - name: Load device config
+        run: cat tool/generate_screenshots.env >> "$GITHUB_ENV"
+
+      # Two separate emulator-runner steps so each device size gets its own
+      # managed emulator lifecycle (boot → test → kill).  Screenshots accumulate
+      # in screenshots/android/phone/, screenshots/android/tablet/ and are
+      # uploaded together as one artifact below.
+
+      - name: Screenshots – phone
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          arch: x86_64
+          profile: ${{ env.ANDROID_PHONE_PROFILE }}
+          emulator-options: '-locale ${{ env.LOCALE }}'
+          script: dart tool/generate_screenshots.dart --ci --android phone
+
+      - name: Screenshots – tablet
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          arch: x86_64
+          profile: ${{ env.ANDROID_TABLET_PROFILE }}
+          emulator-options: '-locale ${{ env.LOCALE }}'
+          script: dart tool/generate_screenshots.dart --ci --android tablet
+
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots-android
+          path: screenshots/
+          retention-days: 30
