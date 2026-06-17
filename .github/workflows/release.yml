@@ -80,22 +80,35 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
 
-      - name: Build Android App Bundle (AAB)
+      - name: Build legacy AAB (com.suninet.bonken)
         run: |
-          flutter build appbundle --release \
+          flutter build appbundle --flavor legacy --release \
             --build-name=${{ needs.verify.outputs.name }} \
             --build-number=${{ needs.verify.outputs.code }}
 
-      - name: Rename AAB
+      - name: Rename legacy AAB
         run: |
-          mv build/app/outputs/bundle/release/app-release.aab \
+          mv build/app/outputs/bundle/legacyRelease/app-legacy-release.aab \
+             "bonken-legacy-${{ github.ref_name }}.aab"
+
+      - name: Build current AAB (org.suninet.bonken)
+        run: |
+          flutter build appbundle --flavor current --release \
+            --build-name=${{ needs.verify.outputs.name }} \
+            --build-number=${{ needs.verify.outputs.code }}
+
+      - name: Rename current AAB
+        run: |
+          mv build/app/outputs/bundle/currentRelease/app-current-release.aab \
              "bonken-${{ github.ref_name }}.aab"
 
-      - name: Upload AAB as workflow artifact
+      - name: Upload AABs as workflow artifacts
         uses: actions/upload-artifact@v7
         with:
           name: bonken-${{ github.ref_name }}-aab
-          path: bonken-${{ github.ref_name }}.aab
+          path: |
+            bonken-legacy-${{ github.ref_name }}.aab
+            bonken-${{ github.ref_name }}.aab
           retention-days: 90
 
       - name: Setup Ruby (fastlane)
@@ -105,11 +118,20 @@ jobs:
           working-directory: android
           bundler-cache: true
 
-      - name: Publish to Play Console (alpha, draft)
+      - name: Publish legacy to Play Console (alpha, draft)
+        working-directory: android
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          AAB_PATH: ../bonken-legacy-${{ github.ref_name }}.aab
+          PACKAGE_NAME: com.suninet.bonken
+        run: bundle exec fastlane alpha
+
+      - name: Publish current to Play Console (alpha, draft)
         working-directory: android
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           AAB_PATH: ../bonken-${{ github.ref_name }}.aab
+          PACKAGE_NAME: org.suninet.bonken
         run: bundle exec fastlane alpha
 
   # =====================================================================
@@ -150,15 +172,15 @@ jobs:
           cd build/web
           zip -r "../../bonken-web-${{ github.ref_name }}.zip" .
 
-      - name: Build Android APK
+      - name: Build Android APK (current flavor)
         run: |
-          flutter build apk --release \
+          flutter build apk --flavor current --release \
             --build-name=${{ needs.verify.outputs.name }} \
             --build-number=${{ needs.verify.outputs.code }}
 
       - name: Rename APK
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk \
+          mv build/app/outputs/flutter-apk/app-current-release.apk \
              "bonken-${{ github.ref_name }}.apk"
 
       - name: Create GitHub Release

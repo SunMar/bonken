@@ -19,7 +19,7 @@ val keystoreProperties = Properties().apply {
 val hasReleaseSigning = keystorePropertiesFile.exists()
 
 android {
-    namespace = "com.suninet.bonken"
+    namespace = "org.suninet.bonken"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -29,8 +29,10 @@ android {
     }
 
     defaultConfig {
-        // Application ID registered in the Google Play Console.
-        applicationId = "com.suninet.bonken"
+        // Application ID for the new Play Store listing (org.suninet.bonken).
+        // The `legacy` flavor overrides this to com.suninet.bonken so both
+        // listings can be built and published from the same repo.
+        applicationId = "org.suninet.bonken"
         // Optional suffix + label override for parallel-installable side
         // builds (e.g. the `develop` branch APK).  Pass on the command
         // line:  ./gradlew … -PappIdSuffix=.develop -PappLabel="Bonken (test versie)"
@@ -47,6 +49,18 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    flavorDimensions += "edition"
+    productFlavors {
+        create("legacy") {
+            dimension = "edition"
+            applicationId = "com.suninet.bonken"
+        }
+        create("current") {
+            dimension = "edition"
+            // inherits org.suninet.bonken from defaultConfig
+        }
     }
 
     signingConfigs {

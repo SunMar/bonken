@@ -63,6 +63,10 @@ dependencies:
   # SHA-256 hashing for backup file integrity verification.
   crypto: ^3.0.6
 
+  # DOM bindings for the web file-download path (save_service_web.dart), via
+  # package:web + dart:js_interop — the modern replacement for dart:html.
+  web: ^1.1.0
+
   # Material Symbols (variable-font icon set) — used app-wide as the
   # canonical icon set in place of Flutter's built-in `Icons`. The
   # built-in set ships an outdated subset, so the codebase never

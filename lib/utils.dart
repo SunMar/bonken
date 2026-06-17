@@ -59,6 +59,18 @@ String formatDate(DateTime dt) {
   return '$day ${dt.day} ${months[dt.month - 1]} ${dt.year}  $h:$m';
 }
 
+String _pad2(int n) => n.toString().padLeft(2, '0');
+
+/// `yyyy-MM-dd` date stamp for file names — locale-independent and sortable.
+/// (Distinct from [formatDate], which is the human-facing Dutch format.)
+String formatFileDate(DateTime dt) =>
+    '${dt.year.toString().padLeft(4, '0')}-${_pad2(dt.month)}-${_pad2(dt.day)}';
+
+/// `yyyy-MM-dd_HH-mm` timestamp for file names — locale-independent and
+/// sortable. Minute resolution is enough to disambiguate exports.
+String formatFileTimestamp(DateTime dt) =>
+    '${formatFileDate(dt)}_${_pad2(dt.hour)}-${_pad2(dt.minute)}';
+
 String formatScore(int score) => score > 0 ? '+$score' : '$score';
 
 /// Tint for a player's cumulative or per-round score, based on its sign.

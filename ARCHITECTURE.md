@@ -273,6 +273,10 @@ lib/
                              (export + import entry points).
     import_screen.dart       Full-screen import flow (idle → analyzing → analyzed → applying);
                              uses ImportNotifier.applyImport.
+    migration_screen.dart    Terminal "Bonken is verhuisd" screen for the legacy app id
+                             (com.suninet.bonken): links to the new Play Store listing and
+                             offers a one-off data export. Shown instead of HomeScreen when
+                             main()'s isLegacyApp is true (see §8).
 
   widgets/                   Reusable UI.
     app_scaffold.dart        SafeArea-wrapping Scaffold (mandatory for screens); body wrapped in a
@@ -318,7 +322,8 @@ lib/
                              used by _RoundInfoBanner (game screen) and _SettingsNote (settings).
     form_section_card.dart   Shared Card + titled section header widget (Semantics(header:true)
                              + subtitle + child); used on new-game, edit-game, settings, import.
-    export_screen.dart       Full-screen route for the export flow; scope radio group + share button.
+    export_screen.dart       Full-screen route for the export flow; scope radio group +
+                             "Export delen" (share sheet) and "Export opslaan" (save-to-device).
     game_input/              Round-input building blocks: form, counts input, player picker.
     …                        dealer_picker_dialog.dart, dialogs.dart,
                              timed_snackbar.dart + game_deleted_snackbar.dart
@@ -344,8 +349,14 @@ lib/
                              PNG + text) and export_screen (backup ZIP), via platform_io_providers.
   services/file_pick_service.dart  pickBackupBytes() — picks a .zip via FilePicker, returns bytes;
                              used by import_screen via platform_io_providers.
-  state/platform_io_providers.dart  shareFileProvider / shareTextProvider / pickBackupBytesProvider
-                             — DI seams over the two services; overridden in tests (see §11).
+  services/save_service.dart  saveFile() — saves bytes to device storage without a share sheet
+                             (Android SAF picker / iOS Documents / web download), plus the
+                             saveZipFile wrapper. Web download is split out into
+                             save_service_io.dart (stub) + save_service_web.dart (package:web)
+                             via a conditional import. Used by export_screen via
+                             platform_io_providers.
+  state/platform_io_providers.dart  shareFileProvider / shareTextProvider / pickBackupBytesProvider /
+                             saveZipFileProvider — DI seams over the services; overridden in tests (see §11).
 ```
 
 ---
@@ -720,6 +731,13 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   a snackbar directing the user to 'Spel bewerken'). The standalone rules page
   (home / deep link) leaves the mode at `enabled`, showing app defaults plus
   the alternative and the picker icon.
+- **Legacy-app migration.** The app id moved `com.suninet.bonken` →
+  `org.suninet.bonken` (new Play Store listing). When `main()` detects the legacy
+  id (`isLegacyApp`), the initial route is `MigrationScreen` instead of
+  `HomeScreen` — a terminal "Bonken is verhuisd" screen (`PopScope(canPop:false)`)
+  that links to the new listing and offers a one-off data export so the user can
+  re-import in the new app. `isLegacyApp` is hardcoded `false` until the new
+  listings are live.
 
 ---
 

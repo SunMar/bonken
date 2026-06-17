@@ -37,56 +37,69 @@ void main() {
     expect(find.text('Speelgeschiedenis en instellingen'), findsOneWidget);
   });
 
-  testWidgets('"Exporteer" button is enabled initially', (tester) async {
+  testWidgets('action buttons are enabled initially', (tester) async {
     await _pump(tester);
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Exporteer'),
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Export delen'),
+          )
+          .onPressed,
+      isNotNull,
     );
-    expect(button.onPressed, isNotNull);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Export opslaan'),
+          )
+          .onPressed,
+      isNotNull,
+    );
   });
 
-  testWidgets('share unavailable → failure snackbar, stays on screen', (
-    tester,
-  ) async {
-    PackageInfo.setMockInitialValues(
-      appName: 'bonken',
-      packageName: 'org.example.bonken',
-      version: '1.0.0',
-      buildNumber: '1',
-      buildSignature: '',
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          shareFileProvider.overrideWithValue(
-            ({
-              required bytes,
-              required filename,
-              required mimeType,
-              subject,
-              text,
-            }) async => false,
-          ),
-        ],
-        child: const MaterialApp(home: ExportScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    '"Export delen" share unavailable → failure snackbar, stays on screen',
+    (tester) async {
+      PackageInfo.setMockInitialValues(
+        appName: 'bonken',
+        packageName: 'org.example.bonken',
+        version: '1.0.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            shareFileProvider.overrideWithValue(
+              ({
+                required bytes,
+                required filename,
+                required mimeType,
+                subject,
+                text,
+              }) async => false,
+            ),
+          ],
+          child: const MaterialApp(home: ExportScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    // Games-only avoids needing a settings blob in prefs.
-    await tester.tap(find.text('Alleen speelgeschiedenis'));
-    await tester.pumpAndSettle();
+      // Games-only avoids needing a settings blob in prefs.
+      await tester.tap(find.text('Alleen speelgeschiedenis'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Exporteer'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Export delen'));
+      await tester.pumpAndSettle();
 
-    expect(find.text(kShareUnsupportedMessage), findsOneWidget);
-    expect(find.byType(ExportScreen), findsOneWidget); // did not pop
+      expect(find.text(kShareUnsupportedMessage), findsOneWidget);
+      expect(find.byType(ExportScreen), findsOneWidget); // did not pop
 
-    await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
-  });
+      await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+    },
+  );
 
-  testWidgets('export throws → error snackbar, stays on screen', (
+  testWidgets('"Export delen" throws → error snackbar, stays on screen', (
     tester,
   ) async {
     PackageInfo.setMockInitialValues(
@@ -118,7 +131,7 @@ void main() {
     await tester.tap(find.text('Alleen speelgeschiedenis'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Exporteer'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Export delen'));
     await tester.pumpAndSettle();
 
     expect(
@@ -129,4 +142,76 @@ void main() {
 
     await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
   });
+
+  testWidgets(
+    '"Export opslaan" save cancelled → stays on screen, no snackbar',
+    (tester) async {
+      PackageInfo.setMockInitialValues(
+        appName: 'bonken',
+        packageName: 'org.example.bonken',
+        version: '1.0.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveZipFileProvider.overrideWithValue(
+              ({required bytes, required filename}) async => false,
+            ),
+          ],
+          child: const MaterialApp(home: ExportScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Alleen speelgeschiedenis'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Export opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ExportScreen), findsOneWidget); // did not pop
+      expect(find.byType(SnackBar), findsNothing);
+    },
+  );
+
+  testWidgets(
+    '"Export opslaan" save throws → error snackbar, stays on screen',
+    (tester) async {
+      PackageInfo.setMockInitialValues(
+        appName: 'bonken',
+        packageName: 'org.example.bonken',
+        version: '1.0.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            saveZipFileProvider.overrideWithValue(
+              ({required bytes, required filename}) async =>
+                  throw Exception('save boom'),
+            ),
+          ],
+          child: const MaterialApp(home: ExportScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Alleen speelgeschiedenis'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Export opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Het is mislukt om de gegevens op te slaan.'),
+        findsOneWidget,
+      );
+      expect(find.byType(ExportScreen), findsOneWidget); // did not pop
+
+      await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+    },
+  );
 }

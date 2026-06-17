@@ -11,6 +11,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'models/hearts_variant.dart';
 import 'models/starter_variant.dart';
 import 'screens/home_screen.dart';
+import 'screens/migration_screen.dart';
 import 'screens/rules_screen.dart';
 import 'services/app_updater.dart';
 import 'state/default_hearts_variant_provider.dart';
@@ -49,6 +50,12 @@ void main() async {
     settingsLoadError = (e, st);
   }
 
+  // Hardcoded false until the new store listings are live. To enable, derive
+  // this from PackageInfo.fromPlatform().packageName == 'com.suninet.bonken'
+  // (package_info_plus is already a dependency) so the legacy build routes to
+  // MigrationScreen.
+  const isLegacyApp = false;
+
   runApp(
     ProviderScope(
       overrides: [
@@ -75,7 +82,7 @@ void main() async {
             () => SettingsLoadErrorNotifier(initialError: settingsLoadError),
           ),
       ],
-      child: const BonkenApp(),
+      child: const BonkenApp(isLegacyApp: isLegacyApp),
     ),
   );
 
@@ -85,7 +92,9 @@ void main() async {
 }
 
 class BonkenApp extends ConsumerWidget {
-  const BonkenApp({super.key});
+  const BonkenApp({super.key, required this.isLegacyApp});
+
+  final bool isLegacyApp;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -134,7 +143,8 @@ class BonkenApp extends ConsumerWidget {
       // matching rules page on top of it, so the back button returns to
       // the start screen instead of leaving the app.
       onGenerateRoute: _generateRoute,
-      onGenerateInitialRoutes: _generateInitialRoutes,
+      onGenerateInitialRoutes: (initial) =>
+          _generateInitialRoutes(initial, isLegacyApp: isLegacyApp),
     );
   }
 }
@@ -145,10 +155,14 @@ Route<dynamic>? _generateRoute(RouteSettings settings) {
   return MaterialPageRoute(builder: (_) => widget, settings: settings);
 }
 
-List<Route<dynamic>> _generateInitialRoutes(String initialRoute) {
+List<Route<dynamic>> _generateInitialRoutes(
+  String initialRoute, {
+  required bool isLegacyApp,
+}) {
   final routes = <Route<dynamic>>[
     MaterialPageRoute(
-      builder: (_) => const HomeScreen(),
+      builder: (_) =>
+          isLegacyApp ? const MigrationScreen() : const HomeScreen(),
       settings: const RouteSettings(name: '/'),
     ),
   ];

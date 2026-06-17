@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('App starts without errors', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: BonkenApp()));
+    await tester.pumpWidget(
+      const ProviderScope(child: BonkenApp(isLegacyApp: false)),
+    );
     expect(find.text('Bonken'), findsWidgets);
   });
 }

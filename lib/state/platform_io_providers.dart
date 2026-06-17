@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/file_pick_service.dart';
+import '../services/save_service.dart';
 import '../services/share_service.dart';
 
 /// Dependency-injection seams for platform side-effects (the system share sheet
@@ -29,6 +30,12 @@ typedef ShareTextFn =
 
 /// Shares plain text via the system share sheet. Defaults to [shareText].
 final shareTextProvider = Provider<ShareTextFn>((ref) => shareText);
+
+typedef SaveFileFn =
+    Future<bool> Function({required Uint8List bytes, required String filename});
+
+/// Saves a ZIP file to device storage without a share sheet. Defaults to [saveZipFile].
+final saveZipFileProvider = Provider<SaveFileFn>((ref) => saveZipFile);
 
 typedef PickBackupBytesFn = Future<Uint8List?> Function();
 

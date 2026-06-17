@@ -8,6 +8,7 @@
 # Required environment (provided by the `play-store` GitHub environment):
 #   PLAY_SERVICE_ACCOUNT_JSON   service-account JSON (passed inline, not a file)
 #   AAB_PATH                    path to the built .aab (relative to android/)
+#   PACKAGE_NAME                Play Console package name (com.suninet.bonken or org.suninet.bonken)
 
 default_platform(:android)
 
@@ -19,6 +20,7 @@ platform :android do
       release_status: "draft",
       aab: ENV.fetch("AAB_PATH"),
       json_key_data: ENV.fetch("PLAY_SERVICE_ACCOUNT_JSON"),
+      package_name: ENV.fetch("PACKAGE_NAME"),
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_images: true,

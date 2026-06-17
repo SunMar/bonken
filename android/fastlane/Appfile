@@ -1,4 +1,2 @@
-# The Play Console service-account JSON is supplied at runtime via
-# json_key_data in the Fastfile (CI env / secret), so only the package name is
-# pinned here.
-package_name("com.suninet.bonken")
+# The Play Console service-account JSON and package name are both supplied at
+# runtime via the Fastfile (CI env / secrets), so nothing needs to be pinned here.
