@@ -654,9 +654,6 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
-      container
-          .read(calculatorProvider.notifier)
-          .loadSession(_session(players: players));
 
       final navKey = GlobalKey<NavigatorState>();
       await tester.pumpWidget(
@@ -668,15 +665,26 @@ void main() {
           ),
         ),
       );
-      // Drain the autosave debounce scheduled by loadSession.
-      await tester.pump(const Duration(milliseconds: 500));
 
+      // Hold a subscription so Riverpod's autoDispose microtask (fired when
+      // container.read() closes its temporary sub) cannot dispose
+      // calculatorProvider before GameScreen subscribes via ref.watch().
+      final navKeepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      container
+          .read(calculatorProvider.notifier)
+          .loadSession(_session(players: players));
       unawaited(
         navKey.currentState!.push(
           MaterialPageRoute<void>(builder: (_) => const GameScreen()),
         ),
       );
       await tester.pumpAndSettle();
+      // GameScreen is now subscribed — release the keepAlive so that
+      // back-navigation later can trigger autoDispose normally.
+      navKeepAlive.close();
       expect(find.byType(GameScreen), findsOneWidget);
 
       // Rename a player (schedules a debounced autosave), then leave before the
@@ -686,8 +694,8 @@ void main() {
 
       navKey.currentState!.pop();
       await tester.pumpAndSettle();
-      // dispose() schedules flushAndReset via a post-frame callback; force one
-      // more frame so it runs even if pumpAndSettle settled first.
+      // autoDispose fires once all listeners drop; onDispose writes the save
+      // asynchronously. One extra pump fires that timer and lets the write complete.
       await tester.pump();
 
       // Back-navigation resets the calculator to the idle state…

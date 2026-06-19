@@ -762,40 +762,44 @@ void main() {
     });
   });
 
-  group('flushAndReset', () {
-    test(
-      'flushAndReset saves pending data immediately then transitions to NoSession',
-      () async {
-        final c = makeContainer();
-        await c.read(gameHistoryProvider.future);
-        final n = c.read(calculatorProvider.notifier);
-        n.startNewGame(
-          players: _makePlayers(['A', 'B', 'C', 'D']),
-          dealerIndex: 0,
-        );
-        final sessionId =
-            (c.read(calculatorProvider) as ActiveSession).sessionId;
-        final ps = (c.read(calculatorProvider) as ActiveSession).players;
-        n.selectGame(const Duck());
-        n.updateInput(CountsInput(_t(ps, [3, 0, 0, 0])));
-        n.deselectGame(); // debounced autosave scheduled
+  group('autoDispose flush', () {
+    // testWidgets is required here: initializeWidgets() installs FakeAsync, so
+    // Timer(Duration.zero) — used by Riverpod's dispose scheduler — won't fire
+    // in a plain test() without an explicit tester.pump() to advance fake time.
+    testWidgets('pending autosave is written when the last listener drops', (
+      tester,
+    ) async {
+      final c = makeContainer();
+      await c.read(gameHistoryProvider.future);
+      // Hold an explicit subscription so the autoDispose provider stays alive.
+      final sub = c.listen<CalculatorState>(calculatorProvider, (_, _) {});
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(
+        players: _makePlayers(['A', 'B', 'C', 'D']),
+        dealerIndex: 0,
+      );
+      final sessionId = (c.read(calculatorProvider) as ActiveSession).sessionId;
+      final ps = (c.read(calculatorProvider) as ActiveSession).players;
+      n.selectGame(const Duck());
+      n.updateInput(CountsInput(_t(ps, [3, 0, 0, 0])));
+      n.deselectGame(); // debounced autosave scheduled
 
-        n.flushAndReset(); // should flush synchronously, then go NoSession
+      sub.close(); // drop last listener → schedules autoDispose Timer(Duration.zero)
+      // pump() advances FakeAsync time by one tick, firing Riverpod's
+      // Timer(Duration.zero) dispose callback which triggers onDispose.
+      // A second pump drains the async saveGame chain.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-        expect(c.read(calculatorProvider), isA<NoSession>());
-
-        await pumpEventQueue();
-
-        final sessions = await c.read(gameHistoryProvider.future);
-        final saved = sessions.firstWhere((s) => s.id == sessionId);
-        expect(saved.pendingRound, isNotNull);
-        expect(saved.pendingRound!.gameId, 'duck');
-        expect(
-          (saved.pendingRound!.input as CountsInput).counts,
-          _t(ps, [3, 0, 0, 0]),
-        );
-      },
-    );
+      final sessions = await c.read(gameHistoryProvider.future);
+      final saved = sessions.firstWhere((s) => s.id == sessionId);
+      expect(saved.pendingRound, isNotNull);
+      expect(saved.pendingRound!.gameId, 'duck');
+      expect(
+        (saved.pendingRound!.input as CountsInput).counts,
+        _t(ps, [3, 0, 0, 0]),
+      );
+    });
   });
 
   group('cancelPendingAutosave', () {

@@ -91,41 +91,6 @@ class GameScreen extends ConsumerStatefulWidget {
 }
 
 class _GameScreenState extends ConsumerState<GameScreen> {
-  // ref.read and Notifier.state are both invalid in dispose(); capture the
-  // container and notifier in initState so dispose() can use them safely.
-  late ProviderContainer _container;
-  late CalculatorNotifier _notifier;
-
-  @override
-  void initState() {
-    super.initState();
-    _container = ProviderScope.containerOf(context, listen: false);
-    _notifier = ref.read(calculatorProvider.notifier);
-  }
-
-  @override
-  void dispose() {
-    // Riverpod cancels ref.watch subscriptions only after dispose() returns
-    // (in ConsumerStatefulElement.unmount). Calling flushAndReset() directly
-    // would flip the state to NoSession while activeSessionProvider (and the
-    // selects reading it) still hold ActiveSession casts → CastError. The
-    // post-frame callback fires after finalizeTree() has cancelled all
-    // subscriptions and autoDisposed activeSessionProvider, so the state change
-    // lands safely. The sessionId guard prevents resetting a session that was
-    // loaded between the pop and the callback.
-    final s = _container.read(calculatorProvider);
-    if (s is ActiveSession) {
-      final sessionId = s.sessionId;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final current = _container.read(calculatorProvider);
-        if (current is ActiveSession && current.sessionId == sessionId) {
-          _notifier.flushAndReset();
-        }
-      });
-    }
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final starterVariant = ref.watch(

@@ -582,20 +582,23 @@ emits it via `onChanged` → `updateDoubles`:
 ## 7. State management
 
 ### `calculatorProvider` — the in-game state machine
-`NotifierProvider<CalculatorNotifier, CalculatorState>`
+`NotifierProvider.autoDispose<CalculatorNotifier, CalculatorState>`
 ([`calculator_provider.dart`](lib/state/calculator_provider.dart)). Holds the
 **single game currently being played or edited**.
 
-`CalculatorState` is **sealed**: `NoSession` (idle — notifier alive, no game) or
-`ActiveSession` (carries all the fields below). "No game active" is
-`state is NoSession`; autosave is a no-op in that state. The session-bound
-screens (GameScreen, RoundInputScreen, EditGameScreen) only ever run with an
-`ActiveSession`, so they watch the derived **`activeSessionProvider`**
-(`Provider.autoDispose<ActiveSession>`) instead of casting `state as
-ActiveSession` at every call site — the cast lives once, in that provider. It is
-`autoDispose` so it is torn down when the last session-bound screen leaves
-(back to Home), before the `NoSession` transition, so the cast never runs on a
-`NoSession` value.
+`CalculatorState` is **sealed**: `NoSession` (initial/idle state) or `ActiveSession`
+(carries all the fields below). "No game active" is `state is NoSession`; autosave
+is a no-op in that state. The session-bound screens (GameScreen, RoundInputScreen,
+EditGameScreen) only ever run with an `ActiveSession`, so they watch the derived
+**`activeSessionProvider`** (`Provider.autoDispose<ActiveSession>`) instead of
+casting `state as ActiveSession` at every call site — the cast lives once, in that
+provider. Both providers are `autoDispose`: when the user returns to Home all
+session-bound screens unmount, their subscriptions drop, and the two providers
+dispose in sequence (derived first, then `calculatorProvider`). `calculatorProvider`'s
+`onDispose` callback flushes any pending debounced autosave before the state
+disappears, so no last-second edit is lost. There is no explicit `NoSession`
+transition on back-navigation; `NoSession` is simply the initial state the next
+time the provider is created.
 
 **`ActiveSession` fields**, grouped:
 
@@ -654,9 +657,6 @@ preview** shown while a counts game is partway entered (0 < sum < total).
 - `cancelPendingAutosave()` — cancel the debounced timer without saving. Called
   before deleting a game so the timer cannot re-save a session that was just
   removed from history.
-- `flushAndReset()` — if a debounced autosave is pending, write it immediately,
-  then clear to `NoSession`. Called from `GameScreen.dispose()` on back-navigation
-  so last-second edits are not lost to the debounce window.
 
 The shared private `_exitSlot` recomputes `dealerId`/`roundNumber`/`chooserId`
 from `firstDealerId` + the *new* history length, so dealer rotation stays correct
@@ -666,9 +666,10 @@ whether you appended, replaced, deleted, or cancelled.
 (coalescing keystroke bursts into one SharedPreferences encode). `_autosave`
 calls `buildSession()` → `gameHistoryProvider.saveGame()`. Switching to a
 different session first **flushes** any pending autosave for the outgoing one.
-Autosave is a no-op in `NoSession`. The timer is also cancelled in `ref.onDispose`
-and, for back-navigation, by `GameScreen.dispose` via `flushAndReset`; for the
-delete flow, by `cancelPendingAutosave` before the pop.
+Autosave is a no-op in `NoSession`. On back-navigation the provider auto-disposes
+and `ref.onDispose` fires the flush immediately (cancels the timer, writes
+synchronously); for the delete flow, `cancelPendingAutosave` suppresses the timer
+before the pop instead.
 
 ### `gameHistoryProvider` — persistence & suggestions
 `AsyncNotifierProvider<GameHistoryNotifier, List<GameSession>>`. Loads + sorts
@@ -711,7 +712,7 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   so fat-fingering a game leaves no trace.
 - **Delete a game + undo.** Home card delete icon (or `GameScreen` "Spel
   verwijderen" → confirm → `deleteGame` → `cancelPendingAutosave` → pop →
-  `GameScreen.dispose` → `flushAndReset` no-ops because timer is gone → `NoSession`)
+  provider auto-disposes → `NoSession` on next creation)
   → a snackbar "Spel verwijderd" with "Ongedaan maken" whose action re-`saveGame`s
   the captured session. (`showGameDeletedSnackBar` also has a belt-and-suspenders
   timer; tests must drain it.)

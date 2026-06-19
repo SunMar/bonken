@@ -39,8 +39,14 @@ Future<ProviderContainer> _pumpEditPlayers(
     notifier.selectGame(const Clubs());
     notifier.deselectGame();
   }
-  // Drain the autosave debounce so no Timer survives into teardown.
-  await tester.pump(const Duration(milliseconds: 500));
+
+  // Keep the provider alive after EditGameScreen pops (mirrors GameScreen
+  // staying in the route stack in production).
+  final keepAlive = container.listen<CalculatorState>(
+    calculatorProvider,
+    (_, _) {},
+  );
+  addTearDown(keepAlive.close);
 
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -48,6 +54,10 @@ Future<ProviderContainer> _pumpEditPlayers(
       child: const MaterialApp(home: EditGameScreen()),
     ),
   );
+  // Drain the autosave debounce so no Timer survives into teardown.
+  // Must be after pumpWidget so the widget subscribes before the autoDispose
+  // timer fires.
+  await tester.pump(const Duration(milliseconds: 500));
   await tester.pumpAndSettle();
   return container;
 }

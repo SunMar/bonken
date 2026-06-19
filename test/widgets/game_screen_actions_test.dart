@@ -81,6 +81,7 @@ Future<ProviderContainer> _pumpGameScreen(WidgetTester tester) async {
 }
 
 void main() {
+  initializeWidgets();
   setUpPrefs();
 
   testWidgets('AppBar has Spelregels icon and no overflow / theme icon', (

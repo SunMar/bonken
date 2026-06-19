@@ -237,6 +237,8 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Holds a subscription so autoDispose doesn't cascade while initState/_save use ref.read.
+    ref.watch(calculatorProvider);
     final suggestions = ref
         .watch(gameHistoryProvider.notifier)
         .playerNameSuggestions;

@@ -39,39 +39,35 @@ map, or invariants — not as a follow-up.
 
 ## Conventions (do not break)
 
-- **4 players, 12 rounds** (`playerCount`, `GameSession.totalRounds`).
-- **Key per-round data by player UUID**, never seat index — derive indices on demand.
-- **Σ scores == `totalPoints`** per game (engine invariant, asserted).
-- **Seat-relationship formulas only in `lib/models/game_mechanics.dart`**
-  (`dealerIndexFor` / `starterIndexFor`); `List<Player>` lookups/rotations
-  (`seatIndexOf`, `rotatedFromDealer`) are utilities that live with `Player`.
-- **`gameById` and `seatIndexOf` throw on unknown ids** — no silent fallback.
-  Unknown ids from stored JSON hit `_validateReferences` in `GameSession.fromJson`
-  first; the `on Object` catch in `GameHistoryNotifier.build()` converts them to
-  `CorruptStorageException`. Unknown ids after a successful load are programming
-  errors — throwing makes them loud.
-- **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`).
-- **Bottom sheets use `showAppBottomSheet`** (`lib/widgets/app_bottom_sheet.dart`), never `showModalBottomSheet` directly.
-- **Platform side-effects (share sheet, file picker, save-to-device) go through a `Provider`** (`lib/state/platform_io_providers.dart`, over `lib/services/`), overridden in tests via `ProviderScope`/`ProviderContainer`. Never inject test behaviour through `@visibleForTesting` constructor params or runtime debug branches — that ships a never-taken branch + a test-only API. (`@visibleForTesting` on a *pure function production also calls* is fine; it only relaxes visibility.) See [ARCHITECTURE.md §11](ARCHITECTURE.md).
-- **Accessible by default** ([ARCHITECTURE.md §2](ARCHITECTURE.md)): interactive
-  tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout
-  spacers use `ExcludeSemantics`; **section titles wrapped in
-  `Semantics(header: true)`** (`FormSectionCard` does this automatically).
-  `test/a11y_test.dart` gates four guidelines.
-- **UI strings Dutch, code identifiers English.**
-- **Append a `StorageMigration` step (`lib/state/migrations.dart`) + bump `currentStorageVersion`** when changing stored game-history JSON (frozen, sequenced steps).
-- **Append a `SettingsMigration` step (`lib/state/settings_migrations.dart`) + bump `currentSettingsVersion`** when changing the `settings` JSON blob (same frozen/sequenced rules — see [ARCHITECTURE.md §9](ARCHITECTURE.md)).
-- **Append a `BackupMigration` step (`lib/state/backup_migrations.dart`) + bump `currentBackupVersion`** when changing the ZIP envelope structure (same frozen/sequenced rules — see [ARCHITECTURE.md §9](ARCHITECTURE.md)).
-- **Import settings through notifier setters** (`setMode`, `setValue`), never `ref.invalidate` — invalidating settings providers rebuilds from the old startup value and silently drops the import.
-- **Game-rule variants** live in `lib/models/` (one enum each), grouped into a
-  `RuleVariants` (`lib/models/rule_variants.dart`) carried by `GameSession` +
-  `CalculatorState`; per-variant app-wide defaults in
-  `lib/state/default_*_variant_provider.dart`, pre-loaded in `main()`.
-- **`lib/models/game_constraints.dart` (pure) is the single source of truth for
-  valid game data** — name-length consts + the rules as predicates/normalizers
-  (trim, non-empty, case-insensitive uniqueness). The engine asserts, the
-  `validation.dart` import/write gate, and the create/edit UI all compose these;
-  never re-derive a rule or re-declare a limit. Enum/settings/manifest checks
-  stay in `validation.dart`. Details: [ARCHITECTURE.md §9](ARCHITECTURE.md).
+- **Key per-round data by player UUID**, never seat index — derive indices on demand — [ARCHITECTURE.md §2](ARCHITECTURE.md).
+- **Screens use `AppScaffold`**; icons are `Symbols.*` only (never `Icons`) — [ARCHITECTURE.md §2](ARCHITECTURE.md).
+- **Bottom sheets use `showAppBottomSheet`** (`lib/widgets/app_bottom_sheet.dart`), never `showModalBottomSheet` directly — [ARCHITECTURE.md §2](ARCHITECTURE.md).
+- **Snackbars use `showTimedSnackBar`** (`lib/widgets/timed_snackbar.dart`), never `showSnackBar` directly — ensures the close icon and web auto-dismiss timer are always present — [ARCHITECTURE.md §10](ARCHITECTURE.md).
+- **Primary form actions (Save / Start) pass `onPressed: null` when the form is invalid**, but a transparent `DisabledTapDetector` overlay (`lib/widgets/disabled_tap_detector.dart`) sits on top and calls `showIncompleteFormSnackBar` with a reason, so the user learns *why* nothing happened — [ARCHITECTURE.md §2](ARCHITECTURE.md).
+- **Any platform side-effect goes through a `Provider`** (e.g. share sheet, file picker, save-to-device — `lib/state/platform_io_providers.dart`, over `lib/services/`), overridden in tests via `ProviderScope`/`ProviderContainer`. Never inject test behaviour through `@visibleForTesting` constructor params or runtime debug branches — that ships a never-taken branch + a test-only API. (`@visibleForTesting` on a *pure function production also calls* is fine; it only relaxes visibility) — [ARCHITECTURE.md §11](ARCHITECTURE.md).
+- **Accessible by default**: interactive tiles use `MergeSemantics` + tooltip or `Semantics(button)`; invisible layout spacers use `ExcludeSemantics`; section titles use `Semantics(header: true)` (`FormSectionCard` does this automatically). `test/a11y_test.dart` gates four guidelines — [ARCHITECTURE.md §2](ARCHITECTURE.md).
+- **UI strings Dutch, code identifiers English** — [ARCHITECTURE.md §1](ARCHITECTURE.md).
+- **Append a `StorageMigration` step + bump `currentStorageVersion`** when changing stored game-history JSON (frozen, sequenced steps — [`lib/state/migrations.dart`](lib/state/migrations.dart)) — [ARCHITECTURE.md §9](ARCHITECTURE.md).
+- **Append a `SettingsMigration` step + bump `currentSettingsVersion`** when changing the `settings` JSON blob (same frozen/sequenced rules — [`lib/state/settings_migrations.dart`](lib/state/settings_migrations.dart)) — [ARCHITECTURE.md §9](ARCHITECTURE.md).
+- **Append a `BackupMigration` step + bump `currentBackupVersion`** when changing the ZIP envelope structure (same frozen/sequenced rules — [`lib/state/backup_migrations.dart`](lib/state/backup_migrations.dart)) — [ARCHITECTURE.md §9](ARCHITECTURE.md).
+- **`lib/models/game_constraints.dart` (pure) is the single source of truth for valid game data** — name-length consts + the rules as predicates/normalizers (trim, non-empty, case-insensitive uniqueness). The engine asserts, the `validation.dart` import/write gate, and the create/edit UI all compose these; never re-derive a rule or re-declare a limit — [ARCHITECTURE.md §9](ARCHITECTURE.md).
 
-Full invariant list + the "why": [ARCHITECTURE.md §14](ARCHITECTURE.md).
+## ARCHITECTURE.md reference index
+
+Look up the relevant section before touching that area:
+
+| Topic | Section |
+|-------|---------|
+| Game shape (4 players, 12 rounds, per-chooser quota) | §1, §5 |
+| Design principles (UUID identity, sealed types, single sources of truth, error-throwing lookups) | §2 |
+| File and folder placement (directory map) | §4 |
+| Scoring engine & doubling math | §6 |
+| Seat relationships (`dealerIndexFor`, `starterIndexFor`) | §5 |
+| State machine transitions, autosave; `CalculatorState` sealed (`NoSession`/`ActiveSession`); derived lists must keep stable `select()` identity | §7 |
+| Game-rule variants (`RuleVariants`, per-session + app-wide defaults) | §5, §7 |
+| End-to-end user flows (tracing a change through layers) | §8 |
+| Storage format, migration rules, backup/import | §9 |
+| UI layer (routing, screen responsibilities, doubles picker) | §10 |
+| Testing conventions (timers, provider overrides, fixture construction) | §11 |
+| Full invariant list with reasoning | §14 |
+| Dutch ↔ English glossary (game terms, screen labels, mini-game names) | §15 |

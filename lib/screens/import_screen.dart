@@ -81,7 +81,12 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     try {
       bytes = await ref.read(pickBackupBytesProvider)();
     } on Object {
-      return; // User cancelled or permission denied.
+      if (!mounted) return;
+      showTimedSnackBar(
+        ScaffoldMessenger.of(context),
+        content: const Text('Het is niet gelukt om het bestand te openen.'),
+      );
+      return;
     }
     if (bytes == null || !mounted) return;
     // Capture a non-null local: promotion doesn't flow into the setState closure.

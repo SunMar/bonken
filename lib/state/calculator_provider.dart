@@ -390,9 +390,27 @@ class ActiveSession extends CalculatorState {
 class CalculatorNotifier extends Notifier<CalculatorState> {
   @override
   CalculatorState build() {
+    // Cache before onDispose so the closure doesn't need to call ref.read
+    // while the element is being torn down.
+    final historyNotifier = ref.read(gameHistoryProvider.notifier);
+    // Riverpod 3.3.2 disallows reading `state` inside onDispose, so we keep
+    // a pre-built snapshot (_pendingSession) that is updated each time an
+    // autosave is scheduled — safe to read without touching `state` at all.
     ref.onDispose(() {
-      _autosaveTimer?.cancel();
+      if (_autosaveTimer == null) return;
+      _autosaveTimer!.cancel();
       _autosaveTimer = null;
+      final session = _pendingSession;
+      _pendingSession = null;
+      if (session == null) return;
+      // Future.microtask defers saveGame() past the onDispose callback frame so
+      // that Riverpod's global _debugCallbackStack is back to 0 before
+      // GameHistoryNotifier.future calls _throwIfInvalidUsage().
+      unawaited(
+        Future.microtask(
+          () => historyNotifier.saveGame(session),
+        ).catchError((_) {}),
+      );
     });
     return const NoSession();
   }
@@ -402,6 +420,9 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// SharedPreferences write so we don't re-encode the entire saved-games
   /// JSON on every keystroke.
   Timer? _autosaveTimer;
+  // Snapshot of the session built at the last _scheduleAutosave call. Updated
+  // on every mutation so onDispose can flush without accessing this.state.
+  GameSession? _pendingSession;
   static const _autosaveDebounce = Duration(milliseconds: 400);
 
   /// Convenience accessor — only valid while a session is active.
@@ -416,13 +437,14 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   void _scheduleAutosave() {
     if (state is NoSession) return;
     _autosaveTimer?.cancel();
+    _pendingSession = buildSession(); // snapshot safe here (not in onDispose)
     _autosaveTimer = Timer(_autosaveDebounce, _autosave);
   }
 
   Future<void> _autosave() async {
     _autosaveTimer = null;
-    if (state is NoSession) return;
-    final session = buildSession();
+    final session = _pendingSession;
+    _pendingSession = null;
     if (session == null) return;
     try {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
@@ -441,7 +463,8 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     if (incomingId != null && s.sessionId == incomingId) return;
     _autosaveTimer!.cancel();
     _autosaveTimer = null;
-    final outgoing = buildSession();
+    final outgoing = _pendingSession;
+    _pendingSession = null;
     if (outgoing == null) return;
     unawaited(
       ref
@@ -762,6 +785,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   void reset() {
     _autosaveTimer?.cancel();
     _autosaveTimer = null;
+    _pendingSession = null;
     state = const NoSession();
   }
 
@@ -771,13 +795,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   void cancelPendingAutosave() {
     _autosaveTimer?.cancel();
     _autosaveTimer = null;
-  }
-
-  /// Flushes any pending debounced autosave and transitions to [NoSession].
-  /// Called from [GameScreen]'s dispose when the user leaves via back-navigation.
-  void flushAndReset() {
-    _flushPendingAutosaveForOutgoingSession();
-    state = const NoSession();
+    _pendingSession = null;
   }
 
   /// Starts a brand-new game session: resets all transient state, applies the
@@ -917,7 +935,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 }
 
 final calculatorProvider =
-    NotifierProvider<CalculatorNotifier, CalculatorState>(
+    NotifierProvider.autoDispose<CalculatorNotifier, CalculatorState>(
       CalculatorNotifier.new,
     );
 

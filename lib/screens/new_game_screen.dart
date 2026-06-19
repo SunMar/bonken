@@ -169,6 +169,15 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       if (!mounted) return;
     }
 
+    // Hold a subscription to bridge the gap between ref.read() closing its
+    // temporary sub and GameScreen subscribing. The await saveGame() below
+    // yields to the microtask queue, where the autoDispose timer would
+    // otherwise fire and dispose calculatorProvider before GameScreen builds.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final sub = container.listen<CalculatorState>(
+      calculatorProvider,
+      (_, _) {},
+    );
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.startNewGame(
       players: players,
@@ -183,7 +192,11 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     if (session != null) {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
     }
-    if (!mounted) return;
+    if (!mounted) {
+      sub.close();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => sub.close());
     unawaited(
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(builder: (_) => const GameScreen()),

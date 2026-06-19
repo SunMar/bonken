@@ -44,6 +44,15 @@ Future<ProviderContainer> _pumpRoundInput(WidgetTester tester) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
 
+  // Keep calculatorProvider alive through the pump(500ms) autosave-drain
+  // that precedes pumpWidget — mirrors GameScreen holding the subscription
+  // in production, so RoundInputScreen always sits above an active subscriber.
+  final keepAlive = container.listen<CalculatorState>(
+    calculatorProvider,
+    (_, _) {},
+  );
+  addTearDown(keepAlive.close);
+
   final notifier = container.read(calculatorProvider.notifier);
   notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
   notifier.selectGame(const Clubs());
@@ -152,6 +161,11 @@ void main() {
     (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      final keepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      addTearDown(keepAlive.close);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
       final ps = (container.read(calculatorProvider) as ActiveSession).players;
@@ -218,6 +232,11 @@ void main() {
     (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      final keepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      addTearDown(keepAlive.close);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
       final ps = (container.read(calculatorProvider) as ActiveSession).players;
@@ -254,6 +273,11 @@ void main() {
   ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
+    final keepAlive = container.listen<CalculatorState>(
+      calculatorProvider,
+      (_, _) {},
+    );
+    addTearDown(keepAlive.close);
     final notifier = container.read(calculatorProvider.notifier);
     notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
     notifier.selectGame(const Clubs());
@@ -275,6 +299,11 @@ void main() {
     (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      final keepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      addTearDown(keepAlive.close);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
       final ps = (container.read(calculatorProvider) as ActiveSession).players;
@@ -305,6 +334,11 @@ void main() {
     (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      final keepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      addTearDown(keepAlive.close);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
       final ps = (container.read(calculatorProvider) as ActiveSession).players;
@@ -345,6 +379,11 @@ void main() {
       // Wrap the screen so we have a route to pop back to.
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      final keepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      addTearDown(keepAlive.close);
       final notifier = container.read(calculatorProvider.notifier);
       notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
       notifier.selectGame(const Clubs());

@@ -452,7 +452,19 @@ class _GameSessionCard extends ConsumerWidget {
     final theme = Theme.of(context);
 
     void onTap() {
+      // Hold a persistent subscription so Riverpod's autoDispose timer
+      // cannot fire in the gap between loadSession() and GameScreen
+      // subscribing via ref.watch(). Without this, container.read() in
+      // ref.read() creates a temporary sub that immediately closes,
+      // scheduling disposal (via Future.microtask in flutter_riverpod's
+      // vsync) before the first frame draws GameScreen.
+      final container = ProviderScope.containerOf(context, listen: false);
+      final sub = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
       ref.read(calculatorProvider.notifier).loadSession(session);
+      WidgetsBinding.instance.addPostFrameCallback((_) => sub.close());
       unawaited(
         Navigator.of(
           context,
