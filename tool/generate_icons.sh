@@ -136,6 +136,26 @@ rsvg-convert -w 512 assets/icon/icon_bonken_maskable.svg -o web/icons/Icon-maska
 echo "==> Rendering web favicon (32px)"
 rsvg-convert -w 32 assets/icon/icon_bonken.svg -o web/favicon.png
 
+echo "==> Rendering iOS splash images"
+rsvg-convert -w 200 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage.png
+rsvg-convert -w 400 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@2x.png
+rsvg-convert -w 600 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage@3x.png
+
+echo "==> Rendering Android splash images"
+rsvg-convert -w 200 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o android/app/src/main/res/drawable-mdpi/splash_logo.png
+rsvg-convert -w 300 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o android/app/src/main/res/drawable-hdpi/splash_logo.png
+rsvg-convert -w 400 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o android/app/src/main/res/drawable-xhdpi/splash_logo.png
+rsvg-convert -w 600 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o android/app/src/main/res/drawable-xxhdpi/splash_logo.png
+rsvg-convert -w 800 assets/icon/icon_bonken_adaptive_fg.svg \
+  -o android/app/src/main/res/drawable-xxxhdpi/splash_logo.png
+
 echo "==> Rendering Play Store listing icon (512px)"
 mkdir -p build
 rsvg-convert -w 512 assets/icon/icon_bonken.svg -o build/play-store-icon-512.png

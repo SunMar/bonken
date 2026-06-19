@@ -1,0 +1,5 @@
+# App Store Connect credentials are supplied at runtime via the
+# app_store_connect_api_key action in the Fastfile (CI env / secrets), so the
+# only thing pinned here is the bundle identifier (matches the Android
+# applicationId).
+app_identifier("org.suninet.bonken")

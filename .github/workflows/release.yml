@@ -135,6 +135,47 @@ jobs:
         run: bundle exec fastlane alpha
 
   # =====================================================================
+  # Build the signed iOS IPA and upload it to TestFlight.
+  # Runs on macOS (required for Xcode) in the `apple-app-store` environment, so
+  # the signing secrets are only exposed here and only after any
+  # environment protection rules pass.
+  # Code signing uses fastlane match (certs in a separate private repo).
+  # The WHOLE job is gated on the `IOS_RELEASE_ENABLED` repo variable, so
+  # before the Apple-side setup is done it is skipped entirely (no macOS
+  # runner is spun up) while the Android/web release keep working. Nothing
+  # depends on this job, so skipping it is free. Flip the variable to
+  # 'true' (Settings → Variables) once the `apple-app-store` secrets exist.
+  # =====================================================================
+  release-ios:
+    needs: verify
+    if: ${{ vars.IOS_RELEASE_ENABLED == 'true' }}
+    runs-on: macos-latest
+    environment: apple-app-store
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-build
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          working-directory: ios
+          bundler-cache: true
+
+      - name: Build & upload to TestFlight
+        working-directory: ios
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          BUILD_NAME: ${{ needs.verify.outputs.name }}
+          BUILD_NUMBER: ${{ needs.verify.outputs.code }}
+        run: bundle exec fastlane release
+
+  # =====================================================================
   # Create the public GitHub Release with the web (PWA) zip + the signed
   # APK (direct-download / sideload artifact — not a Play Store format).
   # The APK is signed with the upload keystore, which is scoped to the

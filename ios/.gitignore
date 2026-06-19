@@ -1,0 +1,44 @@
+**/dgph
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+**/*sync/
+.sconsign.dblite
+.tags*
+**/.vagrant/
+**/DerivedData/
+Icon?
+**/Pods/
+**/.symlinks/
+profile
+xcuserdata
+**/.generated/
+Flutter/.last_build_id
+Flutter/App.framework
+Flutter/Flutter.framework
+Flutter/Flutter.podspec
+Flutter/Generated.xcconfig
+Flutter/ephemeral/
+Flutter/app.flx
+Flutter/app.zip
+Flutter/flutter_assets/
+Flutter/flutter_export_environment.sh
+ServiceDefinitions.json
+Runner/GeneratedPluginRegistrant.*
+
+# Generated launcher icons and splash images (produced by tool/generate_icons.sh).
+Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-*.png
+Runner/Assets.xcassets/LaunchImage.imageset/*.png
+
+# IDE-generated workspace state — not needed for builds or Xcode to function.
+**/xcshareddata/IDEWorkspaceChecks.plist
+Runner.xcodeproj/project.xcworkspace/
+Runner.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+
+# Exceptions to above rules.
+!default.mode1v3
+!default.mode2v3
+!default.pbxuser
+!default.perspectivev3

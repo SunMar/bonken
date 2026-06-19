@@ -14,10 +14,11 @@ GeneratedPluginRegistrant.java
 /app/profile
 /app/release
 
-# Generated launcher icons (produced by tool/generate_icons.sh).
+# Generated launcher icons and splash images (produced by tool/generate_icons.sh).
 /app/src/main/res/mipmap-*/ic_launcher.png
 /app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 /app/src/main/res/drawable-*/ic_launcher_*.png
+/app/src/main/res/drawable-*/splash_logo.png
 
 # Remember to never publicly share your keystore.
 # See https://flutter.dev/to/reference-keystore

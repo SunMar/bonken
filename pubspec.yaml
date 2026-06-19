@@ -97,10 +97,13 @@ dev_dependencies:
 
 # Launcher icon generation.  Run after changing the source SVG/PNG:
 #   dart run flutter_launcher_icons
-# This regenerates android/app/src/main/res/mipmap-* assets and the web favicon.
+# This regenerates android/app/src/main/res/mipmap-* assets, the iOS
+# AppIcon.appiconset, and the web favicon.
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
+  remove_alpha_ios: true # App Store rejects icons with an alpha channel.
+  background_color_ios: "#283593" # Flatten transparency onto the brand colour.
   image_path: "assets/icon/icon_bonken_launcher.png"
   image_path_ios: "assets/icon/icon_bonken.png"
   min_sdk_android: 21

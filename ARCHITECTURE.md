@@ -1,17 +1,30 @@
 # Bonken — Architecture & Design Specification
 
-> Engineering reference for developers and coding agents working in this repo.
-> This document is the authoritative *deep* reference (how the code is built and
-> why); for the day-to-day quick-start (commands, CI gates, top invariants) see
-> [`AGENTS.md`](AGENTS.md), which is auto-loaded by coding agents and points
-> here for detail. For player-facing install/play docs (in Dutch), see
-> [`README.md`](README.md); the in-app rules text lives in
-> [`lib/data/game_rules.dart`](lib/data/game_rules.dart).
+> Authoritative deep reference for developers and coding agents: how the code is
+> built and why.
+>
+> - **Day-to-day quick-start** (commands, CI gates, conventions, finish checklist):
+>   [`AGENTS.md`](AGENTS.md) — auto-loaded by coding agents; points here for detail.
+> - **Player-facing docs** (Dutch — install, rules): [`README.md`](README.md).
+> - **In-app rules text**: [`lib/data/game_rules.dart`](lib/data/game_rules.dart).
 
-**Contents:** 1. Overview · 2. Design philosophy · 3. Architecture · 4. Directory
-map · 5. Domain model · 6. Scoring & doubling · 7. State management · 8. Key
-flows · 9. Persistence & migration · 10. UI layer · 11. Testing · 12. Build &
-release · 13. Conventions & invariants · 14. Glossary
+**Contents**
+
+1. [Overview](#1-overview)
+2. [Design philosophy](#2-design-philosophy)
+3. [Architecture at a glance](#3-architecture-at-a-glance)
+4. [Directory map (`lib/`)](#4-directory-map-lib)
+5. [Domain model](#5-domain-model) — [`MiniGame`](#minigame--shape-bases-mini_gamedart) · [`GameInput`+`InputDescriptor`](#gameinput--inputdescriptor-input_descriptordart) · [`Player`](#player-playerdart) · [`DoubleMatrix`](#doublematrix-double_matrixdart) · [`ScoreResult`](#scoreresult-score_resultdart) · [`RoundRecord`](#roundrecord-round_recorddart) · [`GameSession`](#gamesession--pendinground-game_sessiondart) · [`game_mechanics`](#game_mechanicsdart-game_mechanicsdart)
+6. [Scoring & doubling](#6-scoring--doubling-deep-dive) — [Engine](#the-engine) · [Worked example](#worked-example-harten-20trick) · [Doubling representation](#how-doubling-is-represented--enforced)
+7. [State management](#7-state-management) — [`calculatorProvider`](#calculatorprovider--the-in-game-state-machine) · [`gameHistoryProvider`](#gamehistoryprovider--persistence--suggestions) · [`themeModeProvider`](#thememodeprovider--theme)
+8. [Key flows](#8-key-flows)
+9. [Persistence & migration](#9-persistence--migration) — [Settings](#settings-persistence-settings_storagedart) · [Backup / export-import](#backup--export-import-export_import_notifierdart)
+10. [UI layer](#10-ui-layer)
+11. [Testing strategy](#11-testing-strategy)
+12. [Build, run & release](#12-build-run--release) — [Commands](#common-commands) · [CI gates](#ci-quality-gates) · [Versioning](#versioning--release) · [GHA & runners](#github-actions--runners) · [Fonts](#fonts) · [Icons & splash](#launcher-icons--splash-screens) · [Screenshots](#store-screenshots) · [Dependency updates](#dependency-updates) · [Update check](#app-update-check)
+13. [Deferred upgrades](#13-deferred-upgrades) — [`builtInKotlin`](#androidbuiltinkotlintrue-agp-9-built-in-kotlin) · [`newDsl`](#androidnewdsltrue-agp-9-new-gradle-dsl) · [`file_picker`](#file_picker-stable-12x-currently-pinned-to-a-beta)
+14. [Conventions & invariants](#14-conventions--invariants-quick-reference)
+15. [Glossary](#15-glossary-dutch--english)
 
 ---
 
@@ -27,7 +40,8 @@ trick), then computes per-round and cumulative scores.
 Key characteristics:
 
 - **Platform:** Flutter. Ships as an offline-first **PWA** (web, installable on
-  Android/iOS/desktop) and as native **Android** (APK/AAB on Google Play) builds.
+  Android/iOS/desktop) and as native **Android** (APK/AAB on Google Play) and
+  **iOS/iPadOS** (universal app on the App Store / TestFlight) builds.
 - **Fully offline / local-only:** no backend, no accounts, no network in the
   core flow. All data is in `SharedPreferences`. Fonts and licenses are bundled
   as assets so the app works with zero connectivity. (The only network use is an
@@ -354,7 +368,11 @@ lib/
                              saveZipFile / saveImageFile wrappers. Web download is split out into
                              save_service_io.dart (stub) + save_service_web.dart (package:web)
                              via a conditional import. Used by export_screen (ZIP) + game_screen
-                             (result PNG), via platform_io_providers.
+                             (result PNG), via platform_io_providers. iOS saves to the app's
+                             Documents directory; `UIFileSharingEnabled` +
+                             `LSSupportsOpeningDocumentsInPlace` in
+                             `ios/Runner/Info.plist` make it visible in Files app
+                             (On My iPhone → Bonken).
   state/platform_io_providers.dart  shareFileProvider / shareTextProvider / pickBackupBytesProvider /
                              saveZipFileProvider / saveImageFileProvider — DI seams over the
                              services; overridden in tests (see §11).
@@ -1187,15 +1205,16 @@ ensures the binding.
 
 ## 12. Build, run & release
 
-Flutter SDK version is pinned in [`.fvmrc`](.fvmrc). CI installs it
-from there via the `setup-build` action. Always use `fvm flutter`/`fvm dart`
-locally to run against the pinned version. Bump the pin to
-the latest **stable** release with `fvm dart run tool/update_flutter.dart` — it
-rewrites `.fvmrc`, the `pubspec.yaml` Dart `sdk:` lower-bound, and the Android
-toolchain versions together, then runs `fvm install`. Exits without writing when
-already current (`--force` re-runs `fvm install` + Android sync anyway;
-[`--check`](tool/update_flutter.dart) reports without writing). Never downgrades
-if the pin is ahead of stable.
+Flutter SDK version is pinned in [`.fvmrc`](.fvmrc). CI installs it from there
+via the `setup-build` action. Always use `fvm flutter`/`fvm dart` locally to run
+against the pinned version. Bump the pin to the latest **stable** release with
+`fvm dart run tool/update_flutter.dart` — it rewrites `.fvmrc`, the `pubspec.yaml`
+Dart `sdk:` lower-bound, and the Android toolchain versions together, then runs
+`fvm install`. Exits without writing when already current (`--force` re-runs
+`fvm install` + Android sync anyway; [`--check`](tool/update_flutter.dart) reports
+without writing). Never downgrades if the pin is ahead of stable.
+
+### Common commands
 
 ```bash
 fvm flutter pub get
@@ -1208,151 +1227,204 @@ fvm dart format --output=none --set-exit-if-changed . # Formatting check (what C
 
 fvm flutter build apk --release                       # Android APK
 fvm flutter build appbundle --release                 # Android AAB (Play Store)
+fvm flutter build ipa --release                       # iOS/iPadOS (needs macOS + signing)
 fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
 ```
 
-- **CI verification gates.** The
-  [`verify`](.github/actions/verify/action.yml) composite action (run by the
-  `develop` and `release` workflows) enforces **three** gates, in order:
-  `dart format --output=none --set-exit-if-changed .`, `flutter analyze
-  --fatal-infos`, and `flutter test`. Run all three locally before pushing.
-  **Coding agents:** `fvm flutter analyze` and `fvm flutter test` are not enough — also
-  run `fvm dart format .` (formatting drift fails CI just like an analyzer error).
-- **The analyzer is intentionally strict — a deliberate design choice, not
-  inherited defaults.** Static analysis is used as an active quality gate so
-  coding discipline is enforced by the toolchain instead of left to reviewer
-  vigilance: it pushes whole error classes to analyze-time (e.g. unguarded
-  `dynamic` / cast bugs at the JSON boundary), forces deliberate choices (every
-  `catch` names what it handles; stray futures must be awaited or explicitly
-  discarded), and keeps the code uniform (explicit types and return types,
-  stable formatting). The full rule set — each entry with a short note on what it
-  does — is in [`analysis_options.yaml`](analysis_options.yaml). In practice:
-  write explicit types and return types, and wrap fire-and-forget futures in
-  `unawaited(...)`.
-- **`dart fix --dry-run` is part of `verify`** — CI fails if the analyzer
-  proposes any auto-fix. Run `fvm dart fix --apply` locally to clear drift before
-  pushing.
-- **Versioning:** `pubspec.yaml` is a sentinel `0.0.0+0`; CI passes
-  `--build-name` / `--build-number` from the git tag / run number.
-- **Release pipeline.** A `MAJOR.MINOR.PATCH` git tag triggers
-  [`release.yml`](.github/workflows/release.yml): it builds the web (PWA) bundle
-  and a signed Android APK and attaches both to a public **GitHub Release**, and
-  builds a signed **AAB** that **fastlane** `supply`
-  ([`android/fastlane/`](android/fastlane/)) uploads to the Play Console *alpha*
-  track as a *draft* (promoting to testers stays a manual step). The whole Play
-  path (the AAB build + its upload) is gated on the `ANDROID_RELEASE_ENABLED`
-  repo **variable**, so the web + APK keep shipping via the GitHub Release before
-  the Play credentials exist; flip it to `'true'` (Settings → Variables) once
-  they do. The Android signing keystore + Play service account live in the
-  `play-store` GitHub environment, exposed only to the jobs that need them.
-- **GitHub Actions & CI runners:** Actions are pinned either to a major tag
-  (`@v6`) or, for actions without a moving `vN` (e.g. the OSV scanner), to a
-  specific version (`@v2.3.8`); the Ubuntu runner is pinned (`runs-on:
-  ubuntu-24.04`). `fvm dart run tool/update_gha.dart` checks the whole CI
-  toolchain in one pass: it bumps any out-of-date **action** in place — to the
-  newest major for major pins, the newest `vX.Y.Z` for version pins, including
-  subdirectory actions (`--check` only reports) — and **reports** — never
-  changes — when a newer **fastlane** major (see below) or **Ubuntu LTS runner**
-  image is available, since those bumps are deliberate (a fastlane major may need
-  Fastfile edits; a new Ubuntu can rename packages). Set `GITHUB_TOKEN` to avoid
-  the 60/h unauthenticated rate limit.
-- **Fonts:** Roboto (text) + Arimo (suit glyphs ♠♥♦♣, which Roboto lacks) are
-  bundled under `assets/google_fonts/<version>/` and loaded via the google_fonts
-  package with runtime fetching disabled (offline + deterministic suit glyphs).
-  The Arimo SIL OFL license is bundled alongside the `.ttf` as
-  `Arimo-LICENSE.txt` and registered via `registerBundledLicenses()` in
-  `main.dart` so it surfaces in `showLicensePage()`. Roboto's license is already
-  covered by the Flutter engine NOTICES (it is Flutter's default font).
-  Upgrade all bundled fonts via `fvm dart run tool/update_fonts.dart` — it bumps the
-  `google_fonts` pin, downloads matching `.ttf`s + the Arimo license, and
-  rewrites the `pubspec.yaml` asset path atomically.
-- **Dependency updates:** `fvm dart run tool/update_deps.dart` runs `fvm flutter pub
-  upgrade` and rewrites every caret constraint in `pubspec.yaml` to match the
-  resolved version from `pubspec.lock` (the manifest-rewriting half that `pub
-  upgrade` deliberately omits). Non-caret Dart pins (e.g. `google_fonts`) are
-  left untouched.
-- **fastlane:** major-pinned `gem "fastlane", "~> 2"` in `android/Gemfile`
-  (not exact — it only runs in CI, with no local setup to validate a bump).
-  `~> 2` lets minor/patch fixes flow but holds back a new major that could break
-  the pipeline. `fvm dart run tool/update_gha.dart` reports (without changing
-  anything) when a new fastlane major ships; bumping it is then a deliberate
-  manual edit.
-- **Launcher icons:** `./tool/generate_icons.sh` — renders the SVG sources to
-  PNGs, runs `flutter_launcher_icons` (config in `pubspec.yaml`), then overwrites
-  the PWA maskable icons with `icon_bonken_maskable.svg`. Requires
-  `rsvg-convert` (`apt install librsvg2-bin`) and `fc-match`/`fc-query`
-  (`apt install fontconfig`); CI installs both in `setup-build`. Locally the
-  script requires `fvm`; CI passes `--ci` so it uses PATH `dart` directly.
-  Do not run `fvm dart run flutter_launcher_icons` directly: it produces
-  incorrect PWA maskable icons (no safe-zone padding) and skips the intermediate
-  1024 px PNGs.
-  **Font sandbox:** the script builds a throwaway `FONTCONFIG_FILE` exposing
-  *only* `assets/google_fonts/<version>/`, so the suit/word glyphs rasterise
-  from the same `.ttf`s the app ships (no system-font drift). Its sanity check
-  is **asset-driven**: every bundled `.ttf` must resolve, through the sandbox,
-  back to itself. That stays exhaustive as font cuts change, but it deliberately
-  does **not** verify that the families the SVGs *reference* are bundled — so a
-  future SVG that names an unbundled family/weight would silently fall back
-  rather than erroring. Today the SVGs reference only `Roboto` and `Arimo` at
-  weight 400, both bundled; keep new SVG glyphs within the shipped cuts.
-  **Safe-zone calibration:** `icon_bonken_maskable.svg` and
-  `icon_bonken_adaptive_fg.svg` both use viewBox `−128 −128 1280 1280` (card at
-  50 % of canvas). The native `android:inset="10%"` (`adaptive_icon_foreground_inset`
-  in `pubspec.yaml`) shrinks the foreground to 80 % of the 108 dp canvas, so
-  adaptive corners are ~8–10 px inside the 36 dp safe zone (at 3–4× DPI). The
-  PWA maskable corners are ~7 px inside the 40 %×1280 = 512 SVG-unit safe zone
-  on the 512 px icon file. If `adaptive_icon_foreground_inset` or the card
-  geometry changes, recalculate both margins.
-  **Why the card isn't larger (do not "fix" the visible gap):** the card corner
-  reaches 1.545× its half-width (rounded-rect geometry), so at the current sizing
-  it already sits at ~93 % (adaptive 36 dp safe zone) / ~96.6 % (maskable 40 %
-  radius) of the *circle* safe-zone edge — i.e. near the maximum that guarantees
-  no corner-clipping under a **circle** mask. On generous masks (Samsung/OneUI &
-  Apple squircles, MIUI rounded-square) the card looks small with a visible gap to
-  the edge, because a squircle bulges past the inscribed circle the card is sized
-  for. That gap is intrinsic: closing it (enlarging the card) pushes the corners
-  outside the circle and clips them for every **circle-shape** user — stock
-  Android/Pixel default, and Samsung/OneUI when the user selects the circle icon
-  shape. The exact circle-safe maxima are inset 6.9 % / viewBox 1236 (only ~9 % /
-  ~3.6 % bigger — marginal), so the gap cannot be meaningfully reduced without
-  sacrificing the no-clip guarantee. This was a deliberate decision; keep it.
-  (**iOS is not bound by this** — iOS only rounds the corners, no circle mask, so
-  its full-bleed icon is sized fuller: `image_path_ios` points at `icon_bonken.png`
-  (`icon_bonken.svg`, 62.5 % card) — the same source the PWA `apple-touch-icon`
-  uses — so the iOS-native and iOS-PWA icons render at the same size. At 62.5 % the
-  card still clears the iOS corner squircle. iOS rejects alpha, so `remove_alpha_ios`
-  flattens onto `background_color_ios` (`#283593`); the source is already opaque.
-  Generating the iOS `AppIcon.appiconset` (the `flutter_launcher_icons` iOS pass)
-  needs the `ios/` Runner project present and runs only on macOS/Xcode.)
-- **Store screenshots:** Run `fvm dart tool/generate_screenshots.dart`
-  with `--android <phone|tablet|all>` or `--ios <iphone|ipad|all>`
-  (iOS requires Xcode) to take store screenshots.  It uses
-  Flutter's `integration_test` SDK package with `flutter drive`: the integration test
-  (`integration_test/screenshot_test.dart`) navigates the app to each UI state
-  and signals the host driver (`test_driver/screenshot_driver.dart`) via stdout
-  markers; the driver captures the full device screen via `adb exec-out screencap`
-  (Android) or `xcrun simctl io … screenshot` (iOS) and writes to
-  `screenshots/<platform>_<device-type>_<name>.png` (e.g.
-  `android_phone_01_home.png`).  Two `testWidgets` sessions use a pre-seeded
-  SharedPreferences fixture (`integration_test/screenshot_fixtures.dart`) —
-  session A covers the home, new-game, and final-score screens; session B covers
-  the round-input screens and the rules page.  All device and locale config is
-  declared as consts inside the script itself; `--print-env` outputs the Android
-  values as `KEY=VALUE` lines for CI.  Manual triggers
-  [`Screenshots – Android`](.github/workflows/screenshots-android.yml) and
-  [`Screenshots – iOS`](.github/workflows/screenshots-ios.yml) run the pipeline
-  in CI (phone + tablet for each platform) using
-  `reactivecircus/android-emulator-runner@v2` for Android and the pre-installed
-  Xcode + simulators on `macos-latest` for iOS; the result is uploaded as a
-  downloadable artifact for review before manual store upload.  Local Android
-  mode manages the full AVD lifecycle (dependency-preflight, create + boot +
-  test + kill); pass `--clean` to force a cold boot (wipes userdata,
-  skips and deletes any saved Quickboot snapshot).
-  `integration_test` and `flutter_driver` are declared as `dev_dependencies`
-  with `sdk: flutter` — they live in the Flutter SDK and are skipped by
-  `update_deps.dart` (no version field in `pubspec.lock`).
-- **Updates:** `services/app_updater.dart` checks Google Play for a newer build
-  (Android only; no-op on web/iOS/sideloaded; never blocks startup).
+### CI quality gates
+
+The [`verify`](.github/actions/verify/action.yml) composite action (run by the
+`develop` and `release` workflows) enforces **three** gates in order:
+`dart format --output=none --set-exit-if-changed .`, `flutter analyze --fatal-infos`,
+and `flutter test`. Run all three locally before pushing. **Coding agents:** also
+run `fvm dart format .` — formatting drift fails CI just like an analyzer error.
+
+`dart fix --dry-run` is also part of `verify` — CI fails if the analyzer proposes
+any auto-fix. Run `fvm dart fix --apply` locally to clear drift before pushing.
+
+**The analyzer is intentionally strict — a deliberate design choice, not inherited
+defaults.** It is used as an active quality gate so coding discipline is enforced
+by the toolchain: it pushes whole error classes to analyze-time (e.g. unguarded
+`dynamic` / cast bugs at the JSON boundary), forces deliberate choices (every
+`catch` names what it handles; stray futures must be awaited or explicitly
+discarded), and keeps the code uniform (explicit types and return types, stable
+formatting). The full rule set — each entry with a short note — is in
+[`analysis_options.yaml`](analysis_options.yaml). In practice: write explicit
+types and return types, and wrap fire-and-forget futures in `unawaited(...)`.
+
+### Versioning & release
+
+`pubspec.yaml` carries a sentinel `0.0.0+0`; CI passes `--build-name` /
+`--build-number` from the git tag / run number.
+
+A `MAJOR.MINOR.PATCH` git tag triggers [`release.yml`](.github/workflows/release.yml):
+it builds web (attached to the GitHub Release), Android (AAB → Play Console
+*alpha* track as a draft), and iOS (universal IPA → App Store Connect *TestFlight*).
+Both store uploads run through **fastlane** — `supply` for Android
+([`android/fastlane/`](android/fastlane/)), and `match` (code signing via a
+separate private certs repo) + `pilot` for iOS ([`ios/fastlane/`](ios/fastlane/),
+on a `macos-latest` runner). The Android upload lands in the Play Console alpha
+track as a draft; the iOS upload lands in TestFlight. In both cases, publishing to
+end users stays a manual step (promoting the draft / submitting for App Store review).
+
+Each store upload job is gated on a repo **variable** so one can be disabled
+without affecting the other: `ANDROID_RELEASE_ENABLED` gates the whole Play path
+(the AAB build + its upload — the APK + web still build for the GitHub Release),
+and `IOS_RELEASE_ENABLED` gates the *entire* `release-ios` job (no macOS runner
+is even spun up when it is off).
+
+Android signing secrets live in the `play-store` GitHub environment; iOS
+signing/API secrets in the `apple-app-store` environment. API keys are scoped by
+least privilege: the per-tag release only ever uses an *App Manager* key
+(read-only `match` install + TestFlight upload), while creating/renewing the
+certificate needs an *Admin* key, loaded **only** by the manual `workflow_dispatch`
+[`renew-ios-signing.yml`](.github/workflows/renew-ios-signing.yml) job (no Mac
+needed). iOS distribution certificates expire yearly; renewal is that same manual
+workflow.
+
+**fastlane** is major-pinned (`gem "fastlane", "~> 2"`) in `android/Gemfile` +
+`ios/Gemfile` — not exact, since it only runs in CI with no local setup to
+validate a bump. `~> 2` lets minor/patch fixes flow but holds back a new major
+that could break the pipeline. `fvm dart run tool/update_gha.dart` reports
+(without changing anything) when a new fastlane major ships; bumping it is then a
+deliberate manual edit.
+
+### GitHub Actions & runners
+
+Actions are pinned either to a major tag (`@v6`) or, for actions without a moving
+`vN` (e.g. the OSV scanner), to a specific version (`@v2.3.8`). The Ubuntu runner
+is pinned (`runs-on: ubuntu-24.04`); `macos-latest` stays floating so iOS builds
+track current Xcode.
+
+`fvm dart run tool/update_gha.dart` checks the whole CI toolchain in one pass: it
+bumps any out-of-date **action** in place — to the newest major for major pins,
+the newest `vX.Y.Z` for version pins, including subdirectory actions (`--check`
+only reports) — and **reports** (never changes) when a newer **Ubuntu LTS runner**
+image or **fastlane major** is available, since those bumps are deliberate (a
+fastlane major may need Fastfile edits; a new Ubuntu can rename packages). Set
+`GITHUB_TOKEN` to avoid the 60/h unauthenticated rate limit.
+
+### Fonts
+
+Roboto (text) and Arimo (suit glyphs ♠♥♦♣, which Roboto lacks) are bundled under
+`assets/google_fonts/<version>/` and loaded via the `google_fonts` package with
+runtime fetching disabled (offline + deterministic suit glyphs). The Arimo SIL OFL
+license is bundled alongside the `.ttf` as `Arimo-LICENSE.txt` and registered via
+`registerBundledLicenses()` in `main.dart` so it surfaces in `showLicensePage()`.
+Roboto's license is already covered by the Flutter engine NOTICES (it is Flutter's
+default font).
+
+Upgrade all bundled fonts with `fvm dart run tool/update_fonts.dart` — it bumps
+the `google_fonts` pin, downloads matching `.ttf`s + the Arimo license, and
+rewrites the `pubspec.yaml` asset path atomically.
+
+### Launcher icons & splash screens
+
+`./tool/generate_icons.sh` renders SVG sources to PNGs, runs `flutter_launcher_icons`
+(config in `pubspec.yaml`), generates iOS and Android native splash images, then
+overwrites the PWA maskable icons with `icon_bonken_maskable.svg`. Requires
+`rsvg-convert` (`apt install librsvg2-bin`) and `fc-match`/`fc-query`
+(`apt install fontconfig`); CI installs both in `setup-build`. Locally the script
+requires `fvm`; CI passes `--ci` so it uses PATH `dart` directly. Do not run
+`fvm dart run flutter_launcher_icons` directly: it produces incorrect PWA maskable
+icons (no safe-zone padding) and skips the intermediate 1024 px PNGs.
+
+**Font sandbox:** the script builds a throwaway `FONTCONFIG_FILE` exposing *only*
+`assets/google_fonts/<version>/`, so suit/word glyphs rasterise from the same
+`.ttf`s the app ships (no system-font drift). Its sanity check is **asset-driven**:
+every bundled `.ttf` must resolve, through the sandbox, back to itself. That stays
+exhaustive as font cuts change, but it deliberately does **not** verify that the
+families the SVGs *reference* are bundled — so a future SVG naming an unbundled
+family/weight would silently fall back rather than error. Today the SVGs reference
+only `Roboto` and `Arimo` at weight 400, both bundled; keep new SVG glyphs within
+the shipped cuts.
+
+**Safe-zone calibration:** `icon_bonken_maskable.svg` and `icon_bonken_adaptive_fg.svg`
+both use viewBox `−128 −128 1280 1280` (card at 50 % of canvas). The native
+`android:inset="10%"` (`adaptive_icon_foreground_inset` in `pubspec.yaml`) shrinks
+the foreground to 80 % of the 108 dp canvas, so adaptive corners are ~8–10 px
+inside the 36 dp safe zone (at 3–4× DPI). The PWA maskable corners are ~7 px
+inside the 40 %×1280 = 512 SVG-unit safe zone on the 512 px icon file. If
+`adaptive_icon_foreground_inset` or the card geometry changes, recalculate both
+margins.
+
+**Why the card isn't larger (do not "fix" the visible gap):** the card corner
+reaches 1.545× its half-width (rounded-rect geometry), so at the current sizing it
+already sits at ~93 % (adaptive 36 dp safe zone) / ~96.6 % (maskable 40 % radius)
+of the *circle* safe-zone edge — near the maximum that guarantees no corner-clipping
+under a **circle** mask. On generous masks (Samsung/OneUI & Apple squircles, MIUI
+rounded-square) the card looks small with a visible gap to the edge, because a
+squircle bulges past the inscribed circle the card is sized for. That gap is
+intrinsic: closing it (enlarging the card) pushes the corners outside the circle
+and clips them for every **circle-shape** user — stock Android/Pixel default, and
+Samsung/OneUI when the user selects the circle icon shape. The exact circle-safe
+maxima are inset 6.9 % / viewBox 1236 (only ~9 % / ~3.6 % bigger — marginal), so
+the gap cannot be meaningfully reduced without sacrificing the no-clip guarantee.
+This was a deliberate decision; keep it.
+
+**iOS icon sizing** is not bound by the circle-mask constraint — iOS only rounds
+the corners, no circle mask, so its full-bleed icon is sized fuller:
+`image_path_ios` points at `icon_bonken.png` (`icon_bonken.svg`, 62.5 % card) —
+the same source the PWA `apple-touch-icon` uses — so the iOS-native and iOS-PWA
+icons render at the same size. At 62.5 % the card still clears the iOS corner
+squircle. iOS rejects alpha, so `remove_alpha_ios` flattens onto
+`background_color_ios` (`#283593`); the source is already opaque. Generating the
+iOS `AppIcon.appiconset` (the `flutter_launcher_icons` iOS pass) needs the `ios/`
+Runner project present and runs only on macOS/Xcode.
+
+**Splash screens:** `icon_bonken_adaptive_fg.svg` (transparent logo, same SVG as
+the Android adaptive foreground) is rendered to iOS `LaunchImage.png` (1×/2×/3×
+at 200/400/600 px → displays at 200 pt centered) and Android `splash_logo.png` at
+five density buckets (200–800 px → 200 dp); both sets are gitignored. Platform
+config (committed): iOS `LaunchScreen.storyboard` sets the background to `#283593`
+(`Colors.indigo[800]`); `android/app/src/main/res/drawable/` and
+`drawable-v21/launch_background.xml` layer that color + a centered bitmap;
+`values/colors.xml` defines `splash_background`; `values-v31/styles.xml` sets
+`android:windowSplashScreenBackground` for Android 12+'s SplashScreen API (the
+adaptive launcher icon is picked up automatically — no `windowSplashScreenAnimatedIcon`
+needed). Web uses a bespoke loading screen in `web/index.html` (icon + animated
+bar, hides on `flutter-first-frame`; no script involvement).
+
+### Store screenshots
+
+Run `fvm dart tool/generate_screenshots.dart` with `--android <phone|tablet|all>`
+or `--ios <iphone|ipad|all>` (iOS requires Xcode) to take store screenshots. It
+uses Flutter's `integration_test` SDK package with `flutter drive`: the integration
+test (`integration_test/screenshot_test.dart`) navigates the app to each UI state
+and signals the host driver (`test_driver/screenshot_driver.dart`) via stdout
+markers; the driver captures the full device screen via `adb exec-out screencap`
+(Android) or `xcrun simctl io … screenshot` (iOS) and writes to
+`screenshots/<platform>_<device-type>_<name>.png` (e.g. `android_phone_01_home.png`).
+
+Two `testWidgets` sessions use a pre-seeded SharedPreferences fixture
+(`integration_test/screenshot_fixtures.dart`) — session A covers the home,
+new-game, and final-score screens; session B covers the round-input screens and the
+rules page. All device and locale config is declared as consts inside the script
+itself; `--print-env` outputs the Android values as `KEY=VALUE` lines for CI.
+
+Manual triggers [`Screenshots – Android`](.github/workflows/screenshots-android.yml)
+and [`Screenshots – iOS`](.github/workflows/screenshots-ios.yml) run the pipeline
+in CI (phone + tablet for each platform) using
+`reactivecircus/android-emulator-runner@v2` for Android and the pre-installed
+Xcode + simulators on `macos-latest` for iOS; the result is uploaded as a
+downloadable artifact for review before manual store upload. Local Android mode
+manages the full AVD lifecycle (dependency-preflight, create + boot + test + kill);
+pass `--clean` to force a cold boot (wipes userdata, skips and deletes any saved
+Quickboot snapshot). `integration_test` and `flutter_driver` are declared as
+`dev_dependencies` with `sdk: flutter` — they live in the Flutter SDK and are
+skipped by `update_deps.dart` (no version field in `pubspec.lock`).
+
+### Dependency updates
+
+`fvm dart run tool/update_deps.dart` runs `fvm flutter pub upgrade` and rewrites
+every caret constraint in `pubspec.yaml` to match the resolved version from
+`pubspec.lock` (the manifest-rewriting half that `pub upgrade` deliberately omits).
+Non-caret Dart pins (e.g. `google_fonts`) are left untouched.
+
+### App update check
+
+`services/app_updater.dart` checks Google Play for a newer build (Android only;
+no-op on web/iOS/sideloaded; never blocks startup).
 
 ---
 

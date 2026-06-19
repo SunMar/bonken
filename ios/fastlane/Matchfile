@@ -1,0 +1,16 @@
+# fastlane match — code signing via a separate PRIVATE git repo holding the
+# encrypted distribution certificate + App Store provisioning profile.
+#
+# Configured entirely from environment so nothing sensitive lives in the repo:
+#   MATCH_GIT_URL                  HTTPS URL of the private certs repo
+#   MATCH_GIT_BASIC_AUTHORIZATION  base64("user:PAT") — read by match for cloning
+#   MATCH_PASSWORD                 passphrase that decrypts the repo contents
+#
+# CI runs match in read-only mode (it never creates/revokes certs). The initial
+# certificate + profile are generated once by the read-write `renew` lane in
+# Fastfile — run it via the "Renew iOS signing" workflow (Actions → Run workflow).
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+app_identifier(["org.suninet.bonken"])
+readonly(true)

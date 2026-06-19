@@ -11,10 +11,10 @@ import 'save_service_io.dart'
 /// Saves [bytes] to device storage without opening a share sheet.
 ///
 /// Android: opens the SAF "create document" picker (defaults to Downloads).
-/// iOS: auto-saves to the app's Documents directory. To make that directory
-///   browsable in the Files app (On My iPhone → Bonken) the iOS project must
-///   set `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` in
-///   Info.plist — not yet configured (there is no committed iOS project).
+/// iOS: auto-saves to the app's Documents directory. The directory is
+///   browsable in the Files app (On My iPhone → Bonken) via
+///   `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` in
+///   `ios/Runner/Info.plist`.
 /// Web: triggers a browser download.
 ///
 /// Returns true on success, false if the user cancelled (Android SAF only).

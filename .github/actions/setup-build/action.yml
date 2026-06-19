@@ -50,7 +50,9 @@ runs:
     - name: Install rsvg-convert (macOS)
       if: runner.os == 'macOS'
       shell: bash
-      run: brew install librsvg fontconfig
+      run: |
+        brew install librsvg coreutils fontconfig
+        echo "$(brew --prefix coreutils)/libexec/gnubin" >> "$GITHUB_PATH"
 
     - name: Generate launcher icons
       shell: bash

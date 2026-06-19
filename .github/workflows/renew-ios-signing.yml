@@ -1,0 +1,41 @@
+name: Renew iOS signing
+
+# Manually triggered (Actions → "Renew iOS signing" → Run workflow). Use it for:
+#   - the ONE-TIME bootstrap (first ever creation of the cert + profile), and
+#   - the yearly certificate/profile renewal.
+#
+# It runs fastlane match in read-write mode to (re)create the App Store
+# distribution certificate + provisioning profile and push them ENCRYPTED to the
+# private match repo. No Mac needed — match talks to Apple's API directly.
+#
+# Requires an ADMIN-role App Store Connect API key (cert/profile management needs
+# Admin). Safe to run when the old certificate has already expired.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renew:
+    runs-on: macos-latest
+    environment: apple-app-store
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: ios
+          bundler-cache: true
+
+      - name: Renew signing material
+        working-directory: ios
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          # Admin-role key — only this rarely-run manual job loads it.
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_ADMIN_KEY_ID: ${{ secrets.APP_STORE_CONNECT_ADMIN_KEY_ID }}
+          APP_STORE_CONNECT_ADMIN_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_ADMIN_KEY_BASE64 }}
+        run: bundle exec fastlane renew

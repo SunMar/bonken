@@ -35,7 +35,7 @@ import 'helpers/gha_pins.dart';
 import 'helpers/ruby_pin.dart';
 import 'helpers/semver.dart';
 
-const _gemfiles = ['android/Gemfile'];
+const _gemfiles = ['android/Gemfile', 'ios/Gemfile'];
 
 Future<void> main(List<String> args) async {
   final checkOnly = args.contains('--check');

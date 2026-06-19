@@ -1,0 +1,116 @@
+# Bonken iOS release automation.
+#
+# Lanes:
+#   release  — what CI runs on a version tag: installs signing via match, builds
+#              a universal (iPhone + iPad) IPA, and uploads it to TestFlight. It
+#              does NOT submit for App Store review (that stays a manual click in
+#              App Store Connect, mirroring the Android "draft" upload).
+#   renew    — manually triggered (Actions → "Renew iOS signing"): regenerates
+#              the App Store distribution certificate + provisioning profile and
+#              stores them (encrypted) in the match repo. Doubles as the one-time
+#              bootstrap. Needs an ADMIN-role App Store Connect API key.
+#
+# Two App Store Connect API keys, by least privilege:
+#   - App Manager key  → release lane only (TestFlight upload). Used on every tag.
+#   - Admin key        → renew lane only (creates/renews certs). Used ~yearly.
+# The Admin key is never loaded by the frequently-run release job. The Issuer ID
+# is the same for all of a team's keys, so it is shared.
+#
+# Required environment (provided by the `apple-app-store` GitHub environment):
+#   APP_STORE_CONNECT_ISSUER_ID                              shared issuer id
+#   APP_STORE_CONNECT_KEY_ID / _KEY_BASE64                   App Manager key (release)
+#   APP_STORE_CONNECT_ADMIN_KEY_ID / _ADMIN_KEY_BASE64       Admin key (renew)
+#   MATCH_GIT_URL / MATCH_GIT_BASIC_AUTHORIZATION / MATCH_PASSWORD   match repo
+#   BUILD_NAME / BUILD_NUMBER   (release lane only) version name + build number
+
+APP_IDENTIFIER = "org.suninet.bonken".freeze
+
+# Loads an App Store Connect API key from its (base64) env secrets.
+def asc_api_key(key_id_env:, key_base64_env:)
+  app_store_connect_api_key(
+    key_id: ENV.fetch(key_id_env),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    key_content: ENV.fetch(key_base64_env),
+    is_key_content_base64: true,
+  )
+end
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build a signed IPA and upload it to TestFlight"
+  lane :release do
+    # Creates a temporary CI keychain so match can install the certificate
+    # without an interactive login.
+    setup_ci
+
+    # App Manager key — only needs TestFlight-upload privileges.
+    api_key = asc_api_key(
+      key_id_env: "APP_STORE_CONNECT_KEY_ID",
+      key_base64_env: "APP_STORE_CONNECT_KEY_BASE64",
+    )
+
+    # Installs the App Store distribution certificate + provisioning profile
+    # from the private match repo (read-only: never creates/revokes anything,
+    # and needs no API key — just the repo + MATCH_PASSWORD).
+    match(type: "appstore", readonly: true)
+
+    # match exports these after running; use them to drive manual signing.
+    profile_name = ENV.fetch("sigh_#{APP_IDENTIFIER}_appstore_profile-name")
+    team_id = ENV.fetch("sigh_#{APP_IDENTIFIER}_appstore_team-id")
+
+    # Pin the Runner target to manual signing with the match profile so the
+    # archive below picks the right identity in CI.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: team_id,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name,
+      targets: ["Runner"],
+    )
+
+    # Compile Dart + assets (gym signs & archives, so build unsigned here).
+    # Run from the project root (one level up from ios/), where pubspec.yaml is.
+    # --build-name / --build-number set CFBundleShortVersionString / CFBundleVersion.
+    sh(
+      "cd .. && flutter build ios --release --no-codesign " \
+        "--build-name=#{ENV.fetch('BUILD_NAME')} " \
+        "--build-number=#{ENV.fetch('BUILD_NUMBER')}",
+    )
+
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          APP_IDENTIFIER => profile_name,
+        },
+      },
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  desc "Create/renew the App Store certificate + profile in the match repo " \
+       "(also the one-time bootstrap). Safe to run after the old cert expired."
+  lane :renew do
+    # readonly:false lets match CREATE the cert/profile (overrides the Matchfile
+    # default). force:true always regenerates the provisioning profile. Modern
+    # match detects an expired stored certificate and mints a fresh one, so this
+    # works whether the cert is still valid, near expiry, or already expired.
+    match(
+      type: "appstore",
+      readonly: false,
+      force: true,
+      api_key: asc_api_key(
+        key_id_env: "APP_STORE_CONNECT_ADMIN_KEY_ID",
+        key_base64_env: "APP_STORE_CONNECT_ADMIN_KEY_BASE64",
+      ),
+    )
+  end
+end

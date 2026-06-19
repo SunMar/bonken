@@ -1,7 +1,7 @@
 # AGENTS.md
 
-Bonken — offline score calculator (Flutter PWA + Android) for the Dutch
-4-player card game Bonken. Pure Dart domain → Riverpod state → Material 3 UI.
+Bonken — offline score calculator (Flutter PWA + Android + iOS/iPadOS) for the
+Dutch 4-player card game Bonken. Pure Dart domain → Riverpod state → Material 3 UI.
 
 **Full architecture & rationale: [ARCHITECTURE.md](ARCHITECTURE.md).** Player-facing docs
 (Dutch): [README.md](README.md).
@@ -33,9 +33,12 @@ The analyzer is **strict** — the full, authoritative rule set is
 return types, wrap fire-and-forget futures in `unawaited(...)`, then run
 `fvm dart fix --apply` + `fvm dart format .` before pushing.
 
-**Update `AGENTS.md` and `ARCHITECTURE.md` as part of the change** when it
-affects documented architecture, conventions, the storage version, the directory
-map, or invariants — not as a follow-up.
+**Always check `AGENTS.md` and `ARCHITECTURE.md` on every task** — if the change
+affects anything documented here, update it inline. Do not defer to a follow-up.
+
+**Add or update tests to cover every changed behaviour.** Check existing coverage
+for the area you touched and fill gaps — [ARCHITECTURE.md §11](ARCHITECTURE.md)
+for testing conventions (timer stubs, provider overrides, fixture helpers).
 
 ## Conventions (do not break)
 
