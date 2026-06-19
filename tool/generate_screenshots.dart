@@ -46,6 +46,7 @@ const _androidPhoneProfile = 'pixel_9';
 const _androidTabletProfile = 'pixel_tablet';
 const _iosIphoneSim = 'iPhone 17 Pro Max';
 const _iosIpadSim = 'iPad Pro 13-inch (M5)';
+const _iosRuntime = 'iOS-26-2';
 
 const _androidLocale = 'nl-NL'; // BCP47 — for `cmd locale set-system-locale`
 const _iosLocale = 'nl_NL'; // POSIX — for NSGlobalDomain AppleLocale
@@ -87,7 +88,16 @@ Future<ProcessResult> _capture(List<String> cmd, {bool binary = false}) =>
       ),
     );
 
-Future<int> _run(List<String> cmd) async {
+Future<void> _captureOrThrow(List<String> cmd) async {
+  final r = await _capture(cmd);
+  if (r.exitCode != 0) {
+    throw _ScriptException(
+      '${cmd.join(' ')} failed (exit ${r.exitCode}): ${r.stderr}',
+    );
+  }
+}
+
+Future<int> _run(List<String> cmd, {Duration? timeout}) async {
   final p = await _await(
     Process.start(
       cmd.first,
@@ -96,7 +106,16 @@ Future<int> _run(List<String> cmd) async {
       mode: ProcessStartMode.inheritStdio,
     ),
   );
-  return _await(p.exitCode);
+  if (timeout == null) return _await(p.exitCode);
+  try {
+    return await _await(p.exitCode).timeout(timeout);
+  } on TimeoutException {
+    p.kill();
+    await p.exitCode;
+    throw _ScriptException(
+      '${cmd.first} ${cmd.sublist(1).join(' ')} timed out after ${timeout.inMinutes}m',
+    );
+  }
 }
 
 // ── Screenshot capture (triggered by SCREENSHOT:name markers in flutter output)
@@ -115,10 +134,20 @@ Future<void> _captureAndroid(
     'screencap',
     '-p',
   ], binary: true);
-  if (r.exitCode != 0) return;
+  if (r.exitCode != 0) {
+    throw _ScriptException(
+      'adb screencap failed (exit ${r.exitCode}): ${r.stderr}',
+    );
+  }
   File('$_outputDir/$name.png').writeAsBytesSync(r.stdout as List<int>);
   print('==> Screenshot: $name.png');
-  await _capture(['adb', '-s', serial, 'shell', 'echo $uuid > $ackPath']);
+  await _captureOrThrow([
+    'adb',
+    '-s',
+    serial,
+    'shell',
+    'echo $uuid > $ackPath',
+  ]);
 }
 
 Future<void> _captureIos(
@@ -135,17 +164,16 @@ Future<void> _captureIos(
     'screenshot',
     '$_outputDir/$name.png',
   ]);
-  if (r.exitCode != 0) return;
+  if (r.exitCode != 0) {
+    throw _ScriptException(
+      'simctl screenshot failed (exit ${r.exitCode}): ${r.stderr}',
+    );
+  }
   print('==> Screenshot: $name.png');
-  await _capture([
-    'xcrun',
-    'simctl',
-    'spawn',
-    udid,
-    'sh',
-    '-c',
-    'echo $uuid > $ackPath',
-  ]);
+  // Write the ack directly on the host: dart:io in the iOS Simulator reads
+  // from the host macOS filesystem at /tmp, not from the simulator's sandboxed
+  // container that `simctl spawn` would write into.
+  File(ackPath).writeAsStringSync(uuid);
 }
 
 // ── flutter drive with SCREENSHOT:name stdout monitoring ─────────────────────
@@ -597,34 +625,42 @@ Future<String> _findIosSimulatorUdid(String simName) async {
   }
 
   String? udid;
-  final available = <String>{};
+  final available = <String>[];
 
-  search:
-  for (final entry in rawDevices.values) {
-    if (entry is! List<dynamic>) continue;
-    for (final device in entry) {
+  for (final entry in rawDevices.entries) {
+    final runtime = entry.key;
+    final devices = entry.value;
+    if (devices is! List<dynamic>) continue;
+    for (final device in devices) {
       if (device is! Map<String, dynamic>) continue;
       if (device['isAvailable'] != true) continue;
       final name = device['name'];
       final id = device['udid'];
       if (name is! String || id is! String) continue;
-      if (name == simName) {
+      available.add('  $name  [$runtime]');
+      if (udid == null &&
+          runtime == 'com.apple.CoreSimulator.SimRuntime.$_iosRuntime' &&
+          name == simName) {
         udid = id;
-        break search;
       }
-      available.add(name);
     }
   }
 
+  available.sort();
+  print('==> Available iOS simulators:\n${available.join('\n')}');
+
   if (udid != null) return udid;
 
-  final list = (available.toList()..sort()).map((n) => '  $n').join('\n');
   throw _ScriptException(
-    "simulator '$simName' not found, available simulators:\n$list",
+    "simulator '$simName' not found under runtime 'com.apple.CoreSimulator.SimRuntime.$_iosRuntime'",
   );
 }
 
-Future<void> _runIos(String dev, {required bool clean}) async {
+Future<void> _runIos(
+  String dev, {
+  required bool clean,
+  required bool debug,
+}) async {
   if (dev != 'iphone' && dev != 'ipad') {
     throw _ScriptException(
       "unknown iOS device type '$dev' (expected iphone|ipad|all)",
@@ -646,85 +682,136 @@ Future<void> _runIos(String dev, {required bool clean}) async {
     await _run(['xcrun', 'simctl', 'erase', simUdid]);
   }
 
-  print("==> Booting iOS simulator '$simName' ($simUdid)...");
-  await _run(['xcrun', 'simctl', 'boot', simUdid]); // ok if already booted
-  _iosSimUdid = simUdid;
-  await _run(['xcrun', 'simctl', 'bootstatus', simUdid, '-b']);
-  print('==> Simulator ready.');
+  Process? logProc;
+  if (debug) {
+    print('==> Streaming CoreSimulator logs...');
+    logProc = await Process.start('log', [
+      'stream',
+      '--predicate',
+      'subsystem == "com.apple.CoreSimulator"',
+      '--style',
+      'compact',
+      '--level',
+      'debug',
+    ]);
+    logProc.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(stdout.writeln);
+    unawaited(logProc.stderr.drain<void>());
+  }
 
-  print('==> Configuring iOS status bar...');
-  await _capture([
-    'xcrun',
-    'simctl',
-    'status_bar',
-    simUdid,
-    'override',
-    '--time',
-    '21:00',
-    '--dataNetwork',
-    '5g',
-    '--cellularBars',
-    '4',
-    '--wifiBars',
-    '3',
-    '--batteryState',
-    'charged',
-    '--batteryLevel',
-    '100',
-  ]);
+  try {
+    print("==> Booting iOS simulator '$simName' ($simUdid)...");
+    await _run(['xcrun', 'simctl', 'boot', simUdid]); // ok if already booted
+    _iosSimUdid = simUdid;
 
-  print('==> Enabling dark mode...');
-  await _capture(['xcrun', 'simctl', 'ui', simUdid, 'appearance', 'dark']);
+    final stateResult = await _capture(['xcrun', 'simctl', 'list', 'devices']);
+    final stateLine = (stateResult.stdout as String)
+        .split('\n')
+        .firstWhere((l) => l.contains(simUdid), orElse: () => '(not found)');
+    print('==> Simulator state: ${stateLine.trim()}');
 
-  print('==> Setting locale ($_iosLocale)...');
-  await _capture([
-    'xcrun',
-    'simctl',
-    'spawn',
-    simUdid,
-    'defaults',
-    'write',
-    'NSGlobalDomain',
-    'AppleLocale',
-    _iosLocale,
-  ]);
-  await _capture([
-    'xcrun',
-    'simctl',
-    'spawn',
-    simUdid,
-    'defaults',
-    'write',
-    'NSGlobalDomain',
-    'AppleLanguages',
-    '-array',
-    _iosLanguage,
-  ]);
-  await _capture([
-    'xcrun',
-    'simctl',
-    'spawn',
-    simUdid,
-    'launchctl',
-    'kickstart',
-    '-k',
-    'system/com.apple.SpringBoard',
-  ]);
+    await _run([
+      'xcrun',
+      'simctl',
+      'bootstatus',
+      simUdid,
+      '-b',
+    ], timeout: const Duration(minutes: 5));
+    print('==> Simulator ready.');
 
-  print('==> Taking iOS screenshots ($dev)...');
-  Directory(_outputDir).createSync(recursive: true);
-  final prefix = 'ios_$dev';
+    print('==> Setting locale ($_iosLocale)...');
+    await _captureOrThrow([
+      'xcrun',
+      'simctl',
+      'spawn',
+      simUdid,
+      'defaults',
+      'write',
+      'NSGlobalDomain',
+      'AppleLocale',
+      _iosLocale,
+    ]);
+    await _captureOrThrow([
+      'xcrun',
+      'simctl',
+      'spawn',
+      simUdid,
+      'defaults',
+      'write',
+      'NSGlobalDomain',
+      'AppleLanguages',
+      '-array',
+      _iosLanguage,
+    ]);
+    await _captureOrThrow([
+      'xcrun',
+      'simctl',
+      'spawn',
+      simUdid,
+      'launchctl',
+      'kickstart',
+      '-k',
+      'system/com.apple.SpringBoard',
+    ]);
 
-  final driveCode = await _flutterDrive(
-    ['-d', simName],
-    onScreenshot: (name, uuid, ackPath) =>
-        _captureIos('${prefix}_$name', uuid, ackPath, simUdid),
-  );
+    // SpringBoard restart (for locale) resets status bar state, so wait for it
+    // to come back up before applying dark mode and status bar overrides.
+    print('==> Waiting for SpringBoard to restart...');
+    await _delayed(const Duration(seconds: 20));
 
-  if (driveCode == 0) {
-    print('==> Screenshots saved to $_outputDir/');
-  } else {
-    throw _ScriptException('flutter drive failed with exit code $driveCode');
+    print('==> Enabling dark mode...');
+    await _captureOrThrow([
+      'xcrun',
+      'simctl',
+      'ui',
+      simUdid,
+      'appearance',
+      'dark',
+    ]);
+
+    print('==> Configuring iOS status bar...');
+    await _captureOrThrow([
+      'xcrun',
+      'simctl',
+      'status_bar',
+      simUdid,
+      'override',
+      '--time',
+      '2026-07-01T21:00:00.000+00:00',
+      '--operatorName',
+      'Bonken',
+      '--dataNetwork',
+      '5g',
+      '--cellularBars',
+      '4',
+      '--wifiBars',
+      '3',
+      '--batteryState',
+      'discharging',
+      '--batteryLevel',
+      '100',
+    ]);
+
+    print('==> Taking iOS screenshots ($dev)...');
+    Directory(_outputDir).createSync(recursive: true);
+    final prefix = 'ios_$dev';
+
+    final driveCode = await _flutterDrive(
+      ['-d', simName],
+      onScreenshot: (name, uuid, ackPath) =>
+          _captureIos('${prefix}_$name', uuid, ackPath, simUdid),
+    );
+
+    if (driveCode == 0) {
+      print('==> Screenshots saved to $_outputDir/');
+    } else {
+      throw _ScriptException('flutter drive failed with exit code $driveCode');
+    }
+  } finally {
+    logProc?.kill();
+    if (logProc != null) await logProc.exitCode;
   }
 }
 
@@ -809,7 +896,7 @@ Future<void> main(List<String> args) async {
 
   Future<void> runOne(String dev) => switch (platform) {
     'android' => _runAndroid(dev, ci: ci, debug: debug, clean: clean),
-    'ios' => _runIos(dev, clean: clean),
+    'ios' => _runIos(dev, clean: clean, debug: debug),
     _ => Future.value(),
   };
 

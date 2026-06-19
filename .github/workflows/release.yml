@@ -21,6 +21,7 @@ jobs:
   # =====================================================================
   verify:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     outputs:
       name: ${{ steps.version.outputs.name }}
       code: ${{ steps.version.outputs.code }}
@@ -66,6 +67,7 @@ jobs:
     needs: verify
     if: ${{ vars.ANDROID_RELEASE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     environment: play-store
     steps:
       - uses: actions/checkout@v6
@@ -150,6 +152,7 @@ jobs:
     needs: verify
     if: ${{ vars.IOS_RELEASE_ENABLED == 'true' }}
     runs-on: macos-latest
+    timeout-minutes: 60
     environment: apple-app-store
     steps:
       - uses: actions/checkout@v6
@@ -186,6 +189,7 @@ jobs:
   release-github:
     needs: verify
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     environment: play-store
     permissions:
       contents: write   # needed to create the GitHub Release

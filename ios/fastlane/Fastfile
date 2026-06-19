@@ -5,7 +5,7 @@
 #              a universal (iPhone + iPad) IPA, and uploads it to TestFlight. It
 #              does NOT submit for App Store review (that stays a manual click in
 #              App Store Connect, mirroring the Android "draft" upload).
-#   renew    — manually triggered (Actions → "Renew iOS signing"): regenerates
+#   renew    — manually triggered (Actions → "Renew iOS certificate"): regenerates
 #              the App Store distribution certificate + provisioning profile and
 #              stores them (encrypted) in the match repo. Doubles as the one-time
 #              bootstrap. Needs an ADMIN-role App Store Connect API key.

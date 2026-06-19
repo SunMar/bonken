@@ -8,7 +8,7 @@
 #
 # CI runs match in read-only mode (it never creates/revokes certs). The initial
 # certificate + profile are generated once by the read-write `renew` lane in
-# Fastfile — run it via the "Renew iOS signing" workflow (Actions → Run workflow).
+# Fastfile — run it via the "Renew iOS certificate" workflow (Actions → Run workflow).
 git_url(ENV["MATCH_GIT_URL"])
 storage_mode("git")
 type("appstore")

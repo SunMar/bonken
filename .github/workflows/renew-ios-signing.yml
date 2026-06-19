@@ -1,6 +1,6 @@
-name: Renew iOS signing
+name: Renew iOS certificate
 
-# Manually triggered (Actions → "Renew iOS signing" → Run workflow). Use it for:
+# Manually triggered (Actions → "Renew iOS certificate" → Run workflow). Use it for:
 #   - the ONE-TIME bootstrap (first ever creation of the cert + profile), and
 #   - the yearly certificate/profile renewal.
 #
@@ -19,6 +19,7 @@ permissions:
 jobs:
   renew:
     runs-on: macos-latest
+    timeout-minutes: 15
     environment: apple-app-store
     steps:
       - uses: actions/checkout@v6
