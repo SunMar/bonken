@@ -19,7 +19,27 @@ jobs:
           android: 'true'
 
       - name: Load device config
-        run: cat tool/generate_screenshots.env >> "$GITHUB_ENV"
+        run: dart tool/generate_screenshots.dart --print-env >> "$GITHUB_ENV"
+
+      # The runner image ships an older cmdline-tools (and avdmanager) than the
+      # action would install. android-emulator-runner only downloads its own
+      # bundled cmdline-tools when none are present, so remove the preinstalled
+      # one to force it to install its pinned version.
+      - name: Remove preinstalled cmdline-tools so the action installs its own
+        run: rm -rf "$ANDROID_SDK_ROOT/cmdline-tools"
+
+      # The hosted runner exposes /dev/kvm but the runner user can't access it
+      # by default. Grant access so the emulator boots with hardware acceleration.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # ubuntu-24.04 doesn't ship libpulse, which the emulator's QEMU binary
+      # links at load time, so install it or the emulator can't start.
+      - name: Install emulator runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libpulse0
 
       # Two separate emulator-runner steps so each device size gets its own
       # managed emulator lifecycle (boot → test → kill).  Screenshots accumulate
@@ -30,18 +50,22 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.ANDROID_API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
           arch: x86_64
           profile: ${{ env.ANDROID_PHONE_PROFILE }}
-          emulator-options: '-locale ${{ env.LOCALE }}'
+          ram-size: '4096M'
+          disable-animations: 'false'
           script: dart tool/generate_screenshots.dart --ci --android phone
 
       - name: Screenshots – tablet
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.ANDROID_API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
           arch: x86_64
           profile: ${{ env.ANDROID_TABLET_PROFILE }}
-          emulator-options: '-locale ${{ env.LOCALE }}'
+          ram-size: '4096M'
+          disable-animations: 'false'
           script: dart tool/generate_screenshots.dart --ci --android tablet
 
       - name: Upload screenshots artifact

@@ -377,7 +377,7 @@ and the storage round-trip (`inputToCounts` / `countsToInput`, §9); a leaf game
 declares only its metadata + the human-facing bits:
 
 | base | in-memory type | leaf supplies | members |
-|------|---------------|---------------|---------|
+|------|----------------|---------------|---------|
 | `CountsMiniGame` | `CountsInput` (`{uuid:int}`, Σ = `total`) | `total`, `unitLabel` | 4 negative counts games + `PositiveGame` (the 5 positives) |
 | `RecipientMiniGame` | `RecipientInput` (`List<String?>`, one slot per prompt) | `prompts` | KingOfHearts, FinalTrick, Dominoes, SeventhAndThirteenth |
 
@@ -545,7 +545,7 @@ development while degrading gracefully in release.
 Four players A, B, C, D win **2, 7, 3, 1** tricks (Σ = 13). B doubles A.
 
 | scenario | A | B | C | D | Σ |
-|----------|---:|---:|---:|---:|---:|
+|---|---:|---:|---:|---:|---:|
 | no doubles | 40 | 140 | 60 | 20 | 260 |
 | B–A `doubled` (m=1):  A = (2 + (2−7)) ×20 = −60;  B = (7 + (7−2)) ×20 = 240 | −60 | 240 | 60 | 20 | 260 |
 | A goes back → `redoubled` (m=2):  A = (2 + 2(2−7)) ×20 = −160;  B = (7 + 2(7−2)) ×20 = 340 | −160 | 340 | 60 | 20 | 260 |
@@ -1324,30 +1324,33 @@ fvm flutter build web --release --base-href /bonken/  # Web (GitHub Pages)
   flattens onto `background_color_ios` (`#283593`); the source is already opaque.
   Generating the iOS `AppIcon.appiconset` (the `flutter_launcher_icons` iOS pass)
   needs the `ios/` Runner project present and runs only on macOS/Xcode.)
-- **Store screenshots:** `./tool/generate_screenshots.sh` takes all store screenshots
-  in one command.  It uses Flutter's `integration_test` SDK package (moved
-  first-party into the Flutter SDK) with `flutter drive`: the integration test
+- **Store screenshots:** Run `fvm dart tool/generate_screenshots.dart`
+  with `--android <phone|tablet|all>` or `--ios <iphone|ipad|all>`
+  (iOS requires Xcode) to take store screenshots.  It uses
+  Flutter's `integration_test` SDK package with `flutter drive`: the integration test
   (`integration_test/screenshot_test.dart`) navigates the app to each UI state
-  and calls `IntegrationTestWidgetsFlutterBinding.takeScreenshot('name')`, which
-  passes the bytes back to the host driver (`test_driver/screenshot_driver.dart`)
-  via a platform channel; the driver writes them to
-  `screenshots/<device-type>/<name>.png`.  Two `testWidgets` sessions use a
-  pre-seeded SharedPreferences fixture
-  (`integration_test/screenshot_fixtures.dart`) — session A covers the home,
-  new-game, and final-score screens; session B covers the round-input screens and
-  the rules page.  Manual triggers
+  and signals the host driver (`test_driver/screenshot_driver.dart`) via stdout
+  markers; the driver captures the full device screen via `adb exec-out screencap`
+  (Android) or `xcrun simctl io … screenshot` (iOS) and writes to
+  `screenshots/<platform>_<device-type>_<name>.png` (e.g.
+  `android_phone_01_home.png`).  Two `testWidgets` sessions use a pre-seeded
+  SharedPreferences fixture (`integration_test/screenshot_fixtures.dart`) —
+  session A covers the home, new-game, and final-score screens; session B covers
+  the round-input screens and the rules page.  All device and locale config is
+  declared as consts inside the script itself; `--print-env` outputs the Android
+  values as `KEY=VALUE` lines for CI.  Manual triggers
   [`Screenshots – Android`](.github/workflows/screenshots-android.yml) and
   [`Screenshots – iOS`](.github/workflows/screenshots-ios.yml) run the pipeline
-  in CI (three device sizes: phone + two tablet formats for each platform) using
+  in CI (phone + tablet for each platform) using
   `reactivecircus/android-emulator-runner@v2` for Android and the pre-installed
   Xcode + simulators on `macos-latest` for iOS; the result is uploaded as a
-  downloadable artifact for review before manual store upload.  Locally:
-  `./tool/generate_screenshots.sh --android phone` (or `--ios iphone` on macOS);
-  local Android mode manages the AVD lifecycle (dependency-preflight, create +
-  boot + test + kill); pass `--keep-running` to leave the device alive for
-  inspection.  `integration_test` and `flutter_driver` are declared as
-  `dev_dependencies` with `sdk: flutter` — they live in the Flutter SDK and are
-  skipped by `update_deps.dart` (no version field in `pubspec.lock`).
+  downloadable artifact for review before manual store upload.  Local Android
+  mode manages the full AVD lifecycle (dependency-preflight, create + boot +
+  test + kill); pass `--clean` to force a cold boot (wipes userdata,
+  skips and deletes any saved Quickboot snapshot).
+  `integration_test` and `flutter_driver` are declared as `dev_dependencies`
+  with `sdk: flutter` — they live in the Flutter SDK and are skipped by
+  `update_deps.dart` (no version field in `pubspec.lock`).
 - **Updates:** `services/app_updater.dart` checks Google Play for a newer build
   (Android only; no-op on web/iOS/sideloaded; never blocks startup).
 

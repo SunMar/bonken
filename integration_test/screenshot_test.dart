@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -40,6 +39,7 @@ Future<void> _screenshot(WidgetTester tester, String name) async {
   final ackPath = Platform.isAndroid
       ? '/data/local/tmp/.screenshot_ack.$name'
       : '/tmp/.screenshot_ack.$name';
+  // ignore: avoid_print
   print('SCREENSHOT:$name:$ackPath:$uuid');
 
   const maxWait = Duration(seconds: 30);
@@ -48,6 +48,10 @@ Future<void> _screenshot(WidgetTester tester, String name) async {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     final ack = File(ackPath);
     if (ack.existsSync() && ack.readAsStringSync().trim() == uuid) {
+      // Pump until settled: async providers may have completed during the
+      // 100ms sleep windows, scheduling one or more frames that need to be
+      // rendered before the caller can interact with the widget tree.
+      await tester.pumpAndSettle();
       return;
     }
   }
@@ -117,8 +121,9 @@ void main() {
 
       // Screenshot 7: final scoreboard (game A is fully played — 12 rounds)
       await _screenshot(tester, '07_final_score');
+      await _tapBack(tester);
     },
-    timeout: const Timeout(Duration(minutes: 5)),
+    timeout: const Timeout(Duration(minutes: 1)),
   );
 
   // ==========================================================================
@@ -189,8 +194,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await _screenshot(tester, '05_seventh_thirteenth');
-      await _tapBack(tester);
-      await _tapBack(tester);
+      await _tapBack(tester); // back to game screen
+      await _tapBack(tester); // back to home
 
       // ----- Screenshot 6: Zonder troef input (game F) -------------------------
       await tester.tap(find.text('Troefje'));
@@ -198,6 +203,9 @@ void main() {
       // 'Zonder troef' is the last positive tile — scroll until it's built.
       // Specify the GameScreen scrollable to avoid matching the HomeScreen
       // ListView that's still alive in the navigator stack below.
+      // After scrollUntilVisible, ensureVisible(alignment: 0.5) centers the
+      // tile in the viewport; without it, on tablet the tile lands exactly at
+      // the bottom clipping boundary and the tap misses on CI.
       await tester.scrollUntilVisible(
         find.text('Zonder troef'),
         100,
@@ -208,6 +216,11 @@ void main() {
             )
             .first,
       );
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Zonder troef')),
+        alignment: 0.5,
+      );
+      await tester.pump();
       await tester.tap(find.text('Zonder troef'));
       await tester.pumpAndSettle();
 
@@ -234,6 +247,6 @@ void main() {
       await tester.pumpAndSettle();
       await _screenshot(tester, '08_rules');
     },
-    timeout: const Timeout(Duration(minutes: 5)),
+    timeout: const Timeout(Duration(minutes: 1)),
   );
 }
