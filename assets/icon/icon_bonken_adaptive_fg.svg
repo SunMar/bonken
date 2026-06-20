@@ -1,8 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 1280 1280">
-  <!-- Android adaptive icon FOREGROUND.
-       Same card geometry and viewBox as icon_bonken_padded.svg, but
-       transparent background — the adaptive background drawable
-       provides the gradient. -->
+  <!-- Android adaptive icon FOREGROUND, Android legacy fallback, PWA maskable
+       icons, all native splash images (Android + iOS), and PWA non-maskable
+       icons.  Transparent background — the adaptive background drawable /
+       WebAPK adaptive background (background_color from manifest = #283593)
+       / splash background colour provides the fill.  Card corners (rounded
+       rect, rx=64) are at ~495 SVG units from centre; PWA maskable safe-zone
+       radius = 40%×1280 = 512 units → ~17 SVG units (~7 px on the 512 px
+       icon) inside the boundary.  android:inset="10%" puts corners ~8-10 px
+       inside the 36 dp adaptive safe zone.  If the inset or card geometry
+       changes, recalculate both margins (see ARCHITECTURE.md §12). -->
   <defs>
     <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFFFFF"/>

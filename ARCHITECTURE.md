@@ -1346,12 +1346,13 @@ no circle mask — so no safe-zone padding is needed and the card can fill more 
 the canvas.
 
 *50 % card* (viewBox `−128 −128 1280 1280`): `icon_bonken_adaptive_fg.svg`
-(transparent), `icon_bonken_padded.svg` (gradient background), and
-`icon_bonken_adaptive_bg.svg` (gradient background layer only). The extra padding
-is required for Android's strict-circle launcher mask; see **Safe-zone calibration**
-below. This size is also used for all native and PWA splash screens and the HTML
-loading screen, so the splash card appears visually consistent across platforms even
-though the launcher icon is larger on iOS.
+(transparent — used for every output in this size: adaptive foreground, legacy
+fallback, maskable PWA icons, all splash screens) and `icon_bonken_adaptive_bg.svg`
+(gradient background layer only). The extra padding vs. the 62.5 % card is required
+for Android's strict-circle launcher mask; see **Safe-zone calibration** below.
+This size is also used for all native and PWA splash screens and the HTML loading
+screen, so the splash card appears visually consistent across platforms even though
+the launcher icon is larger on iOS.
 
 The card coordinates, radii, and suit positions are **identical** in all four SVGs;
 only the viewBox and background differ.
@@ -1370,14 +1371,15 @@ only the viewBox and background differ.
   composite the card on white.
 - *Native Android*: `flutter_launcher_icons` generates adaptive icon layers —
   foreground from `icon_bonken_adaptive_fg.png` (transparent, 50 % card) +
-  `icon_bonken_adaptive_bg.png`; legacy fallback from `icon_bonken_padded.png`
-  (50 % card, gradient). `android:inset="10%"` on the foreground; see
-  **Safe-zone calibration** below.
+  `icon_bonken_adaptive_bg.png`; legacy fallback also from `icon_bonken_adaptive_fg.png`
+  (transparent — WebAPK adaptive background supplies `#283593`).
+  `android:inset="10%"` on the foreground; see **Safe-zone calibration** below.
 - *Android PWA*: Chrome picks `Icon-maskable-{192,512,1024}.png` (from
-  `icon_bonken_padded.svg`, 50 % card, gradient background) for the home-screen
-  icon; falls back to non-maskable `Icon-{192,512,1024}.png` (transparent, 50 %
-  card, from `icon_bonken_adaptive_fg.svg`). All six sizes listed in the static
-  committed `manifest.json`.
+  `icon_bonken_adaptive_fg.svg`, 50 % card, transparent background) for the home-screen
+  icon; the WebAPK adaptive background is derived from `background_color` (`#283593`).
+  Falls back to non-maskable `Icon-{192,512,1024}.png` (also from
+  `icon_bonken_adaptive_fg.svg`). All six sizes listed in the static committed
+  `manifest.json`.
 
 **Splash screens** (shown while the app loads, before any UI is interactive):
 
@@ -1390,28 +1392,29 @@ only the viewBox and background differ.
   (200–800 px at five density buckets, from `icon_bonken_adaptive_fg.svg`, 50 % card,
   ~200 dp) on `#283593`. Image assets are gitignored.
 - *Native Android (API 31+)*: `values-v31/styles.xml` sets
-  `windowSplashScreenBackground` (`#283593`), `windowSplashScreenAnimatedIcon`
-  (`@drawable/splash_logo` — the same transparent card as API 21–30), and
-  `windowSplashScreenIconBackgroundColor` (`#283593`). Without the explicit icon,
-  API 31+ auto-uses the full adaptive launcher icon including its gradient circle,
-  which is visually inconsistent with the flat-indigo splash on older API levels.
+  `windowSplashScreenBackground` (`#283593`) and `windowSplashScreenAnimatedIcon`
+  (`@drawable/splash_logo` — the same transparent card as API 21–30). Without the
+  explicit icon, API 31+ auto-uses the full adaptive launcher icon including its
+  gradient circle, which is visually inconsistent with the flat-indigo splash on
+  older API levels. `windowSplashScreenIconBackgroundColor` is intentionally absent:
+  setting it draws an elevated circle with a material shadow even when the colour
+  matches the screen background, creating a visible ring around the icon.
 - *Android PWA*: Chrome auto-generates a splash from `background_color: "#283593"`
   in `manifest.json` and the best-matching manifest icon (maskable, clipped to a
-  circle).
+  circle). The maskable icons have a transparent background so the WebAPK adaptive
+  background (`#283593`) shows through without a visible gradient ring at the clip edge.
 - *Web (HTML loading screen)*: `index.html` shows a `#283593` full-screen div with
   `Icon-192.png` at 96 × 96 px CSS (50 % card, from `icon_bonken_adaptive_fg.svg`)
   and an animated progress bar; the div fades out on `flutter-first-frame`. This
   runs during JS/Flutter download inside the browser tab and is distinct from the
   PWA splash — it appears for both installed-PWA and plain-browser visits.
 
-**Safe-zone calibration:** `icon_bonken_padded.svg` and `icon_bonken_adaptive_fg.svg`
-both use viewBox `−128 −128 1280 1280` (card at 50 % of canvas). The native
-`android:inset="10%"` (`adaptive_icon_foreground_inset` in `pubspec.yaml`) shrinks
-the foreground to 80 % of the 108 dp canvas, so adaptive corners are ~8–10 px
-inside the 36 dp safe zone (at 3–4× DPI). The PWA maskable corners are ~7 px
-inside the 40 %×1280 = 512 SVG-unit safe zone on the 512 px icon file. If
-`adaptive_icon_foreground_inset` or the card geometry changes, recalculate both
-margins.
+**Safe-zone calibration:** `icon_bonken_adaptive_fg.svg` uses viewBox `−128 −128 1280 1280`
+(card at 50 % of canvas). The native `android:inset="10%"` (`adaptive_icon_foreground_inset`
+in `pubspec.yaml`) shrinks the foreground to 80 % of the 108 dp canvas, so adaptive
+corners are ~8–10 px inside the 36 dp safe zone (at 3–4× DPI). The PWA maskable corners
+are ~7 px inside the 40 %×1280 = 512 SVG-unit safe zone on the 512 px icon file. If
+`adaptive_icon_foreground_inset` or the card geometry changes, recalculate both margins.
 
 **Why the card isn't larger (do not "fix" the visible gap):** the card corner
 reaches 1.545× its half-width (rounded-rect geometry), so at the current sizing it

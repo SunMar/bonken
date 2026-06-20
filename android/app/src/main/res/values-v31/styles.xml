@@ -3,8 +3,9 @@
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
         <!-- Use the transparent splash logo (same as Android 11- and iOS splash) instead
-             of the adaptive launcher icon so the gradient circle isn't shown. -->
+             of the adaptive launcher icon so the gradient circle isn't shown.
+             No windowSplashScreenIconBackgroundColor: setting it creates an elevated circle
+             with a material shadow even when the colour matches the screen background. -->
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_background</item>
     </style>
 </resources>
