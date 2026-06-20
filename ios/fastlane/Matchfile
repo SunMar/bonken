@@ -6,9 +6,9 @@
 #   MATCH_GIT_BASIC_AUTHORIZATION  base64("user:PAT") — read by match for cloning
 #   MATCH_PASSWORD                 passphrase that decrypts the repo contents
 #
-# CI runs match in read-only mode (it never creates/revokes certs). The initial
-# certificate + profile are generated once by the read-write `renew` lane in
-# Fastfile — run it via the "Renew iOS certificate" workflow (Actions → Run workflow).
+# CI runs match in read-only mode (it never creates/revokes certs). To renew
+# the certificate (~yearly), use the read-write `renew` lane in Fastfile —
+# run it via the "Renew iOS certificate" workflow (Actions → Run workflow).
 git_url(ENV["MATCH_GIT_URL"])
 storage_mode("git")
 type("appstore")

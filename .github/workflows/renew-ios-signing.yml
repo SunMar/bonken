@@ -26,6 +26,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
+          ruby-version: '4.0'
           working-directory: ios
           bundler-cache: true
 
@@ -35,7 +36,6 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-          # Admin-role key — only this rarely-run manual job loads it.
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_ADMIN_KEY_ID: ${{ secrets.APP_STORE_CONNECT_ADMIN_KEY_ID }}
           APP_STORE_CONNECT_ADMIN_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_ADMIN_KEY_BASE64 }}

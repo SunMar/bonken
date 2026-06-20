@@ -7,8 +7,8 @@
 #              App Store Connect, mirroring the Android "draft" upload).
 #   renew    — manually triggered (Actions → "Renew iOS certificate"): regenerates
 #              the App Store distribution certificate + provisioning profile and
-#              stores them (encrypted) in the match repo. Doubles as the one-time
-#              bootstrap. Needs an ADMIN-role App Store Connect API key.
+#              stores them (encrypted) in the match repo. Run when the cert
+#              expires (~yearly). Needs an ADMIN-role App Store Connect API key.
 #
 # Two App Store Connect API keys, by least privilege:
 #   - App Manager key  → release lane only (TestFlight upload). Used on every tag.
@@ -51,9 +51,9 @@ platform :ios do
     )
 
     # Installs the App Store distribution certificate + provisioning profile
-    # from the private match repo (read-only: never creates/revokes anything,
-    # and needs no API key — just the repo + MATCH_PASSWORD).
-    match(type: "appstore", readonly: true)
+    # from the private match repo. setup_ci above puts match in read-only mode,
+    # so this never creates/revokes anything — just the repo + MATCH_PASSWORD.
+    match(type: "appstore")
 
     # match exports these after running; use them to drive manual signing.
     profile_name = ENV.fetch("sigh_#{APP_IDENTIFIER}_appstore_profile-name")
@@ -96,9 +96,14 @@ platform :ios do
     )
   end
 
-  desc "Create/renew the App Store certificate + profile in the match repo " \
-       "(also the one-time bootstrap). Safe to run after the old cert expired."
+  desc "Renew the App Store distribution certificate + provisioning profile " \
+       "in the match repo. Safe to run any time — also works after expiry."
   lane :renew do
+    api_key = asc_api_key(
+      key_id_env: "APP_STORE_CONNECT_ADMIN_KEY_ID",
+      key_base64_env: "APP_STORE_CONNECT_ADMIN_KEY_BASE64",
+    )
+
     # readonly:false lets match CREATE the cert/profile (overrides the Matchfile
     # default). force:true always regenerates the provisioning profile. Modern
     # match detects an expired stored certificate and mints a fresh one, so this
@@ -107,10 +112,7 @@ platform :ios do
       type: "appstore",
       readonly: false,
       force: true,
-      api_key: asc_api_key(
-        key_id_env: "APP_STORE_CONNECT_ADMIN_KEY_ID",
-        key_base64_env: "APP_STORE_CONNECT_ADMIN_KEY_BASE64",
-      ),
+      api_key: api_key,
     )
   end
 end
