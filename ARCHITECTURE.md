@@ -1321,13 +1321,12 @@ rewrites the `pubspec.yaml` asset path atomically.
 ### Launcher icons & splash screens
 
 `./tool/generate_icons.sh` renders SVG sources to PNGs, runs `flutter_launcher_icons`
-(config in `pubspec.yaml`), generates iOS and Android native splash images, then
-overwrites the PWA maskable icons with `icon_bonken_maskable.svg`. Requires
-`rsvg-convert` (`apt install librsvg2-bin`) and `fc-match`/`fc-query`
+(config in `pubspec.yaml`), and generates all platform splash images and PWA icons.
+Requires `rsvg-convert` (`apt install librsvg2-bin`) and `fc-match`/`fc-query`
 (`apt install fontconfig`); CI installs both in `setup-build`. Locally the script
 requires `fvm`; CI passes `--ci` so it uses PATH `dart` directly. Do not run
-`fvm dart run flutter_launcher_icons` directly: it produces incorrect PWA maskable
-icons (no safe-zone padding) and skips the intermediate 1024 px PNGs.
+`fvm dart run flutter_launcher_icons` directly: it skips the intermediate 1024 px PNGs,
+all web icon and splash-screen generation, and the font-sandbox sanity check.
 
 **Font sandbox:** the script builds a throwaway `FONTCONFIG_FILE` exposing *only*
 `assets/google_fonts/<version>/`, so suit/word glyphs rasterise from the same
@@ -1339,7 +1338,73 @@ family/weight would silently fall back rather than error. Today the SVGs referen
 only `Roboto` and `Arimo` at weight 400, both bundled; keep new SVG glyphs within
 the shipped cuts.
 
-**Safe-zone calibration:** `icon_bonken_maskable.svg` and `icon_bonken_adaptive_fg.svg`
+**SVG sources** — two card sizes are in use, driven by platform constraints:
+
+*62.5 % card* (viewBox `0 0 1024 1024`): `icon_bonken.svg` (gradient background)
+and `icon_bonken_flat.svg` (solid `#283593` background). iOS only rounds corners —
+no circle mask — so no safe-zone padding is needed and the card can fill more of
+the canvas.
+
+*50 % card* (viewBox `−128 −128 1280 1280`): `icon_bonken_adaptive_fg.svg`
+(transparent), `icon_bonken_padded.svg` (gradient background), and
+`icon_bonken_adaptive_bg.svg` (gradient background layer only). The extra padding
+is required for Android's strict-circle launcher mask; see **Safe-zone calibration**
+below. This size is also used for all native and PWA splash screens and the HTML
+loading screen, so the splash card appears visually consistent across platforms even
+though the launcher icon is larger on iOS.
+
+The card coordinates, radii, and suit positions are **identical** in all four SVGs;
+only the viewBox and background differ.
+
+**Launcher / home-screen icons** (what appears in the app grid after install):
+
+- *Native iOS*: `flutter_launcher_icons` generates `AppIcon.appiconset` from
+  `icon_bonken.png` (`icon_bonken.svg`, 62.5 % card). `remove_alpha_ios: true`
+  flattens transparency onto `background_color_ios: "#283593"`; the gradient source
+  is already opaque. Generating the appiconset needs the `ios/` Runner project and
+  runs only on macOS/Xcode.
+- *iOS PWA (apple-touch-icon)*: `Icon-apple-touch.png` rendered from
+  `icon_bonken_flat.svg` (62.5 % card, solid `#283593` background), referenced by
+  `<link rel="apple-touch-icon">` in `index.html`. Same card size as the native iOS
+  launcher icon. Using the transparent `Icon-192.png` instead would let Safari
+  composite the card on white.
+- *Native Android*: `flutter_launcher_icons` generates adaptive icon layers —
+  foreground from `icon_bonken_adaptive_fg.png` (transparent, 50 % card) +
+  `icon_bonken_adaptive_bg.png`; legacy fallback from `icon_bonken_padded.png`
+  (50 % card, gradient). `android:inset="10%"` on the foreground; see
+  **Safe-zone calibration** below.
+- *Android PWA*: Chrome picks `Icon-maskable-{192,512,1024}.png` (from
+  `icon_bonken_padded.svg`, 50 % card, gradient background) for the home-screen
+  icon; falls back to non-maskable `Icon-{192,512,1024}.png` (transparent, 50 %
+  card, from `icon_bonken_adaptive_fg.svg`). All six sizes listed in the static
+  committed `manifest.json`.
+
+**Splash screens** (shown while the app loads, before any UI is interactive):
+
+- *Native iOS*: `LaunchScreen.storyboard` centres `LaunchImage.png` (1×/2×/3× at
+  200/400/600 px, from `icon_bonken_adaptive_fg.svg`, 50 % card) on `#283593`.
+  Image assets are gitignored.
+- *iOS PWA*: iOS auto-generates a splash from the `apple-touch-icon`; card size
+  matches the home-screen icon (62.5 %).
+- *Native Android (API 21–30)*: `launch_background.xml` centres `splash_logo.png`
+  (200–800 px at five density buckets, from `icon_bonken_adaptive_fg.svg`, 50 % card,
+  ~200 dp) on `#283593`. Image assets are gitignored.
+- *Native Android (API 31+)*: `values-v31/styles.xml` sets
+  `windowSplashScreenBackground` (`#283593`), `windowSplashScreenAnimatedIcon`
+  (`@drawable/splash_logo` — the same transparent card as API 21–30), and
+  `windowSplashScreenIconBackgroundColor` (`#283593`). Without the explicit icon,
+  API 31+ auto-uses the full adaptive launcher icon including its gradient circle,
+  which is visually inconsistent with the flat-indigo splash on older API levels.
+- *Android PWA*: Chrome auto-generates a splash from `background_color: "#283593"`
+  in `manifest.json` and the best-matching manifest icon (maskable, clipped to a
+  circle).
+- *Web (HTML loading screen)*: `index.html` shows a `#283593` full-screen div with
+  `Icon-192.png` at 96 × 96 px CSS (50 % card, from `icon_bonken_adaptive_fg.svg`)
+  and an animated progress bar; the div fades out on `flutter-first-frame`. This
+  runs during JS/Flutter download inside the browser tab and is distinct from the
+  PWA splash — it appears for both installed-PWA and plain-browser visits.
+
+**Safe-zone calibration:** `icon_bonken_padded.svg` and `icon_bonken_adaptive_fg.svg`
 both use viewBox `−128 −128 1280 1280` (card at 50 % of canvas). The native
 `android:inset="10%"` (`adaptive_icon_foreground_inset` in `pubspec.yaml`) shrinks
 the foreground to 80 % of the 108 dp canvas, so adaptive corners are ~8–10 px
@@ -1362,28 +1427,8 @@ maxima are inset 6.9 % / viewBox 1236 (only ~9 % / ~3.6 % bigger — marginal), 
 the gap cannot be meaningfully reduced without sacrificing the no-clip guarantee.
 This was a deliberate decision; keep it.
 
-**iOS icon sizing** is not bound by the circle-mask constraint — iOS only rounds
-the corners, no circle mask, so its full-bleed icon is sized fuller:
-`image_path_ios` points at `icon_bonken.png` (`icon_bonken.svg`, 62.5 % card) —
-the same source the PWA `apple-touch-icon` uses — so the iOS-native and iOS-PWA
-icons render at the same size. At 62.5 % the card still clears the iOS corner
-squircle. iOS rejects alpha, so `remove_alpha_ios` flattens onto
-`background_color_ios` (`#283593`); the source is already opaque. Generating the
-iOS `AppIcon.appiconset` (the `flutter_launcher_icons` iOS pass) needs the `ios/`
-Runner project present and runs only on macOS/Xcode.
-
-**Splash screens:** `icon_bonken_adaptive_fg.svg` (transparent logo, same SVG as
-the Android adaptive foreground) is rendered to iOS `LaunchImage.png` (1×/2×/3×
-at 200/400/600 px → displays at 200 pt centered) and Android `splash_logo.png` at
-five density buckets (200–800 px → 200 dp); both sets are gitignored. Platform
-config (committed): iOS `LaunchScreen.storyboard` sets the background to `#283593`
-(`Colors.indigo[800]`); `android/app/src/main/res/drawable/` and
-`drawable-v21/launch_background.xml` layer that color + a centered bitmap;
-`values/colors.xml` defines `splash_background`; `values-v31/styles.xml` sets
-`android:windowSplashScreenBackground` for Android 12+'s SplashScreen API (the
-adaptive launcher icon is picked up automatically — no `windowSplashScreenAnimatedIcon`
-needed). Web uses a bespoke loading screen in `web/index.html` (icon + animated
-bar, hides on `flutter-first-frame`; no script involvement).
+`icon_bonken.svg` (gradient) also serves as the Play Store listing icon and the
+About-dialog icon.
 
 ### Store screenshots
 

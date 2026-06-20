@@ -112,26 +112,32 @@ done
 echo "==> Rendering source SVGs to 1024px PNGs"
 rsvg-convert -w 1024 assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken.png
 rsvg-convert -w 72   assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken_share.png
-rsvg-convert -w 1024 assets/icon/icon_bonken_launcher.svg     -o assets/icon/icon_bonken_launcher.png
+rsvg-convert -w 1024 assets/icon/icon_bonken_padded.svg       -o assets/icon/icon_bonken_padded.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o assets/icon/icon_bonken_adaptive_fg.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_bg.svg  -o assets/icon/icon_bonken_adaptive_bg.png
-rsvg-convert -w 1024 assets/icon/icon_bonken_maskable.svg     -o assets/icon/icon_bonken_maskable.png
 
-echo "==> Generating Android + web launcher icons"
+echo "==> Generating Android + iOS launcher icons"
 "${dart_cmd[@]}" run flutter_launcher_icons
 
-echo "==> Rendering PWA maskable icons (overrides flutter_launcher_icons output)"
-# flutter_launcher_icons has no separate maskable_image_path for web, so we
-# render icon_bonken_maskable.svg directly.  Its viewBox (-128 -128 1280 1280)
-# matches icon_bonken_adaptive_fg.svg — both place the card at 50% of canvas.
-# The native icon's android:inset="10%" (adaptive_icon_foreground_inset in
-# pubspec.yaml) shrinks the foreground to 80% of the 108dp canvas, putting
-# corners ~8-10px inside the 36dp adaptive safe zone.  The PWA corners land
-# ~7px inside the maskable safe zone (40%×1280 = 512 SVG units, corners ~495).
-# If the inset value or card geometry changes, recalculate both margins —
-# see ARCHITECTURE.md §12 for details.
-rsvg-convert -w 192 assets/icon/icon_bonken_maskable.svg -o web/icons/Icon-maskable-192.png
-rsvg-convert -w 512 assets/icon/icon_bonken_maskable.svg -o web/icons/Icon-maskable-512.png
+echo "==> Rendering PWA icons"
+# Web icons are generated here rather than by flutter_launcher_icons (web.generate: false
+# in pubspec.yaml) so that manifest.json can be kept as a static committed file.
+# Non-maskable: viewBox (-128 -128 1280 1280) places the card at 50% of canvas.
+# Maskable: same viewBox; corners land ~7px inside the maskable safe zone (40%×1280=512
+# SVG units, corners ~495). The native icon's android:inset="10%" puts corners ~8-10px
+# inside the 36dp adaptive safe zone — keep both in sync. See ARCHITECTURE.md §12.
+mkdir -p web/icons
+rsvg-convert -w 192  assets/icon/icon_bonken_adaptive_fg.svg  -o web/icons/Icon-192.png
+rsvg-convert -w 512  assets/icon/icon_bonken_adaptive_fg.svg  -o web/icons/Icon-512.png
+rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o web/icons/Icon-1024.png
+rsvg-convert -w 192  assets/icon/icon_bonken_padded.svg     -o web/icons/Icon-maskable-192.png
+rsvg-convert -w 512  assets/icon/icon_bonken_padded.svg     -o web/icons/Icon-maskable-512.png
+rsvg-convert -w 1024 assets/icon/icon_bonken_padded.svg     -o web/icons/Icon-maskable-1024.png
+
+echo "==> Rendering flat-background icon for home-screen shortcut (apple-touch-icon)"
+# iOS Safari (and some Android launchers) composite transparent icons onto white.
+# icon_bonken_flat.svg has the brand colour baked into the background rect.
+rsvg-convert -w 192 assets/icon/icon_bonken_flat.svg -o web/icons/Icon-apple-touch.png
 
 echo "==> Rendering web favicon (32px)"
 rsvg-convert -w 32 assets/icon/icon_bonken.svg -o web/favicon.png

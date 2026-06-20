@@ -1,17 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 1280 1280">
-  <!-- PWA maskable icon.  viewBox matches icon_bonken_adaptive_fg.svg:
-       card at 50% of canvas (640/1280 units).  Card corners (rounded
-       rect, rx=64) are at ~495 SVG units from centre; maskable safe-zone
-       radius = 40% × 1280 = 512 units → ~17 units (~7 px on the 512 px
-       icon) inside the safe-zone boundary.  The native adaptive icon with
-       android:inset="10%" puts corners ~8–10 px inside its 36 dp safe
-       zone.  If the inset value or card geometry changes, recalculate
-       both margins (see ARCHITECTURE.md §12). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Flat-background icon, rendered to web/icons/Icon-apple-touch.png for the
+       home-screen shortcut (HTML apple-touch-icon link).  Same card geometry
+       and viewBox as icon_bonken.svg, but with a solid #283593 background rect
+       instead of the radial gradient — iOS Safari (and some Android launchers)
+       composite transparent touch icons onto white, which would look wrong.
+       Using the same viewBox as icon_bonken.svg ensures the PWA home-screen
+       icon matches the native iOS launcher icon in card size (62.5 % of canvas). -->
   <defs>
-    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
-      <stop offset="0%" stop-color="#5C6BC0"/>
-      <stop offset="100%" stop-color="#283593"/>
-    </radialGradient>
     <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFFFFF"/>
       <stop offset="100%" stop-color="#F2F3F8"/>
@@ -24,7 +19,7 @@
     </filter>
   </defs>
 
-  <rect x="-128" y="-128" width="1280" height="1280" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" fill="#283593"/>
 
   <!-- ===== shared card + suit geometry (keep in sync across icon_bonken*.svg) ===== -->
   <g filter="url(#cardShadow)">
@@ -32,6 +27,12 @@
     <rect x="192" y="102" width="640" height="820" rx="64" ry="64"
           fill="none" stroke="#1A237E" stroke-opacity="0.10" stroke-width="4"/>
   </g>
+  <!-- Suit symbols rendered as <text> using Arimo
+       (bundled at assets/google_fonts/<version>/Arimo-Regular.ttf, exposed to
+       rsvg-convert via the bundled fontconfig in
+       tool/generate_icons.sh).  Browser previews need
+       Arimo installed (an Arial-metric font);
+       PNG generation is deterministic regardless. -->
   <g font-family="Arimo" text-anchor="middle" font-size="165">
     <text x="290" y="270" fill="#0D2B4E">&#x2660;</text>
     <text x="425" y="270" fill="#B52424">&#x2665;</text>

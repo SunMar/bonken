@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 1280 1280">
   <!-- Android adaptive icon FOREGROUND.
-       Same card geometry and viewBox as icon_bonken_launcher.svg, but
+       Same card geometry and viewBox as icon_bonken_padded.svg, but
        transparent background — the adaptive background drawable
        provides the gradient. -->
   <defs>

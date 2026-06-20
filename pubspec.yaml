@@ -104,17 +104,14 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true # App Store rejects icons with an alpha channel.
   background_color_ios: "#283593" # Flatten transparency onto the brand colour.
-  image_path: "assets/icon/icon_bonken_launcher.png"
+  image_path: "assets/icon/icon_bonken_padded.png"
   image_path_ios: "assets/icon/icon_bonken.png"
   min_sdk_android: 21
   adaptive_icon_background: "assets/icon/icon_bonken_adaptive_bg.png"
   adaptive_icon_foreground: "assets/icon/icon_bonken_adaptive_fg.png"
-  adaptive_icon_foreground_inset: 10 # corners ~8-10px inside adaptive safe zone (36dp); keep in sync with icon_bonken_maskable.svg viewBox — see ARCHITECTURE.md §12
+  adaptive_icon_foreground_inset: 10 # corners ~8-10px inside adaptive safe zone (36dp); keep in sync with icon_bonken_padded.svg viewBox — see ARCHITECTURE.md §12
   web:
-    generate: true
-    image_path: "assets/icon/icon_bonken.png"
-    background_color: "#283593"
-    theme_color: "#5C6BC0"
+    generate: false  # web icons are generated manually in tool/generate_icons.sh
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

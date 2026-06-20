@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- Bonken logo, used as:
        - Play Store icon
-       - Web favicon / PWA icon
-       - The shared card design that icon_bonken_launcher.svg and
-         icon_bonken_adaptive_fg.svg also use, just inside a larger
-         viewBox so the card gets scaled down by the renderer.
-       The card geometry below MUST stay identical between those three
-       files — only the surrounding viewBox / background differs. -->
+       - Web favicon
+       - About-dialog icon
+       - Native iOS launcher icon source (via flutter_launcher_icons)
+       The card geometry below MUST stay identical across icon_bonken.svg,
+       icon_bonken_flat.svg, icon_bonken_padded.svg, and
+       icon_bonken_adaptive_fg.svg — only the viewBox and background differ.
+       icon_bonken_flat.svg shares this exact viewBox (0 0 1024 1024) but
+       substitutes a solid #283593 background for the gradient. -->
   <defs>
     <radialGradient id="bg" cx="50%" cy="40%" r="75%">
       <stop offset="0%" stop-color="#5C6BC0"/>

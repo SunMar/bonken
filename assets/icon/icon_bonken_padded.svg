@@ -1,10 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 1280 1280">
-  <!-- Legacy launcher icon (Android < 8 and any launcher that masks
-       the icon).  Identical card geometry to icon_bonken.svg, just
-       inside a larger viewBox so the card sits at ~64% of the canvas
-       height — inside the 66.67% adaptive-icon safe zone with a
-       small margin so the indigo gradient still frames the card on
-       every edge even on worst-case strict-circle launcher masks. -->
+  <!-- Padded icon — shared source for Android legacy launcher (< API 26
+       and any launcher that clips to a circle) and PWA maskable icons.
+       Identical card geometry to icon_bonken.svg, inside a larger viewBox
+       so the card sits at ~64 % of the canvas (640/1280 SVG units).
+       Card corners (rounded rect, rx=64) are at ~495 SVG units from centre;
+       PWA maskable safe-zone radius = 40 % × 1280 = 512 units → ~17 SVG
+       units (~7 px on the 512 px icon) inside the boundary.  The native
+       adaptive icon's android:inset="10 %" puts corners ~8–10 px inside
+       its 36 dp safe zone.  The gradient extends to every edge so
+       strict-circle masks don't show a gap.  If the inset or card geometry
+       changes, recalculate both margins (see ARCHITECTURE.md §12). -->
   <defs>
     <radialGradient id="bg" cx="50%" cy="40%" r="75%">
       <stop offset="0%" stop-color="#5C6BC0"/>
