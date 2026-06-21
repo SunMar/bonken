@@ -251,4 +251,45 @@ jobs:
       expect(ubuntuIsNewer((22, 4), (24, 4)), isFalse);
     });
   });
+
+  group('parseMacosRunners', () {
+    test('parses a pinned macos-N runner', () {
+      expect(parseMacosRunners('    runs-on: macos-26\n'), {26});
+    });
+
+    test('ignores macos-latest and non-macOS runners', () {
+      const yaml = '''
+    runs-on: macos-latest
+    runs-on: ubuntu-24.04
+''';
+      expect(parseMacosRunners(yaml), isEmpty);
+    });
+
+    test('collects distinct versions across a file', () {
+      const yaml = '''
+    runs-on: macos-26
+    runs-on: macos-15
+    runs-on: macos-26
+''';
+      expect(parseMacosRunners(yaml), {26, 15});
+    });
+  });
+
+  group('highestMacosImage', () {
+    test('picks the highest x64 image, ignoring arm64 + other entries', () {
+      const names = [
+        'macos-15-Readme.md',
+        'macos-15-arm64-Readme.md',
+        'macos-26-Readme.md',
+        'macos-26-arm64-Readme.md',
+        'assets',
+        'scripts',
+      ];
+      expect(highestMacosImage(names), 26);
+    });
+
+    test('returns null when no image readme matches', () {
+      expect(highestMacosImage(['assets', 'README.md']), isNull);
+    });
+  });
 }

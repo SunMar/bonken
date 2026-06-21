@@ -12,7 +12,9 @@
 //      only; a major bump may need Fastfile changes, so it stays manual.
 //   3. The Ubuntu runner (`runs-on: ubuntu-N.N`) — REPORTS a newer LTS image
 //      only; bumping the OS is deliberate (package names etc. can change).
-//   4. Ruby (`ruby-version: 'X.Y'` in workflow YAML) — REPORTS a newer release
+//   4. The macOS runner (`runs-on: macos-N`) — REPORTS a newer image only;
+//      bumping the OS is deliberate (Xcode availability can change).
+//   5. Ruby (`ruby-version: 'X.Y'` in workflow YAML) — REPORTS a newer release
 //      cycle only; bumping Ruby is deliberate (API/gem compat can change).
 //
 // Only the GitHub Actions are ever written; fastlane, the runner, and Ruby are
@@ -66,6 +68,7 @@ Future<void> main(List<String> args) async {
     pending |= await _checkActions(yamlFiles, token, client, checkOnly);
     pending |= await _checkFastlane(client);
     pending |= await _checkUbuntu(yamlFiles, token, client);
+    pending |= await _checkMacos(yamlFiles, token, client);
     pending |= await _checkRuby(yamlFiles, client);
   } finally {
     client.close();
@@ -287,7 +290,80 @@ int _byUbuntu((int, int) a, (int, int) b) =>
     ubuntuIsNewer(a, b) ? -1 : (ubuntuIsNewer(b, a) ? 1 : 0);
 
 // ---------------------------------------------------------------------------
-// 4. Ruby — report-only (never written).
+// 4. macOS runner — report-only (never written).
+// ---------------------------------------------------------------------------
+
+/// Returns whether a newer macOS runner image is available than the oldest
+/// `runs-on: macos-N` pin across all workflows.
+Future<bool> _checkMacos(
+  List<String> yamlFiles,
+  String? token,
+  HttpClient client,
+) async {
+  print('==> macOS runner');
+
+  final pinned = <int>{};
+  for (final file in yamlFiles) {
+    pinned.addAll(parseMacosRunners(File(file).readAsStringSync()));
+  }
+  if (pinned.isEmpty) {
+    print('  (no pinned macos-N runners found)');
+    return false;
+  }
+  final oldest = pinned.reduce((a, b) => a < b ? a : b);
+  final spread = pinned.length == 1
+      ? ''
+      : ' (pinned: ${(pinned.toList()..sort()).map((v) => 'macos-$v').join(', ')})';
+
+  final names = await _fetchMacosRunnerImageNames(token, client);
+  if (names == null) return false;
+  final latest = highestMacosImage(names);
+  if (latest == null) {
+    print('  WARNING: could not determine the latest macOS image — skipping.');
+    return false;
+  }
+
+  if (latest <= oldest) {
+    print('  macos-$oldest (latest macos-$latest) — up to date.$spread');
+    return false;
+  }
+  print(
+    '  macos-$oldest -> macos-$latest available$spread. Confirm it is '
+    'GA, then bump `runs-on:` across .github/workflows/.',
+  );
+  return true;
+}
+
+/// Lists the entry names under `actions/runner-images` `images/macos/`, or
+/// `null` (with a warning) on failure.
+Future<List<String>?> _fetchMacosRunnerImageNames(
+  String? token,
+  HttpClient client,
+) async {
+  final request = await client.getUrl(
+    Uri.parse(
+      'https://api.github.com/repos/actions/runner-images/contents/images/macos',
+    ),
+  );
+  _githubHeaders(request, token);
+
+  final response = await request.close();
+  final body = await response.transform(utf8.decoder).join();
+  if (response.statusCode != 200) {
+    stderr.writeln(
+      '  WARNING: runner-images API returned HTTP ${response.statusCode} '
+      '— skipping.',
+    );
+    return null;
+  }
+  return [
+    for (final e in jsonDecode(body) as List<dynamic>)
+      (e as Map<String, dynamic>)['name'] as String,
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// 5. Ruby — report-only (never written).
 // ---------------------------------------------------------------------------
 
 /// Returns whether a newer Ruby major.minor cycle is available than the pinned

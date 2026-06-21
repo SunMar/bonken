@@ -134,3 +134,31 @@ bool ubuntuIsNewer((int, int) candidate, (int, int) current) =>
     candidate.$1 != current.$1
     ? candidate.$1 > current.$1
     : candidate.$2 > current.$2;
+
+/// Matches a pinned macOS runner like `runs-on: macos-26` (captures the version
+/// number). `macos-latest` and non-macOS runners do not match.
+final RegExp _macosRunnerRe = RegExp(r'runs-on:\s*macos-(\d+)');
+
+/// Parses the pinned macOS runner versions in [content] (a workflow YAML),
+/// each as an integer. `macos-latest` (and other runners) are ignored.
+Set<int> parseMacosRunners(String content) => {
+  for (final m in _macosRunnerRe.allMatches(content)) int.parse(m.group(1)!),
+};
+
+/// Matches an x64 macOS image readme name in `actions/runner-images`
+/// (`images/macos/macos-26-Readme.md` → 26). The `-arm64-` variants do
+/// not match, so the project's x64 `macos-N` pins compare like-for-like.
+final RegExp _macosImageRe = RegExp(r'^macos-(\d+)-Readme\.md$');
+
+/// Returns the highest macOS version among [fileNames] (the entry names of the
+/// runner-images `images/macos/` directory), or null when none match.
+int? highestMacosImage(Iterable<String> fileNames) {
+  int? highest;
+  for (final name in fileNames) {
+    final m = _macosImageRe.firstMatch(name);
+    if (m == null) continue;
+    final v = int.parse(m.group(1)!);
+    if (highest == null || v > highest) highest = v;
+  }
+  return highest;
+}

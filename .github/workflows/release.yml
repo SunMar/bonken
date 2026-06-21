@@ -151,7 +151,7 @@ jobs:
   release-ios:
     needs: verify
     if: ${{ vars.IOS_RELEASE_ENABLED == 'true' }}
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 60
     environment: apple-app-store
     steps:
