@@ -109,29 +109,29 @@ for ttf in "$GFONTS_DIR"/*.ttf; do
   fi
 done
 
-echo "==> Rendering source SVGs to 1024px PNGs"
+echo "==> Rendering source SVGs to PNGs"
 rsvg-convert -w 1024 assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken.png
 rsvg-convert -w 72   assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken_share.png
+rsvg-convert -w 1024 assets/icon/icon_bonken_padded.svg       -o assets/icon/icon_bonken_padded.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o assets/icon/icon_bonken_adaptive_fg.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_bg.svg  -o assets/icon/icon_bonken_adaptive_bg.png
 
 echo "==> Generating Android + iOS launcher icons"
 "${dart_cmd[@]}" run flutter_launcher_icons
 
-echo "==> Rendering PWA icons"
-# Web icons are generated here rather than by flutter_launcher_icons (web.generate: false
-# in pubspec.yaml) so that manifest.json can be kept as a static committed file.
-# Non-maskable: viewBox (-128 -128 1280 1280) places the card at 50% of canvas.
-# Maskable: same viewBox; corners land ~7px inside the maskable safe zone (40%×1280=512
-# SVG units, corners ~495). The native icon's android:inset="10%" puts corners ~8-10px
-# inside the 36dp adaptive safe zone — keep both in sync. See ARCHITECTURE.md §12.
+echo "==> Rendering PWA maskable icons (overrides flutter_launcher_icons output)"
+# flutter_launcher_icons (web.generate: true in pubspec.yaml) generates Icon-192.png,
+# Icon-512.png, Icon-maskable-192.png, Icon-maskable-512.png from icon_bonken.png and
+# updates manifest.json with background_color, theme_color, and the icons array.
+# We overwrite the maskable variants here because flutter_launcher_icons has no separate
+# maskable_image_path for web.  icon_bonken_padded.svg viewBox (-128 -128 1280 1280)
+# places the card at 50% of canvas; corners land ~7px inside the maskable safe zone
+# (40%×1280=512 SVG units, corners ~495).  The native icon's android:inset="10%" puts
+# corners ~8-10px inside the 36dp adaptive safe zone — keep both in sync.
+# See ARCHITECTURE.md §12.
 mkdir -p web/icons
-rsvg-convert -w 192  assets/icon/icon_bonken_adaptive_fg.svg  -o web/icons/Icon-192.png
-rsvg-convert -w 512  assets/icon/icon_bonken_adaptive_fg.svg  -o web/icons/Icon-512.png
-rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o web/icons/Icon-1024.png
-rsvg-convert -w 192  assets/icon/icon_bonken_adaptive_fg.svg -o web/icons/Icon-maskable-192.png
-rsvg-convert -w 512  assets/icon/icon_bonken_adaptive_fg.svg -o web/icons/Icon-maskable-512.png
-rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg -o web/icons/Icon-maskable-1024.png
+rsvg-convert -w 192 assets/icon/icon_bonken_padded.svg -o web/icons/Icon-maskable-192.png
+rsvg-convert -w 512 assets/icon/icon_bonken_padded.svg -o web/icons/Icon-maskable-512.png
 
 echo "==> Rendering flat-background icon for home-screen shortcut (apple-touch-icon)"
 # iOS Safari (and some Android launchers) composite transparent icons onto white.
