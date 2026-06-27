@@ -59,6 +59,12 @@ fi
 # Setting FONTCONFIG_FILE replaces the system fontconfig entirely, so any
 # font NOT in this dir will not resolve.  That is the point: it
 # guarantees byte-identical PNGs across machines and CI.
+#
+# On macOS, Pango's default backend is CoreText, which bypasses FONTCONFIG_FILE
+# entirely — rsvg-convert then falls back to system fonts for the suit glyphs
+# (Apple Symbols instead of Arimo), producing wrong glyph shapes and spacing.
+# PANGOCAIRO_BACKEND=fontconfig switches Pango to its FreeType backend, which
+# does honour FONTCONFIG_FILE.  On Linux this var is a no-op.
 
 # Discover the bundled google_fonts asset dir from pubspec.yaml so this
 # script doesn't need a hardcoded version number — just keep pubspec's
@@ -84,6 +90,7 @@ cat > "$FONTCONFIG_DIR/fonts.conf" <<EOF
 </fontconfig>
 EOF
 export FONTCONFIG_FILE="$FONTCONFIG_DIR/fonts.conf"
+export PANGOCAIRO_BACKEND=fontconfig
 
 # Sanity-check that EVERY font we bundle under assets/google_fonts/<version>/
 # resolves, through the sandbox fontconfig above, back to itself — never a

@@ -6,5 +6,31 @@
     "display": "standalone",
     "description": "Een app voor het bijhouden van scores bij het kaartspel Bonken.",
     "orientation": "portrait-primary",
-    "prefer_related_applications": false
+    "prefer_related_applications": false,
+    "background_color": "#283593",
+    "theme_color": "#5C6BC0",
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
 }

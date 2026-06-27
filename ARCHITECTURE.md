@@ -1328,15 +1328,20 @@ requires `fvm`; CI passes `--ci` so it uses PATH `dart` directly. Do not run
 `fvm dart run flutter_launcher_icons` directly: it skips the intermediate source PNGs,
 the maskable PWA icon override, all splash-screen generation, and the font-sandbox sanity check.
 
-**Font sandbox:** the script builds a throwaway `FONTCONFIG_FILE` exposing *only*
-`assets/google_fonts/<version>/`, so suit/word glyphs rasterise from the same
-`.ttf`s the app ships (no system-font drift). Its sanity check is **asset-driven**:
-every bundled `.ttf` must resolve, through the sandbox, back to itself. That stays
-exhaustive as font cuts change, but it deliberately does **not** verify that the
-families the SVGs *reference* are bundled — so a future SVG naming an unbundled
-family/weight would silently fall back rather than error. Today the SVGs reference
-only `Roboto` and `Arimo` at weight 400, both bundled; keep new SVG glyphs within
-the shipped cuts.
+**Font sandbox:** the script sets two env vars to guarantee consistent rendering on
+both Linux and macOS:
+
+- `FONTCONFIG_FILE` points to a throwaway config exposing *only* `assets/google_fonts/<version>/`,
+  so suit/word glyphs rasterise from the same `.ttf`s the app ships (no system-font drift).
+- `PANGOCAIRO_BACKEND=fontconfig` forces Pango's FreeType backend. On macOS, Pango defaults to
+  CoreText, which bypasses `FONTCONFIG_FILE` entirely and causes rsvg-convert to fall back to
+  Apple Symbols for suit glyphs — wrong shapes and wider spacing. On Linux this var is a no-op.
+
+The sanity check is **asset-driven**: every bundled `.ttf` must resolve, through the sandbox,
+back to itself. That stays exhaustive as font cuts change, but it deliberately does **not** verify
+that the families the SVGs *reference* are bundled — so a future SVG naming an unbundled
+family/weight would silently fall back rather than error. Today the SVGs reference only `Roboto`
+and `Arimo` at weight 400, both bundled; keep new SVG glyphs within the shipped cuts.
 
 **SVG sources** — two card sizes are in use, driven by platform constraints:
 
