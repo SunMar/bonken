@@ -57,6 +57,42 @@ void main() {
     );
   });
 
+  testWidgets('the heading is a semantics header', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: MigrationScreen())),
+    );
+    await tester.pumpAndSettle();
+    final heading = tester.widget<Semantics>(
+      find
+          .ancestor(
+            of: find.text('Bonken is verhuisd'),
+            matching: find.byType(Semantics),
+          )
+          .first,
+    );
+    expect(heading.properties.header, isTrue);
+  });
+
+  testWidgets('content scrolls (no overflow) at a large text scale', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(3)),
+            child: MigrationScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    // The recovery actions are still reachable inside the scroll view.
+    expect(find.text('Installeer de nieuwe app'), findsOneWidget);
+  });
+
   testWidgets('"Exporteer gegevens" is disabled until history loads', (
     tester,
   ) async {

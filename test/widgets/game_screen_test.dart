@@ -141,6 +141,26 @@ void main() {
     expect(find.text('Klaveren'), findsOneWidget);
   });
 
+  testWidgets(
+    'history row pairs each name with its score in one semantics node',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      final players = [for (final n in _names) Player(name: n)];
+      final session = _session(
+        players: players,
+        rounds: [_round(1, const Duck(), players[1].id, players)],
+      );
+      await _pump(tester, session: session);
+      await _revealHistory(tester);
+
+      // Each player's name+score is announced together (not all four names then
+      // all four scores); the visible "Alice:" / "0" texts are excluded.
+      expect(find.bySemanticsLabel('Alice: 0'), findsOneWidget);
+      expect(find.bySemanticsLabel('Dan: 0'), findsOneWidget);
+      handle.dispose();
+    },
+  );
+
   testWidgets('finished game (12 rounds) shows the replay button, no tiles', (
     tester,
   ) async {

@@ -32,45 +32,62 @@ class MigrationScreen extends ConsumerWidget {
           leading: const AboutIconButton(),
           title: const Text('Bonken'),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-              Icon(
-                Symbols.move_to_inbox,
-                size: 64,
-                color: theme.colorScheme.primary,
+        // Scrollable so the Spacer-centred content (icon, text, recovery
+        // buttons) can never be clipped at a large system text scale; the
+        // ConstrainedBox + IntrinsicHeight keeps the centred layout when it fits.
+        body: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Spacer(),
+                      Icon(
+                        Symbols.move_to_inbox,
+                        size: 64,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 24),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          'Bonken is verhuisd',
+                          style: theme.textTheme.headlineSmall,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Deze versie van Bonken wordt niet meer bijgewerkt. '
+                        'Download de nieuwe versie via de Play Store om verder te gaan.\n\n'
+                        'Je kunt hier eerst je gegevens exporteren en ze daarna importeren in de nieuwe app.',
+                        style: theme.textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: () => _openPlayStore(context),
+                        icon: const Icon(Symbols.open_in_new),
+                        label: const Text('Installeer de nieuwe app'),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: historyReady
+                            ? () => _openExport(context)
+                            : null,
+                        icon: const Icon(Symbols.upload),
+                        label: const Text('Exporteer gegevens'),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Bonken is verhuisd',
-                style: theme.textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Deze versie van Bonken wordt niet meer bijgewerkt. '
-                'Download de nieuwe versie via de Play Store om verder te gaan.\n\n'
-                'Je kunt hier eerst je gegevens exporteren en ze daarna importeren in de nieuwe app.',
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: () => _openPlayStore(context),
-                icon: const Icon(Symbols.open_in_new),
-                label: const Text('Installeer de nieuwe app'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: historyReady ? () => _openExport(context) : null,
-                icon: const Icon(Symbols.upload),
-                label: const Text('Exporteer gegevens'),
-              ),
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
         ),
       ),

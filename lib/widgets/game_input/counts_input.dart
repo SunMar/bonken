@@ -130,7 +130,9 @@ class _PlayerCountRow extends StatelessWidget {
           IconButton(
             icon: const Icon(Symbols.remove_circle),
             onPressed: canDecrement ? onDecrement : null,
-            tooltip: 'Minder',
+            // Player-scoped so the control is self-describing for non-visual
+            // traversal (a screen reader can land on it directly).
+            tooltip: 'Minder voor $name',
           ),
           // Ghost-text Stack: an invisible string that renders at the widest
           // possible width sets the column size; the actual count overlays it.
@@ -159,6 +161,9 @@ class _PlayerCountRow extends StatelessWidget {
               Text(
                 '$count',
                 textAlign: TextAlign.center,
+                // Spoken with player context so the bare number isn't read in
+                // isolation during non-visual traversal.
+                semanticsLabel: '$name: $count',
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -168,12 +173,12 @@ class _PlayerCountRow extends StatelessWidget {
           IconButton(
             icon: const Icon(Symbols.add_circle),
             onPressed: canIncrement ? onIncrement : null,
-            tooltip: 'Meer',
+            tooltip: 'Meer voor $name',
           ),
           IconButton(
             icon: const Icon(Symbols.expand_circle_right),
             onPressed: canIncrement ? onAddRemaining : null,
-            tooltip: 'Alle resterende',
+            tooltip: 'Alle resterende voor $name',
           ),
         ],
       ),

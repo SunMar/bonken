@@ -55,6 +55,32 @@ Future<void> pickDealer(WidgetTester tester, String name) async {
 void main() {
   setUpPrefs();
 
+  testWidgets('game-name field has its own programmatic field name', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpSetup(tester);
+    // The form is a lazy ListView; bring the (bottom) game-name field into view.
+    await tester.scrollUntilVisible(
+      find.byType(GameNameField),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    // The field is named in its own right (not just by the section header), so
+    // non-visual field-by-field navigation lands on a labelled text field.
+    expect(
+      tester.getSemantics(
+        find.descendant(
+          of: find.byType(GameNameField),
+          matching: find.byType(TextField),
+        ),
+      ),
+      isSemantics(label: kGameNameSectionTitle, isTextField: true),
+    );
+    handle.dispose();
+  });
+
   testWidgets('fields stay empty even when provider already holds player names '
       '(regression: loading a past game must not leak into "Nieuw spel")', (
     tester,

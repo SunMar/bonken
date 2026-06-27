@@ -11,8 +11,11 @@ const String kGameNameSectionSubtitle =
 /// [EditGameScreen]. The caller owns the [controller] (its lifecycle and reading
 /// the trimmed value on submit).
 ///
-/// No field label is set: like the dealer section it's a single field under its
-/// section header, so the header read just before it is sufficient context.
+/// The field carries its own programmatic name ([kGameNameSectionTitle]) via
+/// [Semantics] (mirroring [DealerDropdownField]) so non-visual field-by-field
+/// navigation lands on a *named* field — a section header is page structure, not
+/// a field label. No visible label is set: that would print "Spelnaam" twice
+/// (`InputDecoration.labelText` is avoided for the same reason).
 class GameNameField extends StatelessWidget {
   const GameNameField({super.key, required this.controller});
 
@@ -23,11 +26,17 @@ class GameNameField extends StatelessWidget {
     return FormSectionCard(
       title: kGameNameSectionTitle,
       subtitle: kGameNameSectionSubtitle,
-      child: TextField(
-        controller: controller,
-        decoration: const InputDecoration(counterText: ''),
-        maxLength: kGameNameMaxLength,
-        textCapitalization: TextCapitalization.sentences,
+      child: MergeSemantics(
+        child: Semantics(
+          label: kGameNameSectionTitle,
+          textField: true,
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(counterText: ''),
+            maxLength: kGameNameMaxLength,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+        ),
       ),
     );
   }

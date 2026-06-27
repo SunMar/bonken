@@ -345,12 +345,56 @@ void main() {
     expect(find.text('Geschiedenis beschadigd'), findsOneWidget);
     expect(find.text('Geschiedenis wissen'), findsOneWidget);
 
+    // The error title is a semantics header (matches the codebase-wide pattern).
+    final title = tester.widget<Semantics>(
+      find
+          .ancestor(
+            of: find.text('Geschiedenis beschadigd'),
+            matching: find.byType(Semantics),
+          )
+          .first,
+    );
+    expect(title.properties.header, isTrue);
+
     // Drain the retry (same pattern as the unsupported-version test).
     final prefs = SharedPreferencesAsync();
     await prefs.remove('bonken_game_history');
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+    'storage-error screen scrolls (no overflow) at a large text scale',
+    (tester) async {
+      setAsyncPrefs({'bonken_game_history': 'this is not json'});
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(3)),
+              child: HomeScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SingleChildScrollView), findsWidgets);
+      // The only recovery button stays reachable inside the scroll view.
+      expect(find.text('Geschiedenis wissen'), findsOneWidget);
+
+      final prefs = SharedPreferencesAsync();
+      await prefs.remove('bonken_game_history');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    },
+  );
 
   testWidgets('corrupt storage screen shows Verstuur foutrapport button', (
     tester,

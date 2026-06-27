@@ -746,43 +746,53 @@ class _HistoryRow extends StatelessWidget {
             ],
           ),
         ),
-        // Per-player deltas — names right-aligned, scores right-aligned.
-        // We keep IntrinsicWidth here on purpose: a fixed score-column
-        // width would either crowd extreme scores or waste horizontal
-        // space for normal scores. With at most 12 rounds in a Bonken
-        // game the extra layout pass per row is negligible.
+        // Per-player deltas — names right-aligned, scores right-aligned, with
+        // each name+score paired into ONE semantics node so assistive tech
+        // announces "Alice: -100" together rather than all four names followed
+        // by all four scores. A Table keeps the two-column visual alignment (a
+        // fixed score-column width would crowd extreme scores or waste space);
+        // the spoken pairing rides on the name cell while the visible texts are
+        // excluded from semantics. IntrinsicWidth shrink-wraps the table.
         IntrinsicWidth(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Table(
+            defaultColumnWidth: const IntrinsicColumnWidth(),
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (int i = 0; i < playerCount; i++)
-                    Text(
-                      '${playerNames[i]}:',
-                      style: tt.bodyMedium?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (int i = 0; i < playerCount; i++)
-                    Text(
-                      formatScore(record.scoresByPlayer[players[i].id] ?? 0),
-                      style: tt.bodyMedium?.copyWith(
-                        color: scoreColor(
-                          record.scoresByPlayer[players[i].id] ?? 0,
-                          context,
+              for (int i = 0; i < playerCount; i++)
+                TableRow(
+                  children: [
+                    Semantics(
+                      label:
+                          '${playerNames[i]}: '
+                          '${formatScore(record.scoresByPlayer[players[i].id] ?? 0)}',
+                      child: ExcludeSemantics(
+                        child: Text(
+                          '${playerNames[i]}:',
+                          textAlign: TextAlign.end,
+                          style: tt.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ),
-                ],
-              ),
+                    ExcludeSemantics(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Text(
+                          formatScore(
+                            record.scoresByPlayer[players[i].id] ?? 0,
+                          ),
+                          textAlign: TextAlign.end,
+                          style: tt.bodyMedium?.copyWith(
+                            color: scoreColor(
+                              record.scoresByPlayer[players[i].id] ?? 0,
+                              context,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),

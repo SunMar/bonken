@@ -9,15 +9,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // Characterizes the shared _bonkenTheme builder: each brightness must wire
-  // its own brightness-appropriate extensions (and GameSuitColors, which has
-  // no dark variant, must appear in both).
+  // its own brightness-appropriate extensions.
   test('light theme carries the light extensions', () {
     final theme = bonkenLightTheme;
     expect(theme.brightness, Brightness.light);
     expect(theme.extension<ScoreColors>(), ScoreColors.light);
     expect(theme.extension<WarningColors>(), WarningColors.light);
     expect(theme.extension<DoubleStateColors>(), DoubleStateColors.light);
-    expect(theme.extension<GameSuitColors>(), GameSuitColors.standard);
+    expect(theme.extension<GameSuitColors>(), GameSuitColors.light);
   });
 
   test('dark theme carries the dark extensions', () {
@@ -26,6 +25,6 @@ void main() {
     expect(theme.extension<ScoreColors>(), ScoreColors.dark);
     expect(theme.extension<WarningColors>(), WarningColors.dark);
     expect(theme.extension<DoubleStateColors>(), DoubleStateColors.dark);
-    expect(theme.extension<GameSuitColors>(), GameSuitColors.standard);
+    expect(theme.extension<GameSuitColors>(), GameSuitColors.dark);
   });
 }

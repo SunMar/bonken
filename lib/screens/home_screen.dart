@@ -341,52 +341,70 @@ class _StorageErrorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Symbols.error, size: 48, color: theme.colorScheme.error),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    // Scrollable so the centred content (and especially the only recovery
+    // buttons) can never be clipped at a large system text scale; the
+    // ConstrainedBox keeps it vertically centred when it fits.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Symbols.error, size: 48, color: theme.colorScheme.error),
+                  const SizedBox(height: 16),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  if (showReportButton) ...[
+                    FilledButton.tonal(
+                      onPressed: () => unawaited(
+                        _sendErrorReport(
+                          context,
+                          exception,
+                          stackTrace,
+                          storageKey,
+                        ),
+                      ),
+                      child: const Text('Verstuur foutrapport'),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  FilledButton.tonal(
+                    onPressed: () async {
+                      final confirmed = await showConfirmDialog(
+                        context,
+                        title: clearConfirmTitle,
+                        contentText: clearConfirmText,
+                        confirmLabel: 'Wissen',
+                        destructive: clearIsDestructive,
+                      );
+                      if (confirmed != true) return;
+                      await onClear();
+                    },
+                    child: Text(clearLabel),
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            if (showReportButton) ...[
-              FilledButton.tonal(
-                onPressed: () => unawaited(
-                  _sendErrorReport(context, exception, stackTrace, storageKey),
-                ),
-                child: const Text('Verstuur foutrapport'),
-              ),
-              const SizedBox(height: 8),
-            ],
-            FilledButton.tonal(
-              onPressed: () async {
-                final confirmed = await showConfirmDialog(
-                  context,
-                  title: clearConfirmTitle,
-                  contentText: clearConfirmText,
-                  confirmLabel: 'Wissen',
-                  destructive: clearIsDestructive,
-                );
-                if (confirmed != true) return;
-                await onClear();
-              },
-              child: Text(clearLabel),
-            ),
-          ],
+          ),
         ),
       ),
     );

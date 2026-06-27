@@ -782,6 +782,39 @@ void main() {
       expect(matrix.stateFor(playerIds[1], playerIds[3]), DoubleState.none);
     });
 
+    testWidgets('bulk buttons convey applied state via toggled semantics', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      DoubleMatrix matrix = const DoubleMatrix();
+      await pumpHost(
+        tester,
+        StatefulBuilder(
+          builder: (ctx, setState) => DoublesPicker(
+            players: players,
+            chooserIndex: 2, // Bob(1) initiator → "Zaal" doubles all others
+            doubles: matrix,
+            onChanged: (m) => setState(() => matrix = m),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Bob').first);
+      await tester.pump();
+      // Not yet applied → toggle state present but off.
+      expect(
+        tester.getSemantics(find.text('Zaal')),
+        isSemantics(hasToggledState: true, isToggled: false),
+      );
+      // Applied → toggled on (re-pressing would undo it).
+      await tester.tap(find.text('Zaal'));
+      await tester.pump();
+      expect(
+        tester.getSemantics(find.text('Zaal')),
+        isSemantics(isToggled: true),
+      );
+      handle.dispose();
+    });
+
     testWidgets(
       'when "Zaal" is applied, "Slappe hap" is outlined; pressing it clears the chooser pair',
       (tester) async {

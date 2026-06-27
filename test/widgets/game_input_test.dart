@@ -67,6 +67,35 @@ void main() {
       expect(captured, [1, 0, 0, 0]);
     });
 
+    testWidgets('stepper controls carry player-scoped accessible labels', (
+      tester,
+    ) async {
+      await pumpHost(
+        tester,
+        CountsStepper(
+          playerNames: playerNames,
+          counts: const [3, 0, 0, 0],
+          total: 13,
+          unitLabel: 'slagen',
+          onCountsChanged: (_) {},
+        ),
+      );
+      final first = playerNames.first;
+      String tooltipOf(IconData icon) => tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, icon).first)
+          .tooltip!;
+      // Each control names its player so a screen reader landing on it directly
+      // has context (not a bare "Minder"/"Meer"/number).
+      expect(tooltipOf(Symbols.remove_circle), 'Minder voor $first');
+      expect(tooltipOf(Symbols.add_circle), 'Meer voor $first');
+      expect(
+        tooltipOf(Symbols.expand_circle_right),
+        'Alle resterende voor $first',
+      );
+      // The count is spoken with player context, not as an isolated number.
+      expect(tester.widget<Text>(find.text('3')).semanticsLabel, '$first: 3');
+    });
+
     testWidgets('decrement button is disabled when count is 0', (tester) async {
       await pumpHost(
         tester,

@@ -85,6 +85,41 @@ class WarningColors extends ThemeExtension<WarningColors> {
 /// to emoji), so they sit in a [ThemeExtension] rather than the seed-derived
 /// `ColorScheme` — but go through `Theme.of(context)` so future user-themable
 /// variants stay opt-in.
+///
+/// ## Why a separate dark variant
+///
+/// `GameAvatar` paints the suit colour both as its symbol (full strength) and
+/// as its background (the *same* colour at 12% over the surface), so the
+/// contrast that matters is the glyph against that wash. The [light] palette is
+/// hand-tuned to read on a near-white surface, and several of its colours are
+/// deliberately dark (deep navy spade, near-black club, brick heart) — good on
+/// light, but near-invisible on the dark surface (`#121318`), where spade/club
+/// drop to ~1.3:1. [dark] re-tunes each suit for that surface.
+///
+/// ## Why these specific hex values
+///
+/// Chosen in **HCT** (hue-chroma-tone — Material 3's perceptually uniform
+/// space; see Google's `material_color_utilities`). [dark] keeps each suit's
+/// [light] hue and picks, *per suit*, the lowest tone that still clears a
+/// comfortable ≥4.5:1 for the glyph against its avatar background — a lower
+/// tone retains more of the suit's chroma, i.e. its character:
+///
+/// * **clubs** — neutral grey (C≈1.5), so tone is a pure contrast/appearance
+///   call: `T 74`, a clean light grey (the dark-inversion of light's dark grey).
+/// * **spades** — blue holds its chroma (C≈30) at any tone, so `T 70` keeps a
+///   rich periwinkle instead of a pale wash.
+/// * **diamonds** — orange holds its signature high chroma (C≈59) only down to
+///   ~`T 70`; higher tones flatten it to a pale peach.
+/// * **hearts** — red can't hold C≈77 in dark at all (sRGB gamut), but `T 66`
+///   recovers C≈61 *and* pulls it clear of [ScoreColors.dark]'s negative red
+///   (also `T 70`) that a `T 70` heart would have collided with.
+///
+/// The lone [light] tweak: diamonds is `#BB5D00` (`T 50`), not the original
+/// `#CC6600` (`T 54`) — the latter dipped to 2.90:1 on a card
+/// (`surfaceContainer`), just under the 3:1 graphical-object floor.
+///
+/// To explore alternatives: `fvm dart run tool/hct.dart from H,C,T ...`
+/// (or `to RRGGBB ...` for the inverse).
 @immutable
 class GameSuitColors extends ThemeExtension<GameSuitColors> {
   const GameSuitColors({
@@ -110,17 +145,29 @@ class GameSuitColors extends ThemeExtension<GameSuitColors> {
     _ => null,
   };
 
-  static const standard = GameSuitColors(
-    clubs: Color(0xFF3A3A3A), // dark grey
-    spades: Color(0xFF0D2B4E), // deep marine blue
-    diamonds: Color(0xFFCC6600), // muted orange
-    hearts: Color(0xFFB52424), // muted red
+  /// Hand-tuned for a near-white surface (HCT shown alongside each value).
+  static const light = GameSuitColors(
+    clubs: Color(0xFF3A3A3A), // dark grey,         H 210 / C  1 / T 24
+    spades: Color(0xFF0D2B4E), // deep marine blue, H 260 / C 30 / T 17
+    diamonds: Color(0xFFBB5D00), // muted orange,   H  53 / C 56 / T 50
+    hearts: Color(0xFFB52424), // muted red,        H  24 / C 77 / T 40
   );
 
-  /// Resolves from the ambient theme, falling back to [standard] (these are
-  /// fixed brand colours, so there is no brightness variant).
-  static GameSuitColors of(BuildContext context) =>
-      Theme.of(context).extension<GameSuitColors>() ?? standard;
+  /// Re-tuned per suit for the dark surface — see the class doc for the recipe.
+  static const dark = GameSuitColors(
+    clubs: Color(0xFFB7B6B5), // light grey,      H 210 / C  2 / T 74
+    spades: Color(0xFF93ACD7), // periwinkle,     H 260 / C 30 / T 70
+    diamonds: Color(0xFFFF8E34), // vivid orange, H  53 / C 59 / T 70
+    hearts: Color(0xFFFF766C), // coral red,      H  24 / C 61 / T 66
+  );
+
+  /// Resolves from the ambient theme, falling back to the brightness-appropriate
+  /// static when the extension isn't registered (e.g. unthemed test widgets).
+  static GameSuitColors of(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<GameSuitColors>() ??
+        (theme.brightness == Brightness.dark ? dark : light);
+  }
 
   @override
   GameSuitColors copyWith({

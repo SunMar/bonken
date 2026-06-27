@@ -307,6 +307,15 @@ void main() {
     final handle = tester.ensureSemantics();
     await _pump(tester, const BootErrorScreen());
     await _expectA11y(tester);
+    final title = tester.widget<Semantics>(
+      find
+          .ancestor(
+            of: find.text('Bonken kon niet starten'),
+            matching: find.byType(Semantics),
+          )
+          .first,
+    );
+    expect(title.properties.header, isTrue);
     handle.dispose();
   });
 

@@ -617,13 +617,30 @@ class _BulkButton extends StatelessWidget {
     final style = FilledButton.styleFrom(
       minimumSize: const Size.fromHeight(48),
     );
-    return filled
-        ? FilledButton(style: style, onPressed: onPressed, child: Text(label))
-        : OutlinedButton(
-            style: style,
-            onPressed: onPressed,
-            child: Text(label),
-          );
+    // Convey the applied/undo state to assistive tech, not just via the
+    // filled-vs-outlined visual: `filled` means this bulk action is currently
+    // applied (re-pressing undoes it). MergeSemantics folds the toggled flag
+    // into the button's own labelled node.
+    return MergeSemantics(
+      child: Semantics(
+        toggled: filled,
+        // Preserve the button's enabled/disabled state on the merged node:
+        // the text-contrast guideline exempts disabled controls, and a disabled
+        // bulk button uses M3's (low-contrast) disabled label colour.
+        enabled: onPressed != null,
+        child: filled
+            ? FilledButton(
+                style: style,
+                onPressed: onPressed,
+                child: Text(label),
+              )
+            : OutlinedButton(
+                style: style,
+                onPressed: onPressed,
+                child: Text(label),
+              ),
+      ),
+    );
   }
 }
 

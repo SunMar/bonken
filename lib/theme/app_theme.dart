@@ -30,7 +30,7 @@ ThemeData _bonkenTheme(Brightness brightness) {
     actionIconTheme: _symbolsActionIconTheme,
     extensions: [
       isDarkMode ? WarningColors.dark : WarningColors.light,
-      GameSuitColors.standard,
+      isDarkMode ? GameSuitColors.dark : GameSuitColors.light,
       isDarkMode ? DoubleStateColors.dark : DoubleStateColors.light,
       isDarkMode ? ScoreColors.dark : ScoreColors.light,
     ],

@@ -22,30 +22,46 @@ class BootErrorScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return AppScaffold(
       appBar: AppBar(title: const Text('Bonken')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Symbols.error, size: 48, color: theme.colorScheme.error),
-              const SizedBox(height: 16),
-              Text(
-                'Bonken kon niet starten',
-                style: theme.textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Er ging iets mis bij het opstarten. Sluit de app volledig af '
-                'en open hem opnieuw. Blijft dit gebeuren, neem dan contact op '
-                'via support@suninet.org.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+      // Scrollable + header semantics, matching the storage-error screen, so the
+      // message stays reachable and structured at a large system text scale.
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Symbols.error,
+                      size: 48,
+                      color: theme.colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        'Bonken kon niet starten',
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Er ging iets mis bij het opstarten. Sluit de app '
+                      'volledig af en open hem opnieuw. Blijft dit gebeuren, '
+                      'neem dan contact op via support@suninet.org.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-            ],
+            ),
           ),
         ),
       ),
