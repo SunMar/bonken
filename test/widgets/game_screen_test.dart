@@ -17,15 +17,20 @@ import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/models/rule_variants.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
-import 'package:bonken/services/share_service.dart'
-    show kShareUnsupportedMessage;
+import 'package:bonken/services/io_failure.dart'
+    show OutOfSpaceException, kOutOfSpaceMessage;
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/platform_io_providers.dart';
 import 'package:bonken/utils.dart';
+import 'package:bonken/widgets/share_result_card.dart'
+    show buildShareText, rankScores;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -55,6 +60,7 @@ GameSession _session({
   List<RoundRecord> rounds = const [],
   PendingRound? pendingRound,
   String? gameName,
+  RuleVariants ruleVariants = const RuleVariants(),
 }) => GameSession(
   id: kGameId1,
   createdAt: DateTime(2024),
@@ -65,6 +71,7 @@ GameSession _session({
   rounds: rounds,
   pendingRound: pendingRound,
   gameName: gameName,
+  ruleVariants: ruleVariants,
 );
 
 Future<ProviderContainer> _pump(
@@ -91,6 +98,18 @@ Future<ProviderContainer> _pump(
   await tester.pump(const Duration(milliseconds: 500));
   await tester.pumpAndSettle();
   return container;
+}
+
+/// Scrolls the game-selection body until the round-history card is on screen.
+/// The history list sits below the (tall) game-tile sections, so the ListView
+/// hasn't built it until it scrolls into view.
+Future<void> _revealHistory(WidgetTester tester) async {
+  await tester.scrollUntilVisible(
+    find.text('Gespeelde rondes'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -138,6 +157,103 @@ void main() {
     expect(find.text('Nieuw spel met dezelfde spelers'), findsOneWidget);
     expect(find.text('Negatieve spellen'), findsNothing);
     expect(find.text('Positieve spellen'), findsNothing);
+  });
+
+  testWidgets(
+    'replay button: pick a specific dealer → new game with same players and '
+    'carried-over variants, back on the selection phase',
+    (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      final rounds = [
+        for (int i = 0; i < GameSession.totalRounds; i++)
+          _round(i + 1, allGames[i], players[1].id, players),
+      ];
+      final container = await _pump(
+        tester,
+        session: _session(
+          players: players,
+          rounds: rounds,
+          // A non-default variant that must survive the replay.
+          ruleVariants: const RuleVariants(
+            starterVariant: StarterVariant.oppositeChooserStarts,
+          ),
+        ),
+      );
+
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Nieuw spel met dezelfde spelers'),
+      );
+      await tester.pumpAndSettle();
+
+      // Pick Carol (seat 2) specifically — no announcement dialog on this path.
+      // Scope to the dialog and take the last match (the player row, not the
+      // "Volgende speler" subtitle).
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(AlertDialog),
+              matching: find.text('Carol'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      // Drain the autosave debounce scheduled by the new startNewGame.
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final s = container.read(calculatorProvider) as ActiveSession;
+      expect(s.playerNames, _names);
+      expect(s.dealerIndex, 2); // Carol deals the first round
+      expect(
+        s.ruleVariants.starterVariant,
+        StarterVariant.oppositeChooserStarts,
+      );
+      // Back on a fresh selection phase: the game-tile sections reappear and
+      // the replay button is gone.
+      expect(find.text('Negatieve spellen'), findsOneWidget);
+      expect(find.text('Nieuw spel met dezelfde spelers'), findsNothing);
+    },
+  );
+
+  testWidgets('round-info banner derives chooser/dealer/starter + counter', (
+    tester,
+  ) async {
+    final players = [for (final n in _names) Player(name: n)];
+    // Two rounds played, firstDealer = Alice (seat 0) ⇒ round-3 dealer = Carol
+    // (seat 2), chooser = Dan (dealer + 1 = seat 3). oppositeChooserStarts ⇒
+    // starter = Bob (chooser − 2 = seat 1), so all three names are distinct.
+    final session = _session(
+      players: players,
+      rounds: [
+        _round(1, allGames[0], players[1].id, players),
+        _round(2, allGames[1], players[2].id, players),
+      ],
+      ruleVariants: const RuleVariants(
+        starterVariant: StarterVariant.oppositeChooserStarts,
+      ),
+    );
+    await _pump(tester, session: session);
+
+    expect(find.text('Ronde 3 van 12'), findsOneWidget);
+    expect(find.textContaining('Kiezer: Dan'), findsOneWidget);
+    expect(find.textContaining('Deler: Carol'), findsOneWidget);
+    expect(find.textContaining('Uitkomst: Bob'), findsOneWidget);
+  });
+
+  testWidgets('round-info banner is hidden once the game is finished', (
+    tester,
+  ) async {
+    final players = [for (final n in _names) Player(name: n)];
+    final rounds = [
+      for (int i = 0; i < GameSession.totalRounds; i++)
+        _round(i + 1, allGames[i], players[1].id, players),
+    ];
+    await _pump(
+      tester,
+      session: _session(players: players, rounds: rounds),
+    );
+
+    expect(find.textContaining('Kiezer:'), findsNothing);
+    expect(find.textContaining(' van 12'), findsNothing);
   });
 
   group('share (finished game)', () {
@@ -292,7 +408,6 @@ void main() {
         overrides: [
           shareTextProvider.overrideWithValue(({required text, subject}) async {
             sharedText = text;
-            return true;
           }),
         ],
       );
@@ -310,26 +425,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The text payload reached the share provider (no platform involved).
+      // The text payload reached the share provider (no platform involved)…
       expect(sharedText, isNotNull);
       expect(sharedText, contains('Bonken uitslag'));
       expect(sharedText, contains('Kerst 2024'));
+      // …and a successful share (or a cancellation) shows no error.
+      expect(find.byType(SnackBar), findsNothing);
     });
 
-    testWidgets('text share refused → kShareUnsupportedMessage snackbar', (
-      tester,
-    ) async {
-      final players = mkPlayers();
-      await _pump(
-        tester,
-        session: _session(players: players, rounds: finishedRounds(players)),
-        overrides: [
-          shareTextProvider.overrideWithValue(
-            ({required text, subject}) async => false,
-          ),
-        ],
-      );
-
+    // Taps the long-press dialog's "Tekst delen" action.
+    Future<void> tapShareText(WidgetTester tester) async {
       await tester.longPress(find.byIcon(Symbols.share));
       await tester.pumpAndSettle();
       await tester.tap(
@@ -342,8 +447,53 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+    }
 
-      expect(find.text(kShareUnsupportedMessage), findsOneWidget);
+    testWidgets('text share that throws → generic failure snackbar', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+        overrides: [
+          // A generic (bug / platform) failure → the generic message.
+          shareTextProvider.overrideWithValue(
+            ({required text, subject}) async => throw Exception('share boom'),
+          ),
+        ],
+      );
+
+      await tapShareText(tester);
+
+      expect(
+        find.text('Het is mislukt om de uitslag te delen.'),
+        findsOneWidget,
+      );
+
+      await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+    });
+
+    testWidgets('text share out of space → actionable storage snackbar', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+        overrides: [
+          // The service surfaces a full disk as OutOfSpaceException → the
+          // user-fixable message rather than the generic one.
+          shareTextProvider.overrideWithValue(
+            ({required text, subject}) async =>
+                throw const OutOfSpaceException(),
+          ),
+        ],
+      );
+
+      await tapShareText(tester);
+
+      expect(find.text(kOutOfSpaceMessage), findsOneWidget);
 
       await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
     });
@@ -399,6 +549,82 @@ void main() {
       expect(find.text('Tekst gekopieerd naar klembord'), findsOneWidget);
 
       await tester.pumpAndSettle(const Duration(seconds: 5)); // drain snackbar
+    });
+
+    testWidgets('plain tap shares directly — it never opens the format dialog', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+      );
+
+      // A plain tap fires the default share (onPressed), NOT the format dialog
+      // — only a long-press / the screen-reader actions open that. The
+      // through-capture image→text path itself stays out of widget tests: its
+      // real async (asset precache + RepaintBoundary→PNG) is non-deterministic
+      // under the test binding (see the note below). runAsync lets the precache
+      // resolve so nothing dangles at teardown.
+      await tester.runAsync(() async {
+        await tester.tap(find.byIcon(Symbols.share));
+      });
+      await tester.pump();
+
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('share button exposes the four screen-reader format actions', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      final handle = tester.ensureSemantics();
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+      );
+
+      // The long-press lives on IconButton.onLongPress; the four custom actions
+      // must still fold onto the single share-button node.
+      expect(
+        tester.getSemantics(find.byIcon(Symbols.share)),
+        isSemantics(
+          isButton: true,
+          customActions: const [
+            CustomSemanticsAction(label: 'Deel als afbeelding'),
+            CustomSemanticsAction(label: 'Deel als tekst'),
+            CustomSemanticsAction(label: 'Bewaar als afbeelding'),
+            CustomSemanticsAction(label: 'Kopieer als tekst'),
+          ],
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('share format dialog: Annuleren closes it without sharing', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      var shareCalls = 0;
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: finishedRounds(players)),
+        overrides: [
+          shareTextProvider.overrideWithValue(({required text, subject}) async {
+            shareCalls++;
+          }),
+        ],
+      );
+
+      await tester.longPress(find.byIcon(Symbols.share));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+
+      await tester.tap(find.text('Annuleren'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(shareCalls, 0);
     });
 
     // The image paths (_shareImage, _saveImage) are intentionally not
@@ -705,4 +931,166 @@ void main() {
       expect(saved.single.players.first.name, 'Zoë');
     },
   );
+
+  group('live scoreboard winner-gating', () {
+    RoundRecord leadRound(
+      List<Player> players,
+      MiniGame game,
+      int roundNumber,
+    ) => RoundRecord(
+      roundNumber: roundNumber,
+      game: game,
+      chooserId: players[1].id,
+      // Alice clearly ahead; everyone else flat.
+      scoresByPlayer: {
+        players[0].id: 30,
+        players[1].id: 0,
+        players[2].id: 0,
+        players[3].id: 0,
+      },
+      input: game.inputDescriptor.defaults(players),
+      doubles: const DoubleMatrix(),
+    );
+
+    testWidgets('mid-game: the leader is not crowned', (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      // One round in — unfinished, so no trophy even though Alice leads.
+      await _pump(
+        tester,
+        session: _session(
+          players: players,
+          rounds: [leadRound(players, const Duck(), 1)],
+        ),
+      );
+
+      expect(find.byIcon(Symbols.emoji_events), findsNothing);
+    });
+
+    testWidgets('finished: only the sole leader is crowned', (tester) async {
+      final players = [for (final n in _names) Player(name: n)];
+      // 12 rounds → finished. Alice scores 30 in round 1, everyone 0 elsewhere,
+      // so the cumulative totals are [30, 0, 0, 0] — Alice is the unique leader.
+      final rounds = [
+        leadRound(players, allGames[0], 1),
+        for (int i = 1; i < GameSession.totalRounds; i++)
+          _round(i + 1, allGames[i], players[1].id, players),
+      ];
+      await _pump(
+        tester,
+        session: _session(players: players, rounds: rounds),
+      );
+
+      expect(find.byIcon(Symbols.emoji_events), findsOneWidget);
+    });
+  });
+
+  group('history row interactions', () {
+    List<Player> mkPlayers() => [for (final n in _names) Player(name: n)];
+
+    testWidgets('only the last round shows delete; confirming removes it', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      final session = _session(
+        players: players,
+        rounds: [
+          _round(1, allGames[0], players[1].id, players),
+          _round(2, allGames[1], players[2].id, players),
+        ],
+      );
+      final container = await _pump(tester, session: session);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).history.length,
+        2,
+      );
+
+      await _revealHistory(tester);
+
+      // Two rounds → two edit buttons, exactly one delete (on the last round).
+      expect(find.byTooltip('Wijzigen'), findsNWidgets(2));
+      expect(find.byTooltip('Ronde verwijderen'), findsOneWidget);
+
+      await tester.ensureVisible(find.byTooltip('Ronde verwijderen'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Ronde verwijderen'));
+      await tester.pumpAndSettle();
+
+      // The confirm dialog names round 2 — the most recent — not round 1,
+      // proving the button targets the last round it was rendered against.
+      final dialog = find.byType(AlertDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.textContaining('Ronde 2')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.textContaining('Ronde 1')),
+        findsNothing,
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Verwijderen'));
+      await tester.pumpAndSettle();
+
+      final s = container.read(calculatorProvider) as ActiveSession;
+      expect(s.history.length, 1);
+      expect(s.history.single.roundNumber, 1);
+
+      await tester.pump(const Duration(milliseconds: 500)); // drain autosave
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('no delete button while a pending round is present', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      final played = allGames.firstWhere((g) => g.id != 'duck');
+      final input = CountsInput({
+        players[0].id: 3,
+        players[1].id: 0,
+        players[2].id: 0,
+        players[3].id: 0,
+      });
+      final session = _session(
+        players: players,
+        rounds: [_round(1, played, players[1].id, players)],
+        pendingRound: PendingRound(
+          gameId: 'duck',
+          chooserId: players[1].id,
+          input: input,
+        ),
+      );
+      await _pump(tester, session: session);
+
+      await _revealHistory(tester);
+
+      // The one completed round still offers edit…
+      expect(find.byTooltip('Wijzigen'), findsOneWidget);
+      // …but delete is gated off while a pending round exists (!hasPendingGame).
+      expect(find.byTooltip('Ronde verwijderen'), findsNothing);
+    });
+
+    testWidgets('tapping "Wijzigen" opens the round edit screen', (
+      tester,
+    ) async {
+      final players = mkPlayers();
+      final session = _session(
+        players: players,
+        rounds: [
+          _round(1, allGames[0], players[1].id, players),
+          _round(2, allGames[1], players[2].id, players),
+        ],
+      );
+      await _pump(tester, session: session);
+
+      await _revealHistory(tester);
+      await tester.ensureVisible(find.byTooltip('Wijzigen').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Wijzigen').first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoundInputScreen), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 500)); // drain autosave
+      await tester.pumpAndSettle();
+    });
+  });
 }

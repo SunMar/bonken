@@ -53,6 +53,9 @@ class PlayerListField extends StatelessWidget {
             : (Set<String>.from(allNonEmpty)..remove(trimmedNames[i])),
     ];
 
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -89,17 +92,11 @@ class PlayerListField extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(
-                Symbols.warning_amber,
-                size: 16,
-                color: Theme.of(context).colorScheme.error,
-              ),
+              Icon(Symbols.warning_amber, size: 16, color: cs.error),
               const SizedBox(width: 6),
               Text(
                 'Twee spelers hebben dezelfde naam.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: tt.bodyMedium?.copyWith(color: cs.error),
               ),
             ],
           ),
@@ -144,48 +141,58 @@ class DealerDropdownField extends StatelessWidget {
     // Material 3 `DropdownMenu` is the modern replacement for the M2-era
     // `DropdownButtonFormField`.  It draws an outlined text-field with a
     // trailing chevron and uses the M3 elevation/shape spec for the
-    // dropdown overlay.  `requestFocusOnTap: false` keeps the on-screen
-    // keyboard hidden — we want a picker, not text entry.  `expandedInsets`
-    // makes the field fill the parent width (the default is intrinsic).
+    // dropdown overlay.  `selectOnly` makes the inner field a genuine
+    // read-only picker (not a search box); `requestFocusOnTap: false`
+    // additionally keeps the on-screen keyboard hidden — we want a picker, not
+    // text entry.  `expandedInsets` makes the field fill the parent width (the
+    // default is intrinsic).  No `ValueKey` is needed: DropdownMenu re-seeds its
+    // displayed value from `initialSelection` on a plain rebuild.
     //
     // No `hintText`: the field always has a selection (a player, or — when
     // [allowRandomDealer] — the random entry as the default), so a placeholder
     // would never show.
-    return DropdownMenu<int>(
-      key: ValueKey(value),
-      initialSelection:
-          value ?? (allowRandomDealer ? _randomDealerValue : null),
-      enableSearch: false,
-      requestFocusOnTap: false,
-      expandedInsets: EdgeInsets.zero,
-      menuStyle: const MenuStyle(visualDensity: VisualDensity.compact),
-      inputDecorationTheme: const InputDecorationTheme(
-        isDense: true,
-        border: OutlineInputBorder(),
+    //
+    // Wrapped in Semantics so a screen reader announces the field's purpose
+    // ("Deler eerste ronde"), not just its current value.
+    return MergeSemantics(
+      child: Semantics(
+        label: kDealerSectionTitle,
+        child: DropdownMenu<int>(
+          initialSelection:
+              value ?? (allowRandomDealer ? _randomDealerValue : null),
+          selectOnly: true,
+          requestFocusOnTap: false,
+          expandedInsets: EdgeInsets.zero,
+          menuStyle: const MenuStyle(visualDensity: VisualDensity.compact),
+          inputDecorationTheme: const InputDecorationTheme(
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          onSelected: (v) {
+            if (v == null) return;
+            if (v == _randomDealerValue) {
+              onChanged(null);
+              return;
+            }
+            onChanged(v);
+          },
+          dropdownMenuEntries: [
+            if (allowRandomDealer)
+              const DropdownMenuEntry<int>(
+                value: _randomDealerValue,
+                label: 'Willekeurige deler',
+                leadingIcon: Icon(Symbols.shuffle),
+              ),
+            for (int i = 0; i < playerCount; i++)
+              DropdownMenuEntry<int>(
+                value: i,
+                label: controllers[i].text.trim().isNotEmpty
+                    ? controllers[i].text
+                    : 'Speler ${i + 1}',
+              ),
+          ],
+        ),
       ),
-      onSelected: (v) {
-        if (v == null) return;
-        if (v == _randomDealerValue) {
-          onChanged(null);
-          return;
-        }
-        onChanged(v);
-      },
-      dropdownMenuEntries: [
-        if (allowRandomDealer)
-          const DropdownMenuEntry<int>(
-            value: _randomDealerValue,
-            label: 'Willekeurige deler',
-            leadingIcon: Icon(Symbols.shuffle),
-          ),
-        for (int i = 0; i < playerCount; i++)
-          DropdownMenuEntry<int>(
-            value: i,
-            label: controllers[i].text.trim().isNotEmpty
-                ? controllers[i].text
-                : 'Speler ${i + 1}',
-          ),
-      ],
     );
   }
 }
@@ -213,4 +220,17 @@ void handlePlayerFieldSubmitted({
     return;
   }
   focusNodes[index].unfocus();
+}
+
+/// The Dutch reason the player [trimmedNames] are not yet a valid set, or null
+/// when they are. Shared by NewGameScreen and EditGameScreen so the
+/// primary-action enable-gate and the disabled-tap snackbar reason come from one
+/// place: `canStart`/`canSave` is `playerNamesInvalidReason(...) == null`, and
+/// the snackbar shows the returned reason.
+String? playerNamesInvalidReason(List<String> trimmedNames) {
+  if (!allPlayerNamesFilled(trimmedNames)) return 'Vul alle spelersnamen in.';
+  if (hasDuplicatePlayerNames(trimmedNames)) {
+    return 'Spelersnamen moeten uniek zijn.';
+  }
+  return null;
 }

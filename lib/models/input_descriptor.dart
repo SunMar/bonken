@@ -41,8 +41,9 @@ class CountsInput extends GameInput {
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll(counts.entries.map((e) => Object.hash(e.key, e.value)));
+  int get hashCode => Object.hashAllUnordered(
+    counts.entries.map((e) => Object.hash(e.key, e.value)),
+  );
 }
 
 /// In-memory input for recipient-style games: one player UUID per prompt slot

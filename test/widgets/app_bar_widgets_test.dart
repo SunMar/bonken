@@ -3,7 +3,13 @@
 // shared Thema menu. Pumped in isolation (no surrounding screen) so we
 // cover the widgets themselves rather than each consumer.
 
+import 'package:bonken/models/hearts_variant.dart';
+import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/rules_screen.dart';
+import 'package:bonken/state/default_hearts_variant_provider.dart';
+import 'package:bonken/state/default_starter_variant_provider.dart';
+import 'package:bonken/state/rules_edit_mode_provider.dart';
+import 'package:bonken/state/settings_provider.dart';
 import 'package:bonken/state/theme_mode_provider.dart';
 import 'package:bonken/widgets/app_bar_widgets.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +67,58 @@ void main() {
     expect(find.byType(RulesScreen), findsOneWidget);
   });
 
+  testWidgets(
+    'RulesIconButton forwards its variant + edit-mode overrides to the '
+    'pushed RulesScreen',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: AppBar(
+                title: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('T'),
+                    RulesIconButton(
+                      starterVariantOverride:
+                          StarterVariant.oppositeChooserStarts,
+                      heartsVariantOverride: HeartsVariant.graduatedUnlock,
+                      editMode: RulesEditMode.disabled,
+                    ),
+                  ],
+                ),
+              ),
+              body: const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Spelregels'));
+      await tester.pumpAndSettle();
+
+      // The pushed route is wrapped in a ProviderScope locking the variant +
+      // edit-mode providers to the session values passed to RulesIconButton —
+      // all three chosen to differ from the app defaults (dealerStarts /
+      // onlyAfterPlayedHeart / enabled), so reading them back proves the
+      // overrides were forwarded rather than the defaults resolving.
+      final scoped = ProviderScope.containerOf(
+        tester.element(find.byType(RulesScreen)),
+      );
+      expect(
+        scoped.read(defaultStarterVariantProvider),
+        StarterVariant.oppositeChooserStarts,
+      );
+      expect(
+        scoped.read(defaultHeartsVariantProvider),
+        HeartsVariant.graduatedUnlock,
+      );
+      expect(scoped.read(rulesEditModeProvider), RulesEditMode.disabled);
+    },
+  );
+
   testWidgets('Thema menu lists the three modes', (tester) async {
     await _pumpActions(tester);
     await _openThemeMenu(tester);
@@ -73,7 +131,9 @@ void main() {
     tester,
   ) async {
     final container = await _pumpActions(tester);
-    await container.read(themeModeProvider.notifier).setMode(ThemeMode.dark);
+    await container
+        .read(settingsProvider.notifier)
+        .setThemeMode(ThemeMode.dark);
     await tester.pump();
 
     await _openThemeMenu(tester);

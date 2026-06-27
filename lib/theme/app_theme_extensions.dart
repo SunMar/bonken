@@ -200,17 +200,17 @@ class DoubleStateColors extends ThemeExtension<DoubleStateColors> {
 
   /// Background for a pair [state]; `null` for [DoubleState.none] (no fill).
   Color? backgroundFor(DoubleState state) => switch (state) {
-    DoubleState.none => null,
-    DoubleState.doubled => doubledBackground,
-    DoubleState.redoubled => redoubledBackground,
+    .none => null,
+    .doubled => doubledBackground,
+    .redoubled => redoubledBackground,
   };
 
   /// Foreground (on-background) for a pair [state]; `null` for
   /// [DoubleState.none].
   Color? foregroundFor(DoubleState state) => switch (state) {
-    DoubleState.none => null,
-    DoubleState.doubled => onDoubledBackground,
-    DoubleState.redoubled => onRedoubledBackground,
+    .none => null,
+    .doubled => onDoubledBackground,
+    .redoubled => onRedoubledBackground,
   };
 
   @override
@@ -347,3 +347,49 @@ ThemeData mutedIconButtonTheme(ThemeData base, {Color? foregroundColor}) {
     ),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Theme value helpers
+// ---------------------------------------------------------------------------
+
+/// True when the ambient theme is dark. Centralises the `Brightness.dark`
+/// check shared by the [ThemeExtension] `of` fallbacks (and any other
+/// brightness-dependent default).
+bool isDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
+/// Tint for a player's cumulative or per-round score, based on its sign.
+///
+/// Reads the [ScoreColors] theme extension; falls back to the
+/// brightness-appropriate static if unavailable (e.g. unthemed test
+/// widgets).
+Color scoreColor(int score, BuildContext context) {
+  if (score == 0) return _scoreColorNeutral(context);
+  return score > 0 ? scoreColorPositive(context) : scoreColorNegative(context);
+}
+
+Color scoreColorPositive(BuildContext context) =>
+    ScoreColors.of(context).positive;
+Color scoreColorNegative(BuildContext context) =>
+    ScoreColors.of(context).negative;
+Color _scoreColorNeutral(BuildContext context) =>
+    Theme.of(context).colorScheme.onSurfaceVariant;
+
+/// Material 3 disabled-content color: `onSurface` at 38% alpha.
+///
+/// `0.38` is the official M3 disabled-content opacity from the spec
+/// (m3.material.io → states → disabled). Use this for text, icons and
+/// other foreground content drawn on top of a surface when their
+/// associated control is disabled. Centralised so the alpha value isn't
+/// sprinkled across screens.
+Color disabledOnSurface(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.38);
+
+/// Shared [MenuItemButton] / [SubmenuButton] style for menu anchors.
+///
+/// Adds 16 px of horizontal padding so the [TextButton]-derived
+/// [MenuItemButton] gets a comfortable popup-menu rhythm instead of its
+/// default tight padding. Referenced by the theme menu (`ThemeMenuButton`) and
+/// any future [MenuAnchor], so their item density stays in sync.
+final ButtonStyle kMenuItemButtonStyle = MenuItemButton.styleFrom(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+);

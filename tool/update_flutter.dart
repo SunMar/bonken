@@ -37,6 +37,7 @@ import 'dart:io';
 
 import 'helpers/android_versions.dart';
 import 'helpers/flutter_release.dart';
+import 'helpers/ios_deployment_target.dart';
 import 'helpers/pubspec_yaml.dart';
 import 'helpers/semver.dart';
 
@@ -44,6 +45,7 @@ const _fvmrc = '.fvmrc';
 const _pubspec = 'pubspec.yaml';
 const _settingsGradle = 'android/settings.gradle.kts';
 const _gradleWrapper = 'android/gradle/wrapper/gradle-wrapper.properties';
+const _projectPbxproj = 'ios/Runner.xcodeproj/project.pbxproj';
 
 Future<void> main(List<String> args) async {
   final checkOnly = args.contains('--check');
@@ -61,10 +63,11 @@ Future<void> main(List<String> args) async {
   if (!File(_fvmrc).existsSync() ||
       !File(_pubspec).existsSync() ||
       !File(_settingsGradle).existsSync() ||
-      !File(_gradleWrapper).existsSync()) {
+      !File(_gradleWrapper).existsSync() ||
+      !File(_projectPbxproj).existsSync()) {
     stderr.writeln(
       'Run from the repo root '
-      '(needs $_fvmrc + $_pubspec + Android build files).',
+      '(needs $_fvmrc + $_pubspec + Android build files + the iOS Xcode project).',
     );
     exit(1);
   }
@@ -204,16 +207,52 @@ Future<void> main(List<String> args) async {
     print('==> Updated $androidChanges Android toolchain version(s).');
   }
 
+  // ── iOS deployment target ──────────────────────────────────────────────────
+  // Flutter pins a minimum iOS version (the floor a fresh `flutter create` uses
+  // and that its migration raises old projects to), but — unlike Android's
+  // floating minSdk — does not auto-apply it to an existing project. Bump the
+  // project up when Flutter's floor rises above ours, but NEVER downgrade: the
+  // project may pin a higher floor deliberately (an API needs it), and lowering
+  // it would silently widen the supported-OS range.
+
+  print('==> Syncing iOS deployment target with Flutter SDK');
+  final flutterMinIos = parseFlutterMinIosDeploymentTarget(
+    File(
+      '$flutterRoot/packages/flutter_tools/templates/app/ios.tmpl/'
+      'Runner.xcodeproj/project.pbxproj.tmpl',
+    ).readAsStringSync(),
+  );
+  final pbxprojFile = File(_projectPbxproj);
+  final pbxprojContent = pbxprojFile.readAsStringSync();
+  final currentIos = readIosDeploymentTarget(pbxprojContent);
+  var iosChanged = false;
+  if (isNewer(currentIos, flutterMinIos)) {
+    print('  iOS deployment target: $currentIos -> $flutterMinIos');
+    pbxprojFile.writeAsStringSync(
+      patchIosDeploymentTarget(pbxprojContent, flutterMinIos),
+    );
+    iosChanged = true;
+  } else {
+    print(
+      '==> iOS deployment target ($currentIos) already at or above '
+      "Flutter's minimum ($flutterMinIos).",
+    );
+  }
+
   if (needsFlutterUpdate) {
     print('''
 ==> Pin updated. Next steps:
-      1. Review with: git diff $_fvmrc $_pubspec $_settingsGradle $_gradleWrapper
+      1. Review with: git diff $_fvmrc $_pubspec $_settingsGradle $_gradleWrapper $_projectPbxproj
       2. Run the CI gates:
             fvm dart format .
             fvm flutter analyze --fatal-infos
             fvm flutter test''');
-  } else if (androidChanges > 0) {
-    print('==> Done. Review with: git diff $_settingsGradle $_gradleWrapper');
+  } else if (androidChanges > 0 || iosChanged) {
+    final changed = [
+      if (androidChanges > 0) ...[_settingsGradle, _gradleWrapper],
+      if (iosChanged) _projectPbxproj,
+    ].join(' ');
+    print('==> Done. Review with: git diff $changed');
   }
 }
 

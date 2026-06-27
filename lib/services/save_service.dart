@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'io_failure.dart';
 import 'save_service_io.dart'
     if (dart.library.js_interop) 'save_service_web.dart'
     as web;
@@ -17,12 +18,16 @@ import 'save_service_io.dart'
 ///   `ios/Runner/Info.plist`.
 /// Web: triggers a browser download.
 ///
-/// Returns true on success, false if the user cancelled (Android SAF only).
+/// Returns `true` on success, `false` if the user cancelled (Android SAF only)
+/// — both benign outcomes that need no error UI. A genuine failure *throws*:
+/// [OutOfSpaceException] when the write runs out of disk space, or any other
+/// error (sandbox denial, an invalid [filename], …) for the caller to surface
+/// as a generic failure.
 Future<bool> saveFile({
   required Uint8List bytes,
   required String filename,
   required List<String> allowedExtensions,
-}) async {
+}) => mapWriteFailures(() async {
   if (kIsWeb) {
     web.webDownload(bytes, filename);
     return true;
@@ -41,7 +46,7 @@ Future<bool> saveFile({
     bytes: bytes,
   );
   return path != null;
-}
+});
 
 Future<bool> saveZipFile({
   required Uint8List bytes,

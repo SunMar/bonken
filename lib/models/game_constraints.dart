@@ -42,6 +42,19 @@ bool gameNameLengthValid(String name) =>
 bool allPlayerNamesFilled(List<String> names) =>
     names.every((n) => normalizePlayerName(n).isNotEmpty);
 
+/// Case-insensitive comparison key for a name.
+///
+/// This is Dart's locale-independent [String.toLowerCase] — **not** a full
+/// Unicode case-fold (e.g. `ß` does not fold to `ss`), and it is unaffected by
+/// `Intl.defaultLocale` / `Intl.withLocale` (dart:core casing does not consult
+/// the `intl` ambient locale). A future locale-tailored fold would need its own
+/// mechanism (e.g. the `intl4x` package's ICU4X-based `toLocaleLowerCase`), not
+/// just an ambient locale. It is centralized as the single seam
+/// every "case-insensitive name" site uses — duplicate detection, the
+/// name-suggestion sort, and autocomplete filtering — so they stay in lock-step
+/// and any future upgrade is a one-line change here.
+String caseFoldName(String name) => name.toLowerCase();
+
 /// Indices of player names that collide case-insensitively with another
 /// non-empty name in [names]. Empty / whitespace-only names are ignored.
 ///
@@ -50,7 +63,7 @@ bool allPlayerNamesFilled(List<String> names) =>
 Set<int> duplicatePlayerNameIndices(List<String> names) {
   final byKey = <String, List<int>>{};
   for (var i = 0; i < names.length; i++) {
-    final key = normalizePlayerName(names[i]).toLowerCase();
+    final key = caseFoldName(normalizePlayerName(names[i]));
     if (key.isEmpty) continue;
     byKey.putIfAbsent(key, () => []).add(i);
   }

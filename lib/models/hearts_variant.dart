@@ -11,15 +11,15 @@ enum HeartsVariant implements LabeledVariant {
 
   @override
   String get label => switch (this) {
-    HeartsVariant.onlyAfterPlayedHeart => 'Na bijgespeelde harten',
-    HeartsVariant.graduatedUnlock => 'Gefaseerd',
+    .onlyAfterPlayedHeart => 'Na bijgespeelde harten',
+    .graduatedUnlock => 'Gefaseerd',
   };
 
   @override
   String get description => switch (this) {
-    HeartsVariant.onlyAfterPlayedHeart =>
+    .onlyAfterPlayedHeart =>
       'Uitkomen met harten mag pas als er al een harten is (bij)gespeeld.',
-    HeartsVariant.graduatedUnlock =>
+    .graduatedUnlock =>
       'Harten is niet toegestaan in de eerste 3 slagen; bijspelen mag in slagen 4 en 5; terugkomen mag vanaf slag 6.',
   };
 }

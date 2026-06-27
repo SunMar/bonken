@@ -18,6 +18,18 @@ List<String> chipLabels(WidgetTester tester) {
       .toList(growable: false);
 }
 
+/// Returns the chips' spoken (assistive-tech) labels in on-screen order.
+List<String?> chipSemanticLabels(WidgetTester tester) {
+  final texts = find.descendant(
+    of: find.byType(DoublesChips),
+    matching: find.byType(Text),
+  );
+  return tester
+      .widgetList<Text>(texts)
+      .map((t) => t.semanticsLabel)
+      .toList(growable: false);
+}
+
 void main() {
   group('DoublesChips ordering', () {
     testWidgets('orders by initiator turn position '
@@ -29,7 +41,7 @@ void main() {
       //   - Alice (turn 2) doubles Dan
       //   - Carol (turn 0) doubles Alice
       // Pairs are stored unordered; we set initiator explicitly per pair.
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           // Carol (turn 0) doubles Alice
           .withPair(
             playerIds[0],
@@ -70,7 +82,7 @@ void main() {
       // Chooser = 0 (Alice). Doubling order: Bob(1) -> Carol(2) -> Dan(3) -> Alice(0).
       // Bob (turn 0) doubles all three other players.  Expected target order:
       // Carol (turn 1), Dan (turn 2), Alice (turn 3).
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           // Insert in mixed order to prove sorting drives the result.
           .withPair(
             playerIds[0],
@@ -105,12 +117,45 @@ void main() {
       await pumpHost(
         tester,
         DoublesChips(
-          doubles: DoubleMatrix.empty(),
+          doubles: const DoubleMatrix(),
           players: players,
           chooserIndex: 0,
         ),
       );
       expect(find.byType(Text), findsNothing);
+    });
+  });
+
+  group('DoublesChips semantics', () {
+    testWidgets('chips speak words, not the ×/×× glyphs', (tester) async {
+      // Chooser = 1 (Bob). Carol doubles Alice; Bob doubles Carol and Carol
+      // goes back (redouble). Sorted by initiator turn: Carol(0) then Bob(3).
+      final doubles = const DoubleMatrix()
+          .withPair(
+            playerIds[0],
+            playerIds[2],
+            DoubleState.doubled,
+            initiator: playerIds[2],
+          )
+          .withPair(
+            playerIds[1],
+            playerIds[2],
+            DoubleState.redoubled,
+            initiator: playerIds[1],
+          );
+
+      await pumpHost(
+        tester,
+        DoublesChips(doubles: doubles, players: players, chooserIndex: 1),
+      );
+
+      // Visible text stays the compact glyph form…
+      expect(chipLabels(tester), ['Carol × Alice', 'Bob ×× Carol']);
+      // …while assistive tech hears the relationship in words (never "×").
+      expect(chipSemanticLabels(tester), [
+        'Carol dubbelt Alice',
+        'Bob dubbelt Carol, Carol gaat terug',
+      ]);
     });
   });
 }

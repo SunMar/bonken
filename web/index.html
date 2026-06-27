@@ -52,6 +52,14 @@
       transition: opacity 200ms ease-out;
     }
     #loading.hide { opacity: 0; pointer-events: none; }
+    /* Round the splash icon's corners so it reads as a "launcher icon"
+       (matches the rounded-square treatment on the Android / iOS
+       launcher icon masks). 22% is the Android adaptive-icon mask
+       ratio. */
+    #loading img {
+      border-radius: 22%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
     #loading .bar {
       position: fixed;
       top: 0; left: 0; right: 0;

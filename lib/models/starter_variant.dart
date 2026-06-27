@@ -11,14 +11,14 @@ enum StarterVariant implements LabeledVariant {
 
   @override
   String get label => switch (this) {
-    StarterVariant.dealerStarts => 'Deler',
-    StarterVariant.oppositeChooserStarts => 'Tegenover de kiezer',
+    .dealerStarts => 'Deler',
+    .oppositeChooserStarts => 'Tegenover de kiezer',
   };
 
   @override
   String get description => switch (this) {
-    StarterVariant.dealerStarts => 'De deler komt uit in de eerste slag.',
-    StarterVariant.oppositeChooserStarts =>
+    .dealerStarts => 'De deler komt uit in de eerste slag.',
+    .oppositeChooserStarts =>
       'De speler tegenover de kiezer komt uit in de eerste slag.',
   };
 }

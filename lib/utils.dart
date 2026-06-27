@@ -1,16 +1,24 @@
-import 'package:flutter/material.dart';
-
-import 'theme/app_theme_extensions.dart';
-
-/// Looks up an enum value by its [Enum.name], returning [fallback] when
-/// [name] is null or no value matches. Used by provider load helpers and
-/// [GameSession.fromJson] so the fallback logic is written once.
-T enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
-  if (name == null) return fallback;
+/// Looks up an enum value by its [Enum.name]; returns null when [name] is null
+/// or matches no value. The non-throwing probe shared by validators (e.g.
+/// `validation.dart`'s settings gate).
+T? enumByNameOrNull<T extends Enum>(List<T> values, String? name) {
+  if (name == null) return null;
   for (final v in values) {
     if (v.name == name) return v;
   }
-  return fallback;
+  return null;
+}
+
+/// Looks up an enum value by its [Enum.name]. Returns [fallback] only when
+/// [name] is **null** (the field is absent — e.g. a record predating it). A
+/// present-but-unrecognized [name] is corrupt or forward-version data and
+/// **throws** [FormatException]: callers sit behind a storage/import boundary
+/// that turns the throw into a corrupt-data error rather than silently coercing
+/// to the default. Use [enumByNameOrNull] when a non-throwing probe is wanted.
+T enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
+  if (name == null) return fallback;
+  return enumByNameOrNull(values, name) ??
+      (throw FormatException('Unknown ${fallback.runtimeType} value', name));
 }
 
 /// Title for every "discard your edits" confirmation dialog.
@@ -32,9 +40,7 @@ const String kDiscardLabel = 'Verwerpen';
 /// Label for every save button and confirm action.
 const String kSaveLabel = 'Opslaan';
 
-/// Title used both for the "another game is still pending" info dialog
-/// (game screen) and for the "discard the in-progress round" confirm
-/// dialog (round input screen).
+/// Title for the game-screen "another game is still pending" info dialog.
 const String kRoundIncompleteTitle = 'Ronde niet afgerond';
 
 String formatDate(DateTime dt) {
@@ -54,8 +60,8 @@ String formatDate(DateTime dt) {
     'dec',
   ];
   final day = days[dt.weekday - 1];
-  final h = dt.hour.toString().padLeft(2, '0');
-  final m = dt.minute.toString().padLeft(2, '0');
+  final h = _pad2(dt.hour);
+  final m = _pad2(dt.minute);
   return '$day ${dt.day} ${months[dt.month - 1]} ${dt.year}  $h:$m';
 }
 
@@ -73,42 +79,6 @@ String formatFileTimestamp(DateTime dt) =>
 
 String formatScore(int score) => score > 0 ? '+$score' : '$score';
 
-/// Tint for a player's cumulative or per-round score, based on its sign.
-///
-/// Reads the [ScoreColors] theme extension; falls back to the
-/// brightness-appropriate static if unavailable (e.g. unthemed test
-/// widgets).
-Color scoreColor(int score, BuildContext context) {
-  if (score == 0) return scoreColorNeutral(context);
-  return score > 0 ? scoreColorPositive(context) : scoreColorNegative(context);
-}
-
-Color scoreColorPositive(BuildContext context) =>
-    ScoreColors.of(context).positive;
-Color scoreColorNegative(BuildContext context) =>
-    ScoreColors.of(context).negative;
-Color scoreColorNeutral(BuildContext context) =>
-    Theme.of(context).colorScheme.onSurfaceVariant;
-
-/// Material 3 disabled-content color: `onSurface` at 38% alpha.
-///
-/// `0.38` is the official M3 disabled-content opacity from the spec
-/// (m3.material.io → states → disabled). Use this for text, icons and
-/// other foreground content drawn on top of a surface when their
-/// associated control is disabled. Centralised so the alpha value isn't
-/// sprinkled across screens.
-Color disabledOnSurface(ColorScheme cs) => cs.onSurface.withValues(alpha: 0.38);
-
-/// Shared [MenuItemButton] / [SubmenuButton] style for menu anchors.
-///
-/// Adds 16 px of horizontal padding so the [TextButton]-derived
-/// [MenuItemButton] gets a comfortable popup-menu rhythm instead of its
-/// default tight padding. Referenced by the theme menu (`ThemeMenuButton`) and
-/// any future [MenuAnchor], so their item density stays in sync.
-final ButtonStyle kMenuItemButtonStyle = MenuItemButton.styleFrom(
-  padding: const EdgeInsets.symmetric(horizontal: 16),
-);
-
 /// Recomputes [target]'s position after an item is moved from [oldIdx] to
 /// [newIdx] in a list (using the same convention as [ReorderableListView]).
 ///
@@ -121,4 +91,25 @@ int adjustIndexAfterReorder(int oldIdx, int newIdx, int target) {
   if (oldIdx < t) t -= 1;
   if (newIdx <= t) t += 1;
   return t;
+}
+
+/// Moves [fields]'s item from [oldIndex] to [newIndex] in place — using the
+/// same convention as [ReorderableListView.onReorderItem], where [newIndex] is
+/// already the post-removal insertion index — and returns the dealer index
+/// adjusted to keep pointing at the same field, or null when [dealerIndex] is
+/// null (random dealer).
+///
+/// Generic over the field type so both the new-game and edit-game screens share
+/// one reorder body while [utils] stays framework-free.
+int? reorderPlayerFields<T>(
+  List<T> fields,
+  int oldIndex,
+  int newIndex,
+  int? dealerIndex,
+) {
+  if (oldIndex == newIndex) return dealerIndex;
+  fields.insert(newIndex, fields.removeAt(oldIndex));
+  return dealerIndex == null
+      ? null
+      : adjustIndexAfterReorder(oldIndex, newIndex, dealerIndex);
 }

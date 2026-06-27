@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/game_mechanics.dart';
 import 'package:bonken/models/game_session.dart';
@@ -25,10 +27,46 @@ Map<String, int> _t(List<Player> ps, List<int> counts) => {
   for (int i = 0; i < ps.length; i++) ps[i].id: counts[i],
 };
 
+/// A round-less [GameSession] fixture for the `loadSession` tests — collapses the
+/// repeated id/timestamps/firstDealer boilerplate. The dealer is [players].first;
+/// pass a [pendingRound] or [ruleVariants] to exercise those paths.
+GameSession _session(
+  List<Player> players, {
+  String id = 's1',
+  PendingRound? pendingRound,
+  RuleVariants ruleVariants = const RuleVariants(),
+}) {
+  final dt = DateTime(2024);
+  return GameSession(
+    id: id,
+    createdAt: dt,
+    updatedAt: dt,
+    scoredAt: dt,
+    players: players,
+    firstDealerId: players.first.id,
+    rounds: const [],
+    pendingRound: pendingRound,
+    ruleVariants: ruleVariants,
+  );
+}
+
 ProviderContainer makeContainer() {
   final c = ProviderContainer();
   addTearDown(c.dispose);
   return c;
+}
+
+/// A [GameHistoryNotifier] whose [saveGame] blocks on [gate] before the real
+/// upsert — lets a test hold an autosave genuinely "in flight" while a delete
+/// runs, to exercise the resurrection-race guard.
+class _BlockingGameHistoryNotifier extends GameHistoryNotifier {
+  final gate = Completer<void>();
+
+  @override
+  Future<void> saveGame(GameSession session) async {
+    await gate.future;
+    return super.saveGame(session);
+  }
 }
 
 void main() {
@@ -184,7 +222,7 @@ void main() {
       final undoubled =
           (c.read(calculatorProvider) as ActiveSession).result!.scores;
       n.updateDoubles(
-        DoubleMatrix.empty().withState(ps[0].id, ps[1].id, DoubleState.doubled),
+        const DoubleMatrix().withState(ps[0].id, ps[1].id, DoubleState.doubled),
       );
       final doubled =
           (c.read(calculatorProvider) as ActiveSession).result!.scores;
@@ -192,6 +230,33 @@ void main() {
       expect(doubled[ps[0].id], undoubled[ps[0].id]);
       expect(doubled[ps[1].id], undoubled[ps[1].id]);
     });
+
+    test(
+      'redoubled pair on unequal counts shifts twice through the notifier',
+      () {
+        final c = makeContainer();
+        final n = c.read(calculatorProvider.notifier);
+        n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
+        final ps = (c.read(calculatorProvider) as ActiveSession).players;
+        n.selectGame(const Clubs());
+        n.updateInput(CountsInput(_t(ps, [5, 2, 3, 3]))); // sum 13
+        n.updateDoubles(
+          const DoubleMatrix().withState(
+            ps[0].id,
+            ps[1].id,
+            DoubleState.redoubled,
+          ),
+        );
+        // Redoubled (multiplier 2) on the 5-vs-2 pair (diff 3):
+        //   effective[0] = 5 + (5-2)*2 = 11 → 220
+        //   effective[1] = 2 + (2-5)*2 = -4 → -80
+        // The other two players are untouched and Σ stays +260.
+        final scores =
+            (c.read(calculatorProvider) as ActiveSession).result!.scores;
+        expect(scores, _t(ps, [220, -80, 60, 60]));
+        expect(scores.values.fold(0, (a, b) => a + b), 260);
+      },
+    );
   });
 
   group('hasMeaningfulPendingInput', () {
@@ -398,7 +463,7 @@ void main() {
       n.updateInput(CountsInput(_t(ps, [4, 3, 5, 1])));
       n.deselectGame();
       expect((c.read(calculatorProvider) as ActiveSession).history.length, 2);
-      n.deleteLastRound();
+      n.deleteLastRound(2);
       final s = c.read(calculatorProvider) as ActiveSession;
       expect(s.history.length, 1);
       expect(s.dealerIndex, 1);
@@ -409,8 +474,28 @@ void main() {
       final c = makeContainer();
       final n = c.read(calculatorProvider.notifier);
       n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
-      n.deleteLastRound();
+      n.deleteLastRound(1);
       expect((c.read(calculatorProvider) as ActiveSession).history, isEmpty);
+    });
+
+    test('no-ops when roundNumber does not match the last round', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
+      final ps = (c.read(calculatorProvider) as ActiveSession).players;
+      n.setDealer(0);
+      n.selectGame(const Clubs());
+      n.updateInput(CountsInput(_t(ps, [4, 4, 2, 3])));
+      n.deselectGame();
+      n.selectGame(const Duck());
+      n.updateInput(CountsInput(_t(ps, [4, 3, 5, 1])));
+      n.deselectGame();
+      expect((c.read(calculatorProvider) as ActiveSession).history.length, 2);
+
+      // The last round is round 2; asking to delete round 1 (e.g. a stale
+      // confirm dialog) must leave history untouched rather than drop round 2.
+      n.deleteLastRound(1);
+      expect((c.read(calculatorProvider) as ActiveSession).history.length, 2);
     });
   });
 
@@ -481,9 +566,10 @@ void main() {
         (c.read(calculatorProvider) as ActiveSession).inputState,
         isNot(InputState.complete),
       );
+      // Editing the first (non-last) of two rounds.
       expect(
-        (c.read(calculatorProvider) as ActiveSession).isEditingLastRound,
-        isFalse,
+        (c.read(calculatorProvider) as ActiveSession).editingRoundIndex,
+        0,
       );
 
       n.cancelEditRound();
@@ -673,6 +759,23 @@ void main() {
       );
     });
 
+    test('loadSession throws on an unknown pending game id (fail loud)', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      final players = _makePlayers(['A', 'B', 'C', 'D']);
+      final bad = _session(
+        players,
+        id: kGameId1,
+        pendingRound: PendingRound(
+          gameId: 'not-a-real-game',
+          chooserId: players[1].id,
+        ),
+      );
+      // A real load can't carry an unknown id (PendingRound.fromJson rejects
+      // it); a hand-built session must fail loud, not silently drop the stash.
+      expect(() => n.loadSession(bad), throwsStateError);
+    });
+
     test('switching sessions flushes the outgoing autosave so last-second '
         'pending edits are not lost to the 400ms debounce window', () async {
       final c = makeContainer();
@@ -820,7 +923,7 @@ void main() {
         n.updateInput(CountsInput(_t(ps, [3, 0, 0, 0])));
         n.deselectGame(); // debounced autosave scheduled
 
-        n.cancelPendingAutosave(); // cancels the timer without saving
+        await n.cancelPendingAutosave(); // cancels timer + joins in-flight
 
         await pumpEventQueue();
 
@@ -828,6 +931,51 @@ void main() {
         expect(sessions.any((s) => s.id == sessionId), isFalse);
       },
     );
+
+    // testWidgets: initializeWidgets() installs FakeAsync so the 400ms debounce
+    // timer can be fired deterministically via tester.pump.
+    testWidgets('delete is not resurrected by an in-flight autosave', (
+      tester,
+    ) async {
+      final blocking = _BlockingGameHistoryNotifier();
+      final c = ProviderContainer(
+        overrides: [gameHistoryProvider.overrideWith(() => blocking)],
+      );
+      addTearDown(c.dispose);
+      await c.read(gameHistoryProvider.future);
+      final sub = c.listen<CalculatorState>(calculatorProvider, (_, _) {});
+      addTearDown(sub.close);
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(
+        players: _makePlayers(['A', 'B', 'C', 'D']),
+        dealerIndex: 0,
+      );
+      final sessionId = (c.read(calculatorProvider) as ActiveSession).sessionId;
+      final ps = (c.read(calculatorProvider) as ActiveSession).players;
+      n.selectGame(const Duck());
+      n.updateInput(CountsInput(_t(ps, [3, 0, 0, 0])));
+      n.deselectGame(); // schedules the debounced autosave
+
+      // Fire the debounce: saveGame starts and blocks on the gate, so the write
+      // is genuinely in flight when the delete runs.
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Delete flow: cancelPendingAutosave must JOIN the in-flight save, then
+      // deleteGame removes whatever it wrote — no resurrection.
+      final deleteFlow = () async {
+        await n.cancelPendingAutosave();
+        await c.read(gameHistoryProvider.notifier).deleteGame(sessionId);
+      }();
+
+      // Let the in-flight save complete; cancelAndJoin unblocks and the delete
+      // runs strictly after it.
+      blocking.gate.complete();
+      await tester.pump(const Duration(milliseconds: 100));
+      await deleteFlow;
+
+      final sessions = await c.read(gameHistoryProvider.future);
+      expect(sessions.any((s) => s.id == sessionId), isFalse);
+    });
   });
 
   group('inputState edge cases', () {
@@ -992,14 +1140,8 @@ void main() {
         final n = c.read(calculatorProvider.notifier);
         n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
         final pA = _makePlayers(['A', 'B', 'C', 'D']);
-        final session = GameSession(
-          id: 's1',
-          createdAt: DateTime(2024),
-          updatedAt: DateTime(2024),
-          scoredAt: DateTime(2024),
-          players: pA,
-          firstDealerId: pA[0].id,
-          rounds: const [],
+        final session = _session(
+          pA,
           pendingRound: PendingRound(
             gameId: 'kingOfHearts',
             chooserId: pA[1].id,
@@ -1022,14 +1164,8 @@ void main() {
         final n = c.read(calculatorProvider.notifier);
         n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
         final pA = _makePlayers(['A', 'B', 'C', 'D']);
-        final session = GameSession(
-          id: 's1',
-          createdAt: DateTime(2024),
-          updatedAt: DateTime(2024),
-          scoredAt: DateTime(2024),
-          players: pA,
-          firstDealerId: pA[0].id,
-          rounds: const [],
+        final session = _session(
+          pA,
           pendingRound: PendingRound(
             gameId: 'seventhAndThirteenth',
             chooserId: pA[1].id,
@@ -1132,14 +1268,9 @@ void main() {
       final n = c.read(calculatorProvider.notifier);
       n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
       final players = _makePlayers(['A', 'B', 'C', 'D']);
-      final saved = GameSession(
+      final saved = _session(
+        players,
         id: 'v-load',
-        createdAt: DateTime(2024),
-        updatedAt: DateTime(2024),
-        scoredAt: DateTime(2024),
-        players: players,
-        firstDealerId: players[0].id,
-        rounds: const [],
         ruleVariants: const RuleVariants(
           starterVariant: StarterVariant.oppositeChooserStarts,
           heartsVariant: HeartsVariant.graduatedUnlock,
@@ -1219,7 +1350,8 @@ void main() {
           isTrue,
         );
 
-        n.deleteLastRound();
+        // Clubs is round 1 (the only completed round); Duck is pending.
+        n.deleteLastRound(1);
         final s = c.read(calculatorProvider) as ActiveSession;
         expect(s.history, isEmpty);
         expect(s.hasPendingGame, isTrue);
@@ -1273,6 +1405,69 @@ void main() {
       n.reset();
       expect(c.read(calculatorProvider), isA<NoSession>());
       expect(() => c.read(activeSessionProvider), throwsCastToActiveSession);
+    });
+  });
+
+  group('scoredAt advancement contract', () {
+    test('advances on round commit but NOT on player/name/rule edits', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
+      final ps = (c.read(calculatorProvider) as ActiveSession).players;
+      final scoredAt0 = (c.read(calculatorProvider) as ActiveSession).scoredAt;
+
+      // Player / rule / name edits bump only updatedAt — scoredAt is preserved.
+      n.setPlayerName(0, 'Alice');
+      n.setStarterVariant(StarterVariant.oppositeChooserStarts);
+      n.setHeartsVariant(HeartsVariant.graduatedUnlock);
+      n.setGameName('Kerst');
+      expect(
+        (c.read(calculatorProvider) as ActiveSession).scoredAt,
+        scoredAt0,
+        reason: 'edits must leave scoredAt untouched',
+      );
+
+      // Committing a round advances scoredAt (set to now alongside the history
+      // change). Real work elapsed since startNewGame, so the instant differs.
+      n.selectGame(const Clubs());
+      n.updateInput(CountsInput(_t(ps, [4, 4, 2, 3])));
+      n.deselectGame();
+      final committed = c.read(calculatorProvider) as ActiveSession;
+      expect(committed.history, hasLength(1));
+      expect(committed.scoredAt, isNot(scoredAt0));
+    });
+  });
+
+  group('recalculate skip-emit', () {
+    test('score-preserving recompute emits once; a score-changing one twice', () {
+      final c = makeContainer();
+      final n = c.read(calculatorProvider.notifier);
+      n.startNewGame(players: _makePlayers(['', '', '', '']), dealerIndex: 0);
+      final ps = (c.read(calculatorProvider) as ActiveSession).players;
+      n.selectGame(const Clubs());
+      n.updateInput(CountsInput(_t(ps, [4, 4, 2, 3]))); // complete result
+
+      var emissions = 0;
+      final sub = c.listen<CalculatorState>(calculatorProvider, (_, _) {
+        emissions++;
+      });
+      addTearDown(sub.close);
+
+      // Doubling an EQUAL-count pair (ps0 == ps1 == 4) changes the matrix but
+      // not the scores: updateDoubles emits once (doubles), then _recalculate
+      // sees the same ScoreResult and skips the second emit.
+      n.updateDoubles(
+        const DoubleMatrix().withState(ps[0].id, ps[1].id, DoubleState.doubled),
+      );
+      expect(emissions, 1);
+
+      // Doubling an UNEQUAL pair (ps0 = 4 vs ps2 = 2) changes the scores, so
+      // both the doubles change AND the new result emit — proving the skip above
+      // was a real short-circuit, not a dropped recompute.
+      n.updateDoubles(
+        const DoubleMatrix().withState(ps[0].id, ps[2].id, DoubleState.doubled),
+      );
+      expect(emissions, 3);
     });
   });
 }

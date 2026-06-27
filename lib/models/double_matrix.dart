@@ -51,9 +51,9 @@ class DoubleMatrix {
 
   int multiplierFor(String playerA, String playerB) =>
       switch (stateFor(playerA, playerB)) {
-        DoubleState.none => 0,
-        DoubleState.doubled => 1,
-        DoubleState.redoubled => 2,
+        .none => 0,
+        .doubled => 1,
+        .redoubled => 2,
       };
 
   /// Set the state for a pair and record who initiated.
@@ -74,9 +74,6 @@ class DoubleMatrix {
     }
     return DoubleMatrix(pairs: updated);
   }
-
-  /// Returns a fresh matrix where all pairs are [DoubleState.none].
-  static DoubleMatrix empty() => const DoubleMatrix();
 
   /// True when at least one pair has an active double or redouble.
   bool get hasAnyDouble => _pairs.isNotEmpty;
@@ -114,6 +111,12 @@ class DoubleMatrix {
   factory DoubleMatrix.fromJson(Map<String, dynamic> json) {
     (String, String) parseKey(String k) {
       final comma = k.indexOf(',');
+      if (comma < 0) {
+        throw FormatException(
+          'DoubleMatrix pair key has no comma separator',
+          k,
+        );
+      }
       return (k.substring(0, comma), k.substring(comma + 1));
     }
 

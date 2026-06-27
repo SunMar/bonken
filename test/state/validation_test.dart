@@ -409,6 +409,16 @@ void main() {
       );
     });
 
+    test('un-normalized (leading/trailing-space) player name throws', () {
+      // The create/edit UI always trims, so an imported " Bob " is foreign data
+      // the strict gate must reject rather than store verbatim.
+      final players = [p(' Bob '), p('B'), p('C'), p('D')];
+      expect(
+        () => validateMigratedGames([sessionWithPlayers(players).toJson()]),
+        throwsA(isA<ValidationError>()),
+      );
+    });
+
     test('case-insensitive duplicate player name throws', () {
       final players = [p('Alice'), p('alice'), p('C'), p('D')];
       expect(
@@ -467,6 +477,19 @@ void main() {
 
     test('whitespace-only gameName throws', () {
       final raw = {...sessionWithGameName(null).toJson(), 'gameName': '   '};
+      expect(
+        () => validateMigratedGames([raw]),
+        throwsA(isA<ValidationError>()),
+      );
+    });
+
+    test('un-normalized (leading/trailing-space) gameName throws', () {
+      // A non-null gameName must already be its trimmed form; an imported
+      // " Kerst " is rejected rather than stored un-normalized.
+      final raw = {
+        ...sessionWithGameName(null).toJson(),
+        'gameName': ' Kerst ',
+      };
       expect(
         () => validateMigratedGames([raw]),
         throwsA(isA<ValidationError>()),

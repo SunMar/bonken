@@ -1,13 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/game_constraints.dart';
 import '../models/hearts_variant.dart';
-import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/starter_variant.dart';
 import '../state/calculator_provider.dart';
@@ -16,18 +14,31 @@ import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
-import '../widgets/disabled_tap_detector.dart';
+import '../widgets/disabled_tappable_button.dart';
 import '../widgets/form_section_card.dart';
 import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
-import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
+import '../widgets/timed_snackbar.dart';
+
+/// One editable player row in [EditGameScreen]. Bundles the original [Player]
+/// (whose UUID and name stay fixed) with its text controller, focus node, and
+/// entry seat index so that reordering the list moves the whole record — the
+/// UUID stays bound to the right person without an identity-rebind step.
+typedef _PlayerField = ({
+  Player player,
+  TextEditingController controller,
+  FocusNode focusNode,
+  int originalIndex,
+});
 
 /// Full-screen dialog for editing an in-progress game: the player names and
 /// their order, the dealer of the first round, and the game-rule variants.
-/// Pushed with `fullscreenDialog: true` so the framework supplies the ✕
-/// leading icon and (on platforms that distinguish them) the modal slide-up
-/// transition.
+/// Pushed with `fullscreenDialog: true` — deliberately a dialog, not a screen,
+/// so per Material 3 it gets a close (✕) affordance and the modal slide-up
+/// transition rather than a back arrow. The leading ✕ is a custom `IconButton`
+/// (not the framework-supplied one): the framework's offers no hook to run the
+/// unsaved-changes discard confirm, so this one wires `onPressed` to it.
 class EditGameScreen extends ConsumerStatefulWidget {
   const EditGameScreen({super.key});
 
@@ -45,17 +56,13 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   static const _inProgressEffectExplanation =
       'Dit heeft alleen effect bij invoer van een nieuwe ronde. Van reeds '
       'ingevoerde rondes (ook die van de eerste ronde) en rondes die al '
-      'gestart zijn worden de kiezer, dubbels en scores niet van aangepast.';
+      'gestart zijn worden de kiezer, dubbels en scores niet aangepast.';
 
-  late final List<TextEditingController> _controllers;
-  late final List<FocusNode> _focusNodes;
-  // Snapshot of the original controller order, used to detect player reorders
-  // by identity (text edits do not affect this).
-  late final List<TextEditingController> _originalControllerOrder;
-  // Snapshot of original trimmed text values for text-change detection.
-  // Needed because _originalControllerOrder holds the same mutable controller
-  // objects as _controllers, so comparing .text would always see the current value.
-  late final List<String> _originalTexts;
+  // One row per seat: the original [Player] (stable UUID + original name), its
+  // editable text controller and focus node, and where it sat on entry. Because
+  // a reorder moves the *whole* record, the UUID↔seat binding is preserved by
+  // construction — no separate "original order" snapshot or identity rebind.
+  late final List<_PlayerField> _fields;
   late int _firstDealerIndex;
   late final bool _gameInProgress;
   late final int _originalFirstDealerIndex;
@@ -82,35 +89,47 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     _originalStarterVariant = state.ruleVariants.starterVariant;
     _heartsVariant = state.ruleVariants.heartsVariant;
     _originalHeartsVariant = state.ruleVariants.heartsVariant;
-    _controllers = [
-      for (final name in state.playerNames) TextEditingController(text: name),
+    _fields = [
+      for (final (i, player) in state.players.indexed)
+        (
+          player: player,
+          controller: TextEditingController(text: player.name),
+          focusNode: FocusNode(),
+          originalIndex: i,
+        ),
     ];
-    _originalControllerOrder = List.unmodifiable(_controllers);
-    _originalTexts = [for (final c in _controllers) c.text.trim()];
-    _focusNodes = List.generate(playerCount, (_) => FocusNode());
     _nameController = TextEditingController(text: state.gameName ?? '');
     _originalName = state.gameName ?? '';
-    _formChanges = Listenable.merge([..._controllers, _nameController]);
+    _formChanges = Listenable.merge([
+      for (final f in _fields) f.controller,
+      _nameController,
+    ]);
   }
 
-  bool get _orderChanged => !listEquals(_controllers, _originalControllerOrder);
+  /// Live views over [_fields] in the current seat order, for the shared
+  /// widgets/helpers that take parallel controller/focus-node lists.
+  List<TextEditingController> get _controllers => [
+    for (final f in _fields) f.controller,
+  ];
+  List<FocusNode> get _focusNodes => [for (final f in _fields) f.focusNode];
+
+  /// True once any field no longer sits at its entry seat — i.e. the player
+  /// order changed. The "where did I start" marker travels with each field.
+  bool get _orderChanged =>
+      _fields.indexed.any((e) => e.$2.originalIndex != e.$1);
 
   /// True if the dealer slot now points at a different *person* than it
   /// did when entering this screen. Reordering players in a way that keeps
-  /// the same controller (i.e. the same person) at the dealer position is
-  /// not considered a dealer change — even if the numeric [_firstDealerIndex]
-  /// shifted as a result of the reorder.
+  /// the same person at the dealer position is not considered a dealer change
+  /// — even if the numeric [_firstDealerIndex] shifted as a result.
   bool get _dealerPlayerChanged =>
-      _controllers[_firstDealerIndex] !=
-      _originalControllerOrder[_originalFirstDealerIndex];
+      _fields[_firstDealerIndex].originalIndex != _originalFirstDealerIndex;
 
-  /// Derived on demand from the current controller texts and dealer index.
-  /// Read inside the outer [ListenableBuilder] so it always reflects the
-  /// live form state — no cached bit to keep in sync.
+  /// Derived on demand from the current field texts and dealer index. Read
+  /// inside the outer [ListenableBuilder] so it always reflects the live form
+  /// state — no cached bit to keep in sync.
   bool get _hasChanges =>
-      _controllers.indexed.any(
-        (e) => e.$2.text.trim() != _originalTexts[e.$1],
-      ) ||
+      _fields.any((f) => f.controller.text.trim() != f.player.name) ||
       _firstDealerIndex != _originalFirstDealerIndex ||
       _starterVariant != _originalStarterVariant ||
       _heartsVariant != _originalHeartsVariant ||
@@ -118,11 +137,9 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
 
   @override
   void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    for (final n in _focusNodes) {
-      n.dispose();
+    for (final f in _fields) {
+      f.controller.dispose();
+      f.focusNode.dispose();
     }
     _nameController.dispose();
     super.dispose();
@@ -135,55 +152,36 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   );
 
   void _onReorder(int oldIndex, int newIndex) {
-    // `onReorderItem` already pre-adjusts newIndex for the removed item — no
-    // manual `if (newIndex > oldIndex) newIndex -= 1` decrement needed.
-    var target = newIndex;
-    if (target < 0) target = 0;
-    if (target >= playerCount) target = playerCount - 1;
-    if (target == oldIndex) return;
-
+    // Moves the field and keeps _firstDealerIndex pointing at the same person.
+    // The dealer index is non-null here, so the helper never returns null.
     setState(() {
-      final c = _controllers.removeAt(oldIndex);
-      _controllers.insert(target, c);
-      final f = _focusNodes.removeAt(oldIndex);
-      _focusNodes.insert(target, f);
-      // Keep _firstDealerIndex pointing at the same person.
-      _firstDealerIndex = adjustIndexAfterReorder(
+      _firstDealerIndex = reorderPlayerFields(
+        _fields,
         oldIndex,
-        target,
+        newIndex,
         _firstDealerIndex,
-      );
+      )!;
     });
   }
 
   Future<void> _confirmAndCancel() async {
-    if (_hasChanges) {
-      final confirmed = await showConfirmDialog(
-        context,
-        title: kDiscardChangesTitle,
-        contentText: kDiscardChangesMessage,
-        confirmLabel: kDiscardLabel,
-        destructive: true,
-      );
-      if (confirmed != true) return;
-      if (!mounted) return;
-    }
+    final proceed = await confirmDiscard(
+      context,
+      dirty: _hasChanges,
+      title: kDiscardChangesTitle,
+      message: kDiscardChangesMessage,
+    );
+    if (!proceed) return;
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
   void _showSaveValidationSnackbar() {
-    final trimmed = _controllers.map((c) => c.text.trim()).toList();
-    if (!allPlayerNamesFilled(trimmed)) {
-      showIncompleteFormSnackBar(
-        ScaffoldMessenger.of(context),
-        message: 'Vul alle spelersnamen in.',
-      );
-      return;
-    }
-    showIncompleteFormSnackBar(
-      ScaffoldMessenger.of(context),
-      message: 'Spelersnamen moeten uniek zijn.',
+    final reason = playerNamesInvalidReason(
+      _controllers.map((c) => c.text.trim()).toList(),
     );
+    if (reason == null) return;
+    showTimedSnackBar(ScaffoldMessenger.of(context), content: Text(reason));
   }
 
   Future<void> _save() async {
@@ -213,18 +211,12 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
       if (confirm != true) return;
       if (!mounted) return;
     }
-    // Build the new player list in the post-reorder seat order.
-    // Map each controller back to the original Player object by identity so
-    // UUIDs stay bound to the correct person after a drag-reorder.
-    final origPlayers = ref.read(activeSessionProvider).players;
+    // Build the new player list in the post-reorder seat order. Each field
+    // carries its original Player, so the UUID stays bound to the right person
+    // by construction — we just apply the (possibly edited) name.
     final newPlayers = <Player>[
-      for (int i = 0; i < playerCount; i++)
-        () {
-          final origIdx = _originalControllerOrder.indexOf(_controllers[i]);
-          return origPlayers[origIdx].copyWith(
-            name: _controllers[i].text.trim(),
-          );
-        }(),
+      for (final f in _fields)
+        f.player.copyWith(name: f.controller.text.trim()),
     ];
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.setPlayersAndDealer(newPlayers, _firstDealerIndex);
@@ -239,9 +231,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   Widget build(BuildContext context) {
     // Holds a subscription so autoDispose doesn't cascade while initState/_save use ref.read.
     ref.watch(calculatorProvider);
-    final suggestions = ref
-        .watch(gameHistoryProvider.notifier)
-        .playerNameSuggestions;
+    final suggestions = ref.watch(playerNameSuggestionsProvider);
     final orderChanged = _orderChanged;
 
     return ListenableBuilder(
@@ -276,14 +266,12 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                   final trimmed = _controllers
                       .map((c) => c.text.trim())
                       .toList();
-                  final canSave =
-                      allPlayerNamesFilled(trimmed) &&
-                      !hasDuplicatePlayerNames(trimmed);
-                  return DisabledTapDetector(
-                    enabled: !canSave,
-                    onTap: _showSaveValidationSnackbar,
-                    child: FilledButton(
-                      onPressed: canSave ? _save : null,
+                  final canSave = playerNamesInvalidReason(trimmed) == null;
+                  return DisabledTappableButton(
+                    onPressed: canSave ? _save : null,
+                    onDisabledTap: _showSaveValidationSnackbar,
+                    builder: (onPressed) => FilledButton(
+                      onPressed: onPressed,
                       child: const Text(kSaveLabel),
                     ),
                   );

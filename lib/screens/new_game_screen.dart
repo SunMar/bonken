@@ -11,6 +11,8 @@ import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/rule_variants.dart';
 import '../models/starter_variant.dart';
+import '../navigation/app_routes.dart';
+import '../state/calculator_keep_alive.dart';
 import '../state/calculator_provider.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
@@ -19,11 +21,18 @@ import '../utils.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
+import '../widgets/full_width_bottom_bar_button.dart';
 import '../widgets/game_name_field.dart';
 import '../widgets/game_rules_card.dart';
-import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/player_list_field.dart';
-import 'game_screen.dart';
+import '../widgets/timed_snackbar.dart';
+
+/// One editable player row in [NewGameScreen]: its text controller and focus
+/// node bundled so a reorder moves the whole record (no parallel-list swap).
+typedef _PlayerField = ({
+  TextEditingController controller,
+  FocusNode focusNode,
+});
 
 /// Full-screen dialog for entering player names and picking the dealer.
 ///
@@ -39,8 +48,7 @@ class NewGameScreen extends ConsumerStatefulWidget {
 }
 
 class _NewGameScreenState extends ConsumerState<NewGameScreen> {
-  late final List<TextEditingController> _controllers;
-  late final List<FocusNode> _focusNodes;
+  late final List<_PlayerField> _fields;
   late final TextEditingController _nameController;
 
   /// Dealer slot index, or null if the user wants a random dealer.
@@ -61,27 +69,34 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     // resumed) session live in the calculator provider, but surfacing them
     // here is confusing — the user reached this screen by pressing
     // "Nieuw spel", which should mean a clean slate.
-    _controllers = List.generate(playerCount, (_) {
-      final c = TextEditingController();
+    _fields = List.generate(playerCount, (_) {
+      final controller = TextEditingController();
       // Rebuild on every keystroke so the duplicate warning, dropdown
       // labels, and Start-button enabled-state stay in sync.
-      c.addListener(_onAnyChange);
-      return c;
+      controller.addListener(_onAnyChange);
+      return (controller: controller, focusNode: FocusNode());
     });
-    _focusNodes = List.generate(playerCount, (_) => FocusNode());
     _nameController = TextEditingController();
-    _formChanges = Listenable.merge([..._controllers, _nameController]);
+    _formChanges = Listenable.merge([
+      for (final f in _fields) f.controller,
+      _nameController,
+    ]);
   }
+
+  /// Live views over [_fields] in the current seat order, for the shared
+  /// widgets/helpers that take parallel controller/focus-node lists.
+  List<TextEditingController> get _controllers => [
+    for (final f in _fields) f.controller,
+  ];
+  List<FocusNode> get _focusNodes => [for (final f in _fields) f.focusNode];
 
   @override
   void dispose() {
-    for (final c in _controllers) {
-      c
+    for (final f in _fields) {
+      f.controller
         ..removeListener(_onAnyChange)
         ..dispose();
-    }
-    for (final n in _focusNodes) {
-      n.dispose();
+      f.focusNode.dispose();
     }
     _nameController.dispose();
     super.dispose();
@@ -99,17 +114,14 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       _dealerIndex != null;
 
   Future<void> _confirmAndCancel() async {
-    if (_hasInput) {
-      final confirmed = await showConfirmDialog(
-        context,
-        title: kDiscardInputTitle,
-        contentText: kDiscardInputMessage,
-        confirmLabel: kDiscardLabel,
-        destructive: true,
-      );
-      if (confirmed != true) return;
-      if (!mounted) return;
-    }
+    final proceed = await confirmDiscard(
+      context,
+      dirty: _hasInput,
+      title: kDiscardInputTitle,
+      message: kDiscardInputMessage,
+    );
+    if (!proceed) return;
+    if (!mounted) return;
     Navigator.of(context).pop();
   }
 
@@ -124,34 +136,24 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   );
 
   void _handleReorder(int oldIndex, int newIndex) {
-    // `onReorderItem` already pre-adjusts newIndex for the removed item — no
-    // manual `if (newIndex > oldIndex) newIndex -= 1` decrement needed.
-    final target = newIndex;
-    if (oldIndex == target) return;
+    // Moves the field and keeps the (nullable) dealer index pointing at the
+    // same person — null stays null (random dealer).
     setState(() {
-      final movedC = _controllers.removeAt(oldIndex);
-      _controllers.insert(target, movedC);
-      final movedN = _focusNodes.removeAt(oldIndex);
-      _focusNodes.insert(target, movedN);
-      if (_dealerIndex != null) {
-        _dealerIndex = adjustIndexAfterReorder(oldIndex, target, _dealerIndex!);
-      }
+      _dealerIndex = reorderPlayerFields(
+        _fields,
+        oldIndex,
+        newIndex,
+        _dealerIndex,
+      );
     });
   }
 
   void _showStartValidationSnackbar() {
-    final trimmedNames = [for (final c in _controllers) c.text.trim()];
-    if (!allPlayerNamesFilled(trimmedNames)) {
-      showIncompleteFormSnackBar(
-        ScaffoldMessenger.of(context),
-        message: 'Vul alle spelersnamen in.',
-      );
-      return;
-    }
-    showIncompleteFormSnackBar(
-      ScaffoldMessenger.of(context),
-      message: 'Spelersnamen moeten uniek zijn.',
-    );
+    final reason = playerNamesInvalidReason([
+      for (final c in _controllers) c.text.trim(),
+    ]);
+    if (reason == null) return;
+    showTimedSnackBar(ScaffoldMessenger.of(context), content: Text(reason));
   }
 
   Future<void> _handleStart() async {
@@ -169,15 +171,12 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       if (!mounted) return;
     }
 
-    // Hold a subscription to bridge the gap between ref.read() closing its
-    // temporary sub and GameScreen subscribing. The await saveGame() below
-    // yields to the microtask queue, where the autoDispose timer would
-    // otherwise fire and dispose calculatorProvider before GameScreen builds.
-    final container = ProviderScope.containerOf(context, listen: false);
-    final sub = container.listen<CalculatorState>(
-      calculatorProvider,
-      (_, _) {},
-    );
+    // Keep calculatorProvider alive across the load→navigate gap (the await
+    // saveGame() below yields to the microtask queue, where the autoDispose
+    // timer would otherwise dispose it before GameScreen builds). The keep-alive
+    // releases itself after the next frame, so the `!mounted` early-out needs no
+    // manual cleanup.
+    holdCalculatorAcrossNavigation(context);
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.startNewGame(
       players: players,
@@ -192,29 +191,17 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     if (session != null) {
       await ref.read(gameHistoryProvider.notifier).saveGame(session);
     }
-    if (!mounted) {
-      sub.close();
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) => sub.close());
-    unawaited(
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const GameScreen()),
-      ),
-    );
+    if (!mounted) return;
+    unawaited(AppRoutes.replaceWithGame(context));
   }
 
   @override
   Widget build(BuildContext context) {
-    // Watch history so suggestions update if it finishes loading after this
-    // widget is first built.
-    final suggestions = ref
-        .watch(gameHistoryProvider.notifier)
-        .playerNameSuggestions;
+    // Derived provider: rebuilds when history changes (including its first
+    // load), so suggestions stay current.
+    final suggestions = ref.watch(playerNameSuggestionsProvider);
     final trimmedNames = [for (final c in _controllers) c.text.trim()];
-    final canStart =
-        allPlayerNamesFilled(trimmedNames) &&
-        !hasDuplicatePlayerNames(trimmedNames);
+    final canStart = playerNamesInvalidReason(trimmedNames) == null;
 
     return ListenableBuilder(
       listenable: _formChanges,

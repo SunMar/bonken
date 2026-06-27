@@ -19,6 +19,11 @@ Finder _visibleTrophy() => find.byWidgetPredicate(
       (w.child as Icon).icon == Symbols.emoji_events,
 );
 
+// The whole card is wrapped in Opacity(0.7) only while the score is partial
+// (the trophy Opacity is 1.0/0.0, never 0.7), so a 0.7 match is the card dim.
+Finder _partialDim() =>
+    find.byWidgetPredicate((w) => w is Opacity && w.opacity == 0.7);
+
 void main() {
   group('ScoreResultView', () {
     testWidgets('shows formatted scores with correct sign', (tester) async {
@@ -87,6 +92,8 @@ void main() {
       // Partial state must be signalled semantically for screen readers.
       expect(find.text('Voorlopige score'), findsOneWidget);
       expect(find.text('Score'), findsNothing);
+      // ...and visually dimmed (the documented "not yet final" cue).
+      expect(_partialDim(), findsOneWidget);
     });
 
     testWidgets('header reads "Score" when not partial', (tester) async {
@@ -103,6 +110,8 @@ void main() {
       );
       expect(find.text('Score'), findsOneWidget);
       expect(find.text('Voorlopige score'), findsNothing);
+      // Final score is full-opacity: the partial dim is gone.
+      expect(_partialDim(), findsNothing);
     });
 
     testWidgets('hides Score header when showHeader is false', (tester) async {
@@ -124,7 +133,7 @@ void main() {
     testWidgets('shows doubles and redoubles chips when present', (
       tester,
     ) async {
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           .withPair(
             playerIds[0],
             playerIds[1],

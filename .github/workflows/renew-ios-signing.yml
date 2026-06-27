@@ -16,6 +16,13 @@ on:
 permissions:
   contents: read
 
+# Serialize renewals: two concurrent runs would race to (re)create and push
+# signing material to the match repo. Queue rather than cancel — cancelling
+# mid-push could corrupt the encrypted certs/profiles in the match repo.
+concurrency:
+  group: renew-ios-signing
+  cancel-in-progress: false
+
 jobs:
   renew:
     runs-on: macos-26

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/game_session.dart';
+import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 
 /// A scoreboard card that shows the cumulative scores for a single
@@ -107,29 +108,41 @@ class ScoreboardCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           );
 
-    final content = Padding(
+    final tappable = onTap != null;
+
+    // Decorative content (progress glyph, title/date, score chips) is excluded
+    // from semantics when the card is tappable — [tapSemanticLabel] already
+    // names the whole card, so this avoids double-announcing it. [headerTrailing]
+    // is deliberately kept OUT of this wrapper (see the Stack below) so it stays
+    // individually reachable.
+    Widget decorative(Widget child) =>
+        tappable ? ExcludeSemantics(child: child) : child;
+
+    final body = Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                isFinished
-                    ? Symbols.check_circle
-                    : _scoreboardProgressIcon(roundsPlayed),
-                // Filled check rhymes with a fully-filled clock_loader,
-                // turning the in-progress → finished transition into the
-                // last frame of the same loader animation. Monochrome on
-                // both states — completion is carried by the glyph, not
-                // by colour.
-                fill: isFinished ? 1 : 0,
-                size: 24,
-                color: cs.onSurfaceVariant,
-                semanticLabel: isFinished ? 'Afgerond spel' : 'Lopend spel',
+              decorative(
+                Icon(
+                  isFinished
+                      ? Symbols.check_circle
+                      : _scoreboardProgressIcon(roundsPlayed),
+                  // Filled check rhymes with a fully-filled clock_loader,
+                  // turning the in-progress → finished transition into the
+                  // last frame of the same loader animation. Monochrome on
+                  // both states — completion is carried by the glyph, not
+                  // by colour.
+                  fill: isFinished ? 1 : 0,
+                  size: 24,
+                  color: cs.onSurfaceVariant,
+                  semanticLabel: isFinished ? 'Afgerond spel' : 'Lopend spel',
+                ),
               ),
               const SizedBox(width: 6),
-              Expanded(child: label),
+              Expanded(child: decorative(label)),
               if (headerTrailing != null) ...[
                 const SizedBox(width: 8),
                 headerTrailing!,
@@ -137,25 +150,27 @@ class ScoreboardCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              for (int i = 0; i < playerNames.length; i++)
-                // Symmetric 2 px horizontal padding per slot ⇒ 4 px
-                // between adjacent chips and 2 px on the outer edges,
-                // which combines with the Card's 16 px padding to give
-                // a balanced left/right gutter (no asymmetric tail
-                // after the last chip).
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _PlayerScoreChip(
-                      name: playerNames[i],
-                      score: scores[i],
-                      isWinner: winners.contains(i),
+          decorative(
+            Row(
+              children: [
+                for (int i = 0; i < playerNames.length; i++)
+                  // Symmetric 2 px horizontal padding per slot ⇒ 4 px
+                  // between adjacent chips and 2 px on the outer edges,
+                  // which combines with the Card's 16 px padding to give
+                  // a balanced left/right gutter (no asymmetric tail
+                  // after the last chip).
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _PlayerScoreChip(
+                        name: playerNames[i],
+                        score: scores[i],
+                        isWinner: winners.contains(i),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -163,23 +178,30 @@ class ScoreboardCard extends StatelessWidget {
 
     return Card(
       margin: margin,
-      child: onTap == null
-          ? content
-          // Annotate the InkWell's tap node with a button role + label so the
-          // card is announced as one openable control (the inner score chips
-          // and the trailing delete button stay individually reachable).
-          : MergeSemantics(
-              child: Semantics(
-                button: true,
-                label: tapSemanticLabel,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: onTap,
-                  // The tapSemanticLabel already describes the card for screen
-                  // readers; exclude content so it is not double-announced.
-                  child: ExcludeSemantics(child: content),
+      child: !tappable
+          ? body
+          // The card opens on tap, announced as one openable button. The
+          // InkWell sits *behind* [body] (full-card ripple + tap); the
+          // decorative content above is ExcludeSemantics'd and lets taps fall
+          // through to it, while [headerTrailing] — a sibling on top, outside
+          // both the MergeSemantics and the ExcludeSemantics — stays
+          // individually reachable to assistive tech AND wins its own taps.
+          : Stack(
+              children: [
+                Positioned.fill(
+                  child: MergeSemantics(
+                    child: Semantics(
+                      button: true,
+                      label: tapSemanticLabel,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: onTap,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                body,
+              ],
             ),
     );
   }

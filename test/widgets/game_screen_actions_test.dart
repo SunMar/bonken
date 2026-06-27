@@ -147,22 +147,17 @@ void main() {
     expect(find.text('Het spel is verwijderd.'), findsOneWidget);
     expect(find.text('Ongedaan maken'), findsOneWidget);
 
-    // Tapping "Ongedaan maken" re-saves the deleted session. We invoke
-    // the action callback directly (rather than tapping the widget) so
-    // we don't double-close the snackbar — `SnackBarAction` calls
-    // `hideCurrentSnackBar` on tap, while the snackbar's
-    // belt-and-suspenders `Timer` (in `showTimedSnackBar`) also
-    // calls `controller.close` after its 4s duration.
-    final action = tester.widget<SnackBarAction>(find.byType(SnackBarAction));
-    action.onPressed();
-    await tester.pump();
+    // Tapping "Ongedaan maken" re-saves the deleted session and dismisses the
+    // snackbar via `hideCurrentSnackBar`. Hiding the bar cancels the framework's
+    // own auto-dismiss timer (`persist: false`), so tapping the widget is safe:
+    // there is no app-owned timer to leak and no second close on a gone bar.
+    await tester.tap(find.text('Ongedaan maken'));
+    await tester.pumpAndSettle();
     expect(
       container.read(gameHistoryProvider).value?.any((g) => g.id == sessionId),
       isTrue,
     );
-
-    // Drain the snackbar's auto-dismiss Timer + exit animation.
-    await tester.pump(const Duration(seconds: 6));
-    await tester.pumpAndSettle();
+    // No timer to drain: hiding the bar cancelled the framework's persist:false
+    // auto-dismiss timer.
   });
 }

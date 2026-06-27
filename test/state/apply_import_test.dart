@@ -9,6 +9,7 @@ import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/state/backup_codec.dart';
 import 'package:bonken/state/backup_migrations.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/export_import_notifier.dart';
@@ -16,7 +17,6 @@ import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/migrations.dart';
 import 'package:bonken/state/settings_storage.dart';
 import 'package:bonken/state/theme_mode_provider.dart';
-import 'package:bonken/state/validation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,10 +25,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
 
+/// A [GameHistoryNotifier] whose [replaceAll] always fails — drives the
+/// games-write-failure path in [ImportNotifier.applyImport].
+class _ThrowingGameHistoryNotifier extends GameHistoryNotifier {
+  @override
+  Future<void> replaceAll(List<GameSession> sessions) async {
+    throw Exception('replaceAll failed');
+  }
+}
+
 void main() {
   // ── Fixtures ──────────────────────────────────────────────────────────────
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() => setAsyncPrefs({}));
 
   final pa = Player(name: 'A');
   final pb = Player(name: 'B');
@@ -75,7 +84,7 @@ void main() {
     List<GameSession>? sessions,
     String? settingsJson,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     if (sessions != null) {
       await prefs.setString(
         GameHistoryNotifier.storageKey,
@@ -141,8 +150,8 @@ void main() {
         session(kGameId1),
       ]);
 
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(GameHistoryNotifier.storageKey);
+      final prefs = SharedPreferencesAsync();
+      final raw = await prefs.getString(GameHistoryNotifier.storageKey);
       expect(raw, isNotNull);
       final decoded = jsonDecode(raw!) as Map<String, dynamic>;
       expect((decoded['games'] as List).length, 1);
@@ -161,14 +170,18 @@ void main() {
       );
 
       // Reset prefs so the container starts clean.
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
 
       final result = await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: true, importSettings: true);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: true,
+            importSettings: true,
+          );
 
       expect(result.gamesImported, 1);
       expect(result.settingsUpdated, isTrue);
@@ -182,7 +195,7 @@ void main() {
       final zip = await buildZip(
         sessions: [session(kGameId1), session(kGameId2)],
       );
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
@@ -190,7 +203,11 @@ void main() {
       final initialTheme = container.read(themeModeProvider);
       final result = await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: true, importSettings: false);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: true,
+            importSettings: false,
+          );
 
       expect(result.gamesImported, 2);
       expect(result.settingsUpdated, isFalse);
@@ -199,7 +216,7 @@ void main() {
 
     test('settings-only import: settings updated live', () async {
       final zip = await buildZip(settingsJson: validSettingsJson);
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
@@ -207,7 +224,11 @@ void main() {
 
       await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: false, importSettings: true);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: false,
+            importSettings: true,
+          );
 
       // validSettingsJson specifies 'dark' — provider must reflect it live.
       expect(container.read(themeModeProvider), ThemeMode.dark);
@@ -215,7 +236,7 @@ void main() {
 
     test('settings-only import preserves an in-progress game (C1)', () async {
       final zip = await buildZip(settingsJson: validSettingsJson);
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
@@ -228,7 +249,11 @@ void main() {
 
       await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: false, importSettings: true);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: false,
+            importSettings: true,
+          );
 
       // Settings applied, but the active game must NOT have been reset.
       expect(container.read(themeModeProvider), ThemeMode.dark);
@@ -237,7 +262,7 @@ void main() {
 
     test('games import resets any in-progress game', () async {
       final zip = await buildZip(sessions: [session(kGameId1)]);
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
@@ -249,11 +274,48 @@ void main() {
 
       await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: true, importSettings: false);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: true,
+            importSettings: false,
+          );
 
       // Replacing history clears the active session so a debounced autosave
       // can't resurrect the overwritten game.
       expect(container.read(calculatorProvider), isA<NoSession>());
+    });
+
+    test('games-write failure preserves the in-progress game', () async {
+      final zip = await buildZip(sessions: [session(kGameId1)]);
+      setAsyncPrefs({});
+      final container = ProviderContainer(
+        overrides: [
+          gameHistoryProvider.overrideWith(_ThrowingGameHistoryNotifier.new),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(gameHistoryProvider.future);
+
+      // Keep the autoDispose calculator alive for the whole test.
+      final sub = container.listen(calculatorProvider, (_, _) {});
+      addTearDown(sub.close);
+
+      container
+          .read(calculatorProvider.notifier)
+          .startNewGame(players: four, dealerIndex: 0);
+      expect(container.read(calculatorProvider), isA<ActiveSession>());
+
+      final backup = await BackupCodec.decode(zip);
+      await expectLater(
+        container
+            .read(importNotifierProvider.notifier)
+            .applyImport(backup, importGames: true, importSettings: false),
+        throwsA(isA<Exception>()),
+      );
+
+      // The write failed AFTER cancelPendingAutosave but BEFORE reset, so the
+      // active game survives — the "clean failure" report stays honest.
+      expect(container.read(calculatorProvider), isA<ActiveSession>());
     });
 
     test('imported session count equals gamesImported', () async {
@@ -263,14 +325,18 @@ void main() {
         session(kGameId3),
       ];
       final zip = await buildZip(sessions: sessions);
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
 
       final result = await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: true, importSettings: false);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: true,
+            importSettings: false,
+          );
 
       expect(result.gamesImported, 3);
     });
@@ -289,14 +355,18 @@ void main() {
         pendingRound: pending,
       );
       final zip = await buildZip(sessions: [withPending]);
-      SharedPreferences.setMockInitialValues({});
+      setAsyncPrefs({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
       await container.read(gameHistoryProvider.future);
 
       await container
           .read(importNotifierProvider.notifier)
-          .applyImport(zip, importGames: true, importSettings: false);
+          .applyImport(
+            await BackupCodec.decode(zip),
+            importGames: true,
+            importSettings: false,
+          );
 
       final imported = container
           .read(gameHistoryProvider)
@@ -307,11 +377,11 @@ void main() {
     });
 
     test(
-      'validation failure leaves storage untouched (no partial write)',
+      'content-invalid stream is gated at decode, not re-validated at commit',
       () async {
         // Build a backup with VALID games but CONTENT-INVALID settings.
-        // The settings version + hash are correct so it passes analyzeBackup,
-        // but the themeMode value is invalid so validateMigratedSettings throws.
+        // The settings version + hash are correct so the ZIP decodes, but the
+        // themeMode value is invalid so validateMigratedSettings rejects it.
         final validGamesJson = jsonEncode({
           'version': currentStorageVersion,
           'games': [session(kGameId1).toJson()],
@@ -347,27 +417,25 @@ void main() {
           ..addFile(ArchiveFile.string('settings.json', badSettingsJson));
         final zip = ZipEncoder().encodeBytes(archive);
 
-        // Seed one existing game.
-        SharedPreferences.setMockInitialValues({});
+        // Decode is the single validate pass: the invalid settings stream is
+        // flagged StreamCorrupt here, so the UI never offers it and the commit
+        // never sees it. Games stay valid and importable.
+        final analysis = await BackupCodec.decode(zip);
+        expect(analysis.gamesStatus, isA<StreamValid<List<GameSession>>>());
+        expect(analysis.settingsStatus, isA<StreamCorrupt>());
+        expect(analysis.canImportSettings, isFalse);
+
+        // Committing only the valid stream succeeds with no partial write —
+        // the corrupt stream was gated out before commit (no re-validate pass).
+        setAsyncPrefs({});
         final container = ProviderContainer();
         addTearDown(container.dispose);
         await container.read(gameHistoryProvider.future);
-        await container
-            .read(gameHistoryProvider.notifier)
-            .saveGame(session(kGameId1));
-        expect(container.read(gameHistoryProvider).value!.length, 1);
-
-        // Attempt to import — must throw because settings are invalid.
-        await expectLater(
-          container
-              .read(importNotifierProvider.notifier)
-              .applyImport(zip, importGames: true, importSettings: true),
-          throwsA(isA<ValidationError>()),
-        );
-
-        // Game history must be unchanged.
-        expect(container.read(gameHistoryProvider).value!.length, 1);
-        expect(container.read(gameHistoryProvider).value!.first.id, kGameId1);
+        final result = await container
+            .read(importNotifierProvider.notifier)
+            .applyImport(analysis, importGames: true, importSettings: false);
+        expect(result.gamesImported, 1);
+        expect(result.settingsUpdated, isFalse);
       },
     );
   });

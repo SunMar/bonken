@@ -1,26 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/starter_variant.dart';
-import 'enum_preference_notifier.dart';
+import 'settings_provider.dart';
 
-/// Default resolves to [StarterVariant.dealerStarts]. Override in
-/// `ProviderScope.overrides` with `DefaultStarterVariantNotifier(initialVariant: ...)`
-/// to seed the persisted value at startup — see
-/// [loadPersistedSettings] and `main.dart`.
-final defaultStarterVariantProvider =
-    NotifierProvider<DefaultStarterVariantNotifier, StarterVariant>(
-      DefaultStarterVariantNotifier.new,
-    );
-
-class DefaultStarterVariantNotifier
-    extends EnumPreferenceNotifier<StarterVariant> {
-  DefaultStarterVariantNotifier({
-    StarterVariant initialVariant = StarterVariant.dealerStarts,
-  }) : super(initialValue: initialVariant);
-
-  @override
-  String get settingsKey => 'starterVariant';
-
-  @override
-  String get settingsSection => 'ruleVariants';
-}
+/// Read-only view of the app-wide default [StarterVariant], derived from
+/// [settingsProvider] (the single in-memory settings blob). Write via
+/// `settingsProvider.notifier.setDefaultStarterVariant(...)`.
+///
+/// `RulesIconButton` overrides this provider (scoped to the pushed rules route)
+/// with the session's committed variant — `overrideWithValue(...)` works
+/// because this is a plain derived [Provider].
+final defaultStarterVariantProvider = Provider<StarterVariant>(
+  (ref) => ref.watch(settingsProvider.select((s) => s.defaultStarterVariant)),
+);

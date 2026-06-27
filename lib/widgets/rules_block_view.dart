@@ -6,12 +6,15 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../data/game_rules.dart';
 import '../models/hearts_variant.dart';
+import '../models/labeled_variant.dart';
 import '../models/starter_variant.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
 import '../state/rules_edit_mode_provider.dart';
+import '../state/settings_provider.dart';
 import '../utils.dart';
-import 'incomplete_form_snackbar.dart';
+import 'disabled_tap_detector.dart';
+import 'timed_snackbar.dart';
 import 'variant_radio_list.dart';
 
 /// Renders a single [Block] from [game_rules.dart] as Material widgets.
@@ -22,7 +25,7 @@ import 'variant_radio_list.dart';
 ///
 /// The active variant for each kind comes from the default-variant providers,
 /// and [rulesEditModeProvider] decides whether variant-sensitive blocks expose
-/// the settings icon and "Spelregel variant" alternative. `RulesIconButton`
+/// the settings icon and "Spelregelvariant" alternative. `RulesIconButton`
 /// overrides both (scoped to the pushed route) when rules are opened from
 /// within a game, so the player sees only their committed rule set.
 class RulesBlockView extends ConsumerWidget {
@@ -33,6 +36,7 @@ class RulesBlockView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tt = Theme.of(context).textTheme;
+    final base = tt.bodyMedium ?? const TextStyle();
     final StarterVariant resolvedStarter = ref.watch(
       defaultStarterVariantProvider,
     );
@@ -43,16 +47,15 @@ class RulesBlockView extends ConsumerWidget {
     // Resolve the active variant for a kind once, so the per-block branches
     // below don't repeat the kind switch.
     Enum resolvedFor(VariantKind kind) => switch (kind) {
-      VariantKind.starter => resolvedStarter,
-      VariantKind.hearts => resolvedHearts,
+      .starter => resolvedStarter,
+      .hearts => resolvedHearts,
     };
     return switch (block) {
+      // The root span from _parseInline already carries `base`, so Para/RichPara
+      // don't repeat the body style on the outer Text.rich.
       final Para b => Padding(
         padding: const EdgeInsets.only(bottom: 10),
-        child: Text.rich(
-          _parseInline(b.text, tt.bodyMedium ?? const TextStyle()),
-          style: tt.bodyMedium,
-        ),
+        child: Text.rich(_parseInline(b.text, base)),
       ),
       final RichPara b => Padding(
         padding: const EdgeInsets.only(bottom: 10),
@@ -62,10 +65,7 @@ class RulesBlockView extends ConsumerWidget {
             children: [
               for (final span in b.spans)
                 switch (span) {
-                  final InlineText s => _parseInline(
-                    s.text,
-                    tt.bodyMedium ?? const TextStyle(),
-                  ),
+                  final InlineText s => _parseInline(s.text, base),
                   final InlineIcon s => WidgetSpan(
                     alignment: PlaceholderAlignment.middle,
                     child: Icon(s.icon, size: 14, color: tt.bodyMedium?.color),
@@ -73,62 +73,25 @@ class RulesBlockView extends ConsumerWidget {
                 },
             ],
           ),
-          style: tt.bodyMedium,
         ),
       ),
-      final BulletList b => Padding(
-        padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final item in b.items)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      const TextSpan(text: '•  '),
-                      _parseInline(item, tt.bodyMedium ?? const TextStyle()),
-                    ],
-                  ),
-                  style: tt.bodyMedium,
-                ),
+      final BulletList b => _markedList([
+        for (final item in b.items)
+          (marker: '•  ', body: _parseInline(item, base)),
+      ], tt.bodyMedium),
+      final NumberedList b => _markedList([
+        for (int i = 0; i < b.items.length; i++)
+          (
+            marker: '${i + 1}.  ',
+            body: switch (b.items[i]) {
+              final TextItem item => _parseInline(item.text, base),
+              final VariantItem item => _parseInline(
+                item.block.textFor(resolvedFor(item.block.variantKind)),
+                base,
               ),
-          ],
-        ),
-      ),
-      final NumberedList b => Padding(
-        padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (int i = 0; i < b.items.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(text: '${i + 1}.  '),
-                      switch (b.items[i]) {
-                        final TextItem item => _parseInline(
-                          item.text,
-                          tt.bodyMedium ?? const TextStyle(),
-                        ),
-                        final VariantItem item => _parseInline(
-                          item.block.textFor(
-                            resolvedFor(item.block.variantKind),
-                          ),
-                          tt.bodyMedium ?? const TextStyle(),
-                        ),
-                      },
-                    ],
-                  ),
-                  style: tt.bodyMedium,
-                ),
-              ),
-          ],
-        ),
-      ),
+            },
+          ),
+      ], tt.bodyMedium),
       final TableBlock b => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: _RulesTable(block: b),
@@ -162,12 +125,12 @@ class _VariantBlockView extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final String text = block.textFor(resolvedVariant);
     final settingsIcon = switch (editMode) {
-      RulesEditMode.enabled => _SettingsIconButton(
-        variantKind: block.variantKind,
-        resolvedVariant: resolvedVariant,
+      .enabled => _VariantSettingsIconButton(
+        onOpen: () =>
+            _openVariantDialog(context, block.variantKind, resolvedVariant),
       ),
-      RulesEditMode.hidden => null,
-      RulesEditMode.disabled => const _DisabledSettingsIconButton(),
+      .hidden => null,
+      .disabled => const _VariantSettingsIconButton(),
     };
     return block.label != null
         ? Padding(
@@ -230,7 +193,7 @@ class RulesNoteCallout extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (label != null)
+          if (label != null) ...[
             Row(
               children: [
                 Text(
@@ -244,7 +207,8 @@ class RulesNoteCallout extends StatelessWidget {
                 ?trailing,
               ],
             ),
-          if (label != null) const SizedBox(height: 2),
+            const SizedBox(height: 2),
+          ],
           Text(text, style: tt.bodyMedium?.copyWith(color: cs.onSurface)),
         ],
       ),
@@ -252,70 +216,97 @@ class RulesNoteCallout extends StatelessWidget {
   }
 }
 
-class _SettingsIconButton extends StatelessWidget {
-  const _SettingsIconButton({
-    required this.variantKind,
-    required this.resolvedVariant,
-  });
+/// The settings cog shown on variant-sensitive rule blocks. When [onOpen] is
+/// non-null the cog opens the variant picker; when null it is rendered *truly
+/// disabled* (Mechanism A — ARCHITECTURE §2) with a transparent overlay that
+/// explains where the variants can be changed instead.
+class _VariantSettingsIconButton extends StatelessWidget {
+  const _VariantSettingsIconButton({this.onOpen});
 
-  final VariantKind variantKind;
-  final Enum resolvedVariant;
+  /// Opens the variant picker. `null` ⇒ the cog is disabled.
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    final cog = IconButton(
       icon: const Icon(Symbols.settings),
       iconSize: 20,
       visualDensity: VisualDensity.compact,
-      tooltip: 'Spelregel variant',
-      onPressed: () => unawaited(
-        showDialog<void>(
-          context: context,
-          builder: (_) => _VariantDialog(
-            variantKind: variantKind,
-            initialVariant: resolvedVariant,
-          ),
+      tooltip: 'Spelregelvariant',
+      onPressed: onOpen,
+    );
+    if (onOpen != null) return cog;
+    // Disabled: keep the cog truly disabled (native M3 disabled colours —
+    // announced disabled, so WCAG contrast-exempt) while a transparent overlay
+    // catches the tap and explains why. A manual 0.38 dim on an interactive
+    // button would fail the 3:1 non-text contrast floor for an enabled control.
+    return DisabledTapDetector(
+      enabled: true,
+      onTap: () => showTimedSnackBar(
+        ScaffoldMessenger.of(context),
+        content: const Text(
+          "Je kunt de spelregelvarianten hier nu niet wijzigen. Ga naar het beginscherm of gebruik de knop 'Spel bewerken'.",
         ),
       ),
+      child: cog,
     );
   }
 }
 
-class _DisabledSettingsIconButton extends StatelessWidget {
-  const _DisabledSettingsIconButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final color = disabledOnSurface(Theme.of(context).colorScheme);
-    return IconButton(
-      icon: Icon(Symbols.settings, color: color),
-      iconSize: 20,
-      visualDensity: VisualDensity.compact,
-      tooltip: 'Spelregel variant',
-      onPressed: () => showIncompleteFormSnackBar(
-        ScaffoldMessenger.of(context),
-        message:
-            "Je kunt de spelregelvarianten hier nu niet wijzigen. Ga naar het beginscherm of gebruik de knop 'Spel bewerken'.",
-      ),
-    );
-  }
+/// Opens the variant picker for [kind], pre-selecting [resolved].
+///
+/// This `switch (kind)` is the *only* place the kind is mapped to its concrete
+/// variant type (subtitle + value list + persist call); the dialog itself is
+/// generic, so it carries no per-kind switch and no `as` casts.
+void _openVariantDialog(BuildContext context, VariantKind kind, Enum resolved) {
+  final Widget dialog = switch (kind) {
+    .starter => _VariantDialog<StarterVariant>(
+      subtitle: kStarterVariantSectionSubtitle,
+      values: StarterVariant.values,
+      initialVariant: resolved as StarterVariant,
+      persist: (ref, v) =>
+          ref.read(settingsProvider.notifier).setDefaultStarterVariant(v),
+    ),
+    .hearts => _VariantDialog<HeartsVariant>(
+      subtitle: kHeartsVariantSectionSubtitle,
+      values: HeartsVariant.values,
+      initialVariant: resolved as HeartsVariant,
+      persist: (ref, v) =>
+          ref.read(settingsProvider.notifier).setDefaultHeartsVariant(v),
+    ),
+  };
+  unawaited(showDialog<void>(context: context, builder: (_) => dialog));
 }
 
-class _VariantDialog extends ConsumerStatefulWidget {
+/// Deferred-save picker for a single variant kind. Generic over the concrete
+/// variant type [T] so [_VariantDialogState._pending], the [VariantRadioList]
+/// and [persist] are all statically typed — the kind→type mapping happens once,
+/// in [_openVariantDialog]. Composes the same [VariantRadioList] used by
+/// [GameRulesSections]; the difference is lifecycle (Save/Cancel commit here vs
+/// immediate-apply there), which is why the picker isn't shared wholesale.
+class _VariantDialog<T extends LabeledVariant> extends ConsumerStatefulWidget {
   const _VariantDialog({
-    required this.variantKind,
+    required this.subtitle,
+    required this.values,
     required this.initialVariant,
+    required this.persist,
   });
 
-  final VariantKind variantKind;
-  final Enum initialVariant;
+  final String subtitle;
+  final List<T> values;
+  final T initialVariant;
+
+  /// Persists the chosen value when the user taps Save. Receives the dialog's
+  /// own [WidgetRef] (the call site has none).
+  final Future<void> Function(WidgetRef ref, T value) persist;
 
   @override
-  ConsumerState<_VariantDialog> createState() => _VariantDialogState();
+  ConsumerState<_VariantDialog<T>> createState() => _VariantDialogState<T>();
 }
 
-class _VariantDialogState extends ConsumerState<_VariantDialog> {
-  late Enum _pending;
+class _VariantDialogState<T extends LabeledVariant>
+    extends ConsumerState<_VariantDialog<T>> {
+  late T _pending;
 
   @override
   void initState() {
@@ -325,37 +316,26 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = switch (widget.variantKind) {
-      VariantKind.starter => kStarterVariantSectionSubtitle,
-      VariantKind.hearts => kHeartsVariantSectionSubtitle,
-    };
+    final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Spelregel variant'),
+      title: const Text('Spelregelvariant'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              widget.subtitle,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            switch (widget.variantKind) {
-              VariantKind.starter => VariantRadioList<StarterVariant>(
-                values: StarterVariant.values,
-                value: _pending as StarterVariant,
-                onChanged: (v) => setState(() => _pending = v),
-                contentPadding: EdgeInsets.zero,
-              ),
-              VariantKind.hearts => VariantRadioList<HeartsVariant>(
-                values: HeartsVariant.values,
-                value: _pending as HeartsVariant,
-                onChanged: (v) => setState(() => _pending = v),
-                contentPadding: EdgeInsets.zero,
-              ),
-            },
+            VariantRadioList<T>(
+              values: widget.values,
+              value: _pending,
+              onChanged: (v) => setState(() => _pending = v),
+              contentPadding: EdgeInsets.zero,
+            ),
           ],
         ),
       ),
@@ -370,20 +350,7 @@ class _VariantDialogState extends ConsumerState<_VariantDialog> {
   }
 
   void _save() {
-    switch (widget.variantKind) {
-      case VariantKind.starter:
-        unawaited(
-          ref
-              .read(defaultStarterVariantProvider.notifier)
-              .setValue(_pending as StarterVariant),
-        );
-      case VariantKind.hearts:
-        unawaited(
-          ref
-              .read(defaultHeartsVariantProvider.notifier)
-              .setValue(_pending as HeartsVariant),
-        );
-    }
+    unawaited(widget.persist(ref, _pending));
     Navigator.of(context).pop();
   }
 }
@@ -449,10 +416,45 @@ class _RulesTable extends StatelessWidget {
   }
 }
 
+/// Renders a marker + body span per row in a left-indented column — the shared
+/// scaffold of [BulletList] and [NumberedList]. The marker span is styleless and
+/// inherits [bodyStyle] from the row's `Text.rich` (load-bearing — the inner
+/// marker span carries no style of its own).
+Widget _markedList(
+  List<({String marker, InlineSpan body})> rows,
+  TextStyle? bodyStyle,
+) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10, left: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final row in rows)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: row.marker),
+                  row.body,
+                ],
+              ),
+              style: bodyStyle,
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// Matches `**bold**` runs. Hoisted to a top-level `final` so it compiles once,
+/// not on every [_parseInline] call.
+final _boldPattern = RegExp(r'\*\*(.+?)\*\*');
+
 /// Tiny `**bold**` parser → [TextSpan].
 TextSpan _parseInline(String text, TextStyle baseStyle) {
   final spans = <TextSpan>[];
-  final re = RegExp(r'\*\*(.+?)\*\*');
+  final re = _boldPattern;
   int cursor = 0;
   for (final m in re.allMatches(text)) {
     if (m.start > cursor) {

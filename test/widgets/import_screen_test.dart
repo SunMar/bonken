@@ -5,6 +5,7 @@ import 'package:bonken/models/app_version.dart';
 import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/screens/import_screen.dart';
+import 'package:bonken/state/backup_codec.dart';
 import 'package:bonken/state/export_import_notifier.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/migrations.dart' show currentStorageVersion;
@@ -49,7 +50,7 @@ Future<Uint8List> _buildZip({
   List<GameSession>? sessions,
   String? settingsJson,
 }) async {
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = SharedPreferencesAsync();
   if (sessions != null) {
     await prefs.setString(
       GameHistoryNotifier.storageKey,
@@ -70,14 +71,39 @@ Future<Uint8List> _buildZip({
   );
 }
 
-Future<void> _pump(WidgetTester tester, {Future<Uint8List?> Function()? pick}) {
+Future<void> _pump(
+  WidgetTester tester, {
+  Future<Uint8List?> Function()? pick,
+  ImportNotifier Function()? importNotifier,
+}) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
+        // Decode inline on the test isolate: the tester's fake-async clock
+        // can't drive the production seam's real `Isolate.run`.
+        decodeBackupProvider.overrideWithValue(BackupCodec.decode),
         if (pick != null) pickBackupBytesProvider.overrideWithValue(pick),
+        if (importNotifier != null)
+          importNotifierProvider.overrideWith(importNotifier),
       ],
       child: const MaterialApp(home: ImportScreen()),
     ),
+  );
+}
+
+/// An [ImportNotifier] whose commit resolves immediately to a fixed success
+/// result, so the snackbar-presentation test doesn't depend on real
+/// SharedPreferences write latency. The real end-to-end commit is covered in
+/// `test/state/export_import_test.dart`.
+class _ImmediateImportNotifier extends ImportNotifier {
+  @override
+  Future<ImportResult> applyImport(
+    DecodedBackup backup, {
+    required bool importGames,
+    required bool importSettings,
+  }) async => ImportResult(
+    gamesImported: importGames ? 1 : 0,
+    settingsUpdated: importSettings,
   );
 }
 
@@ -103,7 +129,7 @@ void main() {
   testWidgets('renders idle description text', (tester) async {
     await _pump(tester);
     await tester.pumpAndSettle();
-    expect(find.textContaining('backup-bestand'), findsOneWidget);
+    expect(find.textContaining('backupbestand'), findsOneWidget);
   });
 
   testWidgets('valid backup → analyzed state shows stream options', (
@@ -143,11 +169,10 @@ void main() {
     expect(find.text('Gegevens vervangen'), findsOneWidget);
   });
 
-  testWidgets('confirming import shows success snackbar', (tester) async {
-    final zip = await _buildZip(
-      sessions: [_session()],
-      settingsJson: _validSettingsJson,
-    );
+  testWidgets('"Importeer" is guarded against re-tap while confirming', (
+    tester,
+  ) async {
+    final zip = await _buildZip(sessions: [_session()]);
     await _pump(tester, pick: () async => zip);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Kies bestand'));
@@ -156,12 +181,53 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Importeer'));
     await tester.pumpAndSettle();
 
+    // The confirm dialog is open; the underlying button must be disabled so a
+    // second tap can't open a second dialog / fire a second commit.
+    expect(find.text('Gegevens vervangen'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Importeer'))
+          .onPressed,
+      isNull,
+    );
+
+    // Cancelling releases the guard so the user can retry.
+    await tester.tap(find.text('Annuleren'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Importeer'))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('confirming import shows success snackbar', (tester) async {
+    final zip = await _buildZip(
+      sessions: [_session()],
+      settingsJson: _validSettingsJson,
+    );
+    // Stub the commit so this assertion is about snackbar presentation, not
+    // real write latency (the _Applying CircularProgressIndicator blocks
+    // pumpAndSettle).
+    await _pump(
+      tester,
+      pick: () async => zip,
+      importNotifier: _ImmediateImportNotifier.new,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Kies bestand'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Importeer'));
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Vervangen'));
-    // Can't use pumpAndSettle here: the _Applying state shows a
-    // CircularProgressIndicator (looping animation) that never settles.
-    // pump(duration) advances fake time enough for the SharedPreferences
-    // writes to complete and the success snackbar to appear.
-    await tester.pump(const Duration(milliseconds: 100));
+    // The stubbed commit resolves on the next microtask: one pump to enter
+    // _Applying, one to let applyImport resolve and insert the snackbar — no
+    // magic latency-derived wait.
+    await tester.pump();
+    await tester.pump();
 
     expect(
       find.text('De gegevens zijn geïmporteerd (instellingen en 1 spel).'),

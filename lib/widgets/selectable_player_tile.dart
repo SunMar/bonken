@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+
+import 'selectable_tile.dart';
 
 /// A selectable player tile shared by [PlayerPicker] and the initiator panel
 /// of [DoublesPicker]. Selection is shown via [secondaryContainer] fill;
 /// [isDimmed] applies 38% opacity. An optional [badge] is shown trailing the
 /// name (used by [DoublesPicker] to display the doubles involvement count).
+///
+/// A thin wrapper over the shared [SelectableTile] chrome, supplying the
+/// selection decoration + name/badge row.
+///
+/// When [isDimmed] (another tile is selected) the tile is presented to
+/// assistive tech as *disabled* — matching its dimmed look, so the 38%-opacity
+/// text is WCAG contrast-exempt — while a `Selecteren` custom semantics action
+/// keeps the switch-selection reachable. The visual `InkWell` tap is unchanged.
 class SelectablePlayerTile extends StatelessWidget {
   const SelectablePlayerTile({
     required this.name,
@@ -28,55 +39,38 @@ class SelectablePlayerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
 
-    final tile = Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          // M3 ListTile-equivalent rhythm: 16dp horizontal padding, sized
-          // to clear the 48dp touch-target floor on top of bodyMedium (~20dp).
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected ? cs.secondaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            // M3 selection convention (FilterChip, NavigationBar indicator):
-            // the filled secondaryContainer IS the affordance; outline
-            // disappears once selected.
-            border: Border.all(
-              color: isSelected ? Colors.transparent : cs.outlineVariant,
+    // Announce as a single selectable button (merges the name + optional badge
+    // count). When dimmed (another tile selected), present as disabled so the
+    // 38%-opacity text is contrast-exempt, but expose the switch via a
+    // 'Selecteren' custom action; the visual InkWell tap still works.
+    return SelectableTile(
+      onTap: onTap,
+      dimmed: isDimmed,
+      selected: isSelected,
+      enabled: isDimmed ? false : null,
+      customSemanticsActions: isDimmed
+          ? {const CustomSemanticsAction(label: 'Selecteren'): onTap}
+          : null,
+      // M3 selection convention (FilterChip, NavigationBar indicator): the
+      // filled secondaryContainer IS the affordance; outline disappears once
+      // selected.
+      backgroundColor: isSelected ? cs.secondaryContainer : null,
+      borderColor: isSelected ? Colors.transparent : cs.outlineVariant,
+      children: [
+        Expanded(
+          child: Text(
+            name,
+            overflow: TextOverflow.ellipsis,
+            style: tt.bodyMedium?.copyWith(
+              color: isSelected ? cs.onSecondaryContainer : cs.onSurface,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? cs.onSecondaryContainer : cs.onSurface,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-              if (badge != null) ...[const SizedBox(width: 8), badge!],
-            ],
-          ),
         ),
-      ),
-    );
-    // Announce as a single selectable button (merges the name + optional
-    // badge count); dimming is purely visual and stays tappable.
-    return MergeSemantics(
-      child: Semantics(
-        button: true,
-        selected: isSelected,
-        child: isDimmed ? Opacity(opacity: 0.38, child: tile) : tile,
-      ),
+        if (badge != null) ...[const SizedBox(width: 8), badge!],
+      ],
     );
   }
 }

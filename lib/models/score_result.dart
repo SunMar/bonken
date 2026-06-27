@@ -15,6 +15,7 @@ class ScoreResult {
       scores.entries.every((e) => other.scores[e.key] == e.value);
 
   @override
-  int get hashCode =>
-      Object.hashAll(scores.entries.map((e) => Object.hash(e.key, e.value)));
+  int get hashCode => Object.hashAllUnordered(
+    scores.entries.map((e) => Object.hash(e.key, e.value)),
+  );
 }

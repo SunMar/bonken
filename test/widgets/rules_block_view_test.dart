@@ -1,9 +1,9 @@
 import 'package:bonken/data/game_rules.dart';
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/starter_variant.dart';
-import 'package:bonken/state/default_hearts_variant_provider.dart';
-import 'package:bonken/state/default_starter_variant_provider.dart';
 import 'package:bonken/state/rules_edit_mode_provider.dart';
+import 'package:bonken/state/settings_provider.dart';
+import 'package:bonken/state/settings_storage.dart';
 import 'package:bonken/widgets/rules_block_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,14 +56,16 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        defaultStarterVariantProvider.overrideWith(
-          () => DefaultStarterVariantNotifier(
-            initialVariant: starterOverride ?? defaultStarter,
-          ),
-        ),
-        defaultHeartsVariantProvider.overrideWith(
-          () => DefaultHeartsVariantNotifier(
-            initialVariant: heartsOverride ?? defaultHearts,
+        // Seed the single settings blob so the derived variant providers
+        // resolve to these values — and so the save-flow test's write flows
+        // back through them.
+        settingsProvider.overrideWith(
+          () => SettingsNotifier(
+            initialSettings: PersistedSettings(
+              themeMode: ThemeMode.system,
+              defaultStarterVariant: starterOverride ?? defaultStarter,
+              defaultHeartsVariant: heartsOverride ?? defaultHearts,
+            ),
           ),
         ),
         rulesEditModeProvider.overrideWithValue(editMode),
@@ -144,7 +146,7 @@ void main() {
       await _pump(tester, _starterBlock);
       await tester.tap(find.byIcon(Symbols.settings));
       await tester.pumpAndSettle();
-      expect(find.text('Spelregel variant'), findsOneWidget);
+      expect(find.text('Spelregelvariant'), findsOneWidget);
     });
   });
 
@@ -200,7 +202,7 @@ void main() {
       await _pump(tester, _heartsBlock);
       await tester.tap(find.byIcon(Symbols.settings));
       await tester.pumpAndSettle();
-      expect(find.text('Spelregel variant'), findsOneWidget);
+      expect(find.text('Spelregelvariant'), findsOneWidget);
     });
   });
 
@@ -254,7 +256,7 @@ void main() {
       await _pump(tester, _starterLabeledBlock);
       await tester.tap(find.byIcon(Symbols.settings));
       await tester.pumpAndSettle();
-      expect(find.text('Spelregel variant'), findsOneWidget);
+      expect(find.text('Spelregelvariant'), findsOneWidget);
     });
   });
 
@@ -273,7 +275,7 @@ void main() {
       );
       await tester.tap(find.byIcon(Symbols.settings));
       await tester.pump();
-      expect(find.text('Spelregel variant'), findsNothing);
+      expect(find.text('Spelregelvariant'), findsNothing);
       expect(find.textContaining('Spel bewerken'), findsOneWidget);
       // Drain the showTimedSnackBar internal timer before the test ends.
       await tester.pumpAndSettle(const Duration(seconds: 5));
@@ -290,7 +292,7 @@ void main() {
       );
       await tester.tap(find.byIcon(Symbols.settings));
       await tester.pump();
-      expect(find.text('Spelregel variant'), findsNothing);
+      expect(find.text('Spelregelvariant'), findsNothing);
       expect(find.textContaining('Spel bewerken'), findsOneWidget);
       // Drain the showTimedSnackBar internal timer before the test ends.
       await tester.pumpAndSettle(const Duration(seconds: 5));
@@ -375,7 +377,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Dialog closed and the block now reflects the saved variant.
-      expect(find.text('Spelregel variant'), findsNothing);
+      expect(find.text('Spelregelvariant'), findsNothing);
       expect(
         find.textContaining('Tegenover de kiezer komt uit.'),
         findsOneWidget,
@@ -391,8 +393,94 @@ void main() {
       await tester.tap(find.text('Annuleren'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Spelregel variant'), findsNothing);
+      expect(find.text('Spelregelvariant'), findsNothing);
       expect(find.textContaining('De deler komt uit.'), findsOneWidget);
+    });
+
+    testWidgets('picking a hearts variant and saving updates the shown rule', (
+      tester,
+    ) async {
+      // Twin of the starter save test, guarding the hearts persist branch (the
+      // generic dialog routes it through setDefaultHeartsVariant).
+      await _pump(tester, _heartsBlock);
+      expect(
+        find.textContaining('Alleen na bijgespeelde harten.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byIcon(Symbols.settings));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(HeartsVariant.graduatedUnlock.label));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Spelregelvariant'), findsNothing);
+      expect(find.textContaining('Gefaseerde opening tekst.'), findsOneWidget);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Plain block render arms + the **bold** inline parser
+  // -----------------------------------------------------------------------
+  group('render arms', () {
+    testWidgets('Para renders its text', (tester) async {
+      await _pump(tester, const Para('Een gewone alinea.'));
+      expect(find.textContaining('Een gewone alinea.'), findsOneWidget);
+    });
+
+    testWidgets('BulletList renders each item with a bullet prefix', (
+      tester,
+    ) async {
+      await _pump(tester, const BulletList(['Eerste punt.', 'Tweede punt.']));
+      expect(find.textContaining('•'), findsNWidgets(2));
+      expect(find.textContaining('Eerste punt.'), findsOneWidget);
+      expect(find.textContaining('Tweede punt.'), findsOneWidget);
+    });
+
+    testWidgets('TableBlock renders its headers and cells', (tester) async {
+      await _pump(
+        tester,
+        const TableBlock(
+          headers: ['Kop A', 'Kop B'],
+          rows: [
+            ['Cel 1', 'Cel 2'],
+          ],
+        ),
+      );
+      expect(find.text('Kop A'), findsOneWidget);
+      expect(find.text('Kop B'), findsOneWidget);
+      expect(find.text('Cel 1'), findsOneWidget);
+      expect(find.text('Cel 2'), findsOneWidget);
+    });
+
+    testWidgets('Note renders its label and text', (tester) async {
+      await _pump(
+        tester,
+        const Note(label: 'Let op', text: 'Een belangrijke noot.'),
+      );
+      expect(find.textContaining('Let op'), findsOneWidget);
+      expect(find.textContaining('Een belangrijke noot.'), findsOneWidget);
+    });
+
+    testWidgets('**bold** spans render with FontWeight.bold', (tester) async {
+      await _pump(tester, const Para('Dit is **vet** hier.'));
+      final text = tester.widget<Text>(find.textContaining('Dit is'));
+
+      var boldRun = false;
+      void visit(InlineSpan span) {
+        if (span is TextSpan) {
+          if (span.text == 'vet' && span.style?.fontWeight == FontWeight.bold) {
+            boldRun = true;
+          }
+          for (final child in span.children ?? const <InlineSpan>[]) {
+            visit(child);
+          }
+        }
+      }
+
+      visit(text.textSpan!);
+      expect(boldRun, isTrue);
     });
   });
 }

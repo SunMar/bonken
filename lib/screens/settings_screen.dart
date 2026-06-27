@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../navigation/app_routes.dart';
 import '../state/default_hearts_variant_provider.dart';
 import '../state/default_starter_variant_provider.dart';
+import '../state/settings_provider.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/form_section_card.dart';
 import '../widgets/game_rules_card.dart';
 import '../widgets/info_banner.dart';
-import 'export_screen.dart';
-import 'import_screen.dart';
 
 /// Screen for configuring app-wide default settings.
 ///
@@ -35,10 +35,10 @@ class SettingsScreen extends ConsumerWidget {
             starterVariant: starterVariant,
             heartsVariant: heartsVariant,
             onStarterChanged: (v) => unawaited(
-              ref.read(defaultStarterVariantProvider.notifier).setValue(v),
+              ref.read(settingsProvider.notifier).setDefaultStarterVariant(v),
             ),
             onHeartsChanged: (v) => unawaited(
-              ref.read(defaultHeartsVariantProvider.notifier).setValue(v),
+              ref.read(settingsProvider.notifier).setDefaultHeartsVariant(v),
             ),
             showDefaultBadge: false,
           ),
@@ -77,43 +77,52 @@ class _DataSection extends StatelessWidget {
       childPadding: EdgeInsets.zero,
       child: Column(
         children: [
-          MergeSemantics(
-            child: Semantics(
-              button: true,
-              child: ListTile(
-                leading: const Icon(Symbols.upload),
-                minVerticalPadding: 14,
-                title: const Text('Exporteer gegevens'),
-                subtitle: const Text('Maak een backupbestand'),
-                onTap: () => unawaited(
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const ExportScreen(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          _DataTile(
+            icon: Symbols.upload,
+            title: 'Exporteer gegevens',
+            subtitle: 'Maak een backupbestand',
+            onTap: () => unawaited(AppRoutes.openExport(context)),
           ),
-          MergeSemantics(
-            child: Semantics(
-              button: true,
-              child: ListTile(
-                leading: const Icon(Symbols.download),
-                minVerticalPadding: 14,
-                title: const Text('Importeer gegevens'),
-                subtitle: const Text('Herstel vanuit een backupbestand'),
-                onTap: () => unawaited(
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const ImportScreen(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          _DataTile(
+            icon: Symbols.download,
+            title: 'Importeer gegevens',
+            subtitle: 'Herstel vanuit een backupbestand',
+            onTap: () => unawaited(AppRoutes.openImport(context)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A single tappable data-management row (Export / Import). Carries the
+/// hand-written `MergeSemantics`/`Semantics(button)` wrapper required for a
+/// custom tile (§2) in one place, so both rows share it identically.
+class _DataTile extends StatelessWidget {
+  const _DataTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        child: ListTile(
+          leading: Icon(icon),
+          minVerticalPadding: 14,
+          title: Text(title),
+          subtitle: Text(subtitle),
+          onTap: onTap,
+        ),
       ),
     );
   }

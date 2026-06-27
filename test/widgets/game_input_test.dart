@@ -47,6 +47,26 @@ void main() {
       expect(captured, [1, 0, 0, 0]);
     });
 
+    testWidgets('decrement button calls onCountsChanged with -1', (
+      tester,
+    ) async {
+      List<int>? captured;
+      await pumpHost(
+        tester,
+        CountsStepper(
+          playerNames: playerNames,
+          counts: const [2, 0, 0, 0],
+          total: 13,
+          unitLabel: 'slagen',
+          onCountsChanged: (c) => captured = c,
+        ),
+      );
+      // The first minus button is enabled (count 2 > 0); tapping it emits -1.
+      await tester.tap(find.byIcon(Symbols.remove_circle).first);
+      await tester.pump();
+      expect(captured, [1, 0, 0, 0]);
+    });
+
     testWidgets('decrement button is disabled when count is 0', (tester) async {
       await pumpHost(
         tester,
@@ -350,6 +370,29 @@ void main() {
         equals([null, players[3].id]),
       );
     });
+
+    testWidgets(
+      'pre-filled recipients map per-slot to the right picker index',
+      (tester) async {
+        await pumpHost(
+          tester,
+          GameInputForm(
+            game: const SeventhAndThirteenth(),
+            players: players,
+            // Slot 0 = Bob (index 1); slot 1 unset. The two slots resolve
+            // independently.
+            input: RecipientInput([players[1].id, null]),
+            onInputChanged: (_) {},
+          ),
+        );
+        final pickers = tester
+            .widgetList<PlayerPicker>(find.byType(PlayerPicker))
+            .toList();
+        expect(pickers.length, 2);
+        expect(pickers[0].selectedIndex, 1);
+        expect(pickers[1].selectedIndex, isNull);
+      },
+    );
   });
 
   group('GameInputForm with RecipientInputDescriptor (single-slot)', () {

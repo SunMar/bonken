@@ -93,9 +93,20 @@ void main() {
 
       expect(find.text('Kerst 2024'), findsOneWidget);
       expect(find.text(formatDate(testDate)), findsOneWidget);
+
+      // Role check, not just presence: the name is the bold primary header …
+      final cs = Theme.of(tester.element(find.text('Kerst 2024'))).colorScheme;
+      final nameText = tester.widget<Text>(find.text('Kerst 2024'));
+      expect(nameText.style?.fontWeight, FontWeight.bold);
+      // … and the date is the muted, non-bold subtitle beneath it.
+      final dateText = tester.widget<Text>(find.text(formatDate(testDate)));
+      expect(dateText.style?.fontWeight, isNot(FontWeight.bold));
+      expect(dateText.style?.color, cs.onSurfaceVariant);
     });
 
-    testWidgets('gameName null: only date shown in header', (tester) async {
+    testWidgets('gameName null: the date becomes the bold primary header', (
+      tester,
+    ) async {
       await pumpHost(
         tester,
         ScoreboardCard(
@@ -108,6 +119,10 @@ void main() {
       );
 
       expect(find.text(formatDate(testDate)), findsOneWidget);
+      // With no name, the date takes over the primary header role (bold), rather
+      // than rendering as the muted subtitle it is when a name is present.
+      final dateText = tester.widget<Text>(find.text(formatDate(testDate)));
+      expect(dateText.style?.fontWeight, FontWeight.bold);
     });
 
     testWidgets('tappable card exposes button role and semantic label', (
@@ -186,6 +201,44 @@ void main() {
         expect(find.byType(InkWell), findsOneWidget);
         await tester.tap(find.byType(InkWell));
         expect(taps, 1);
+      },
+    );
+
+    testWidgets(
+      'tappable card: headerTrailing action stays reachable to assistive tech',
+      (tester) async {
+        // Regression: when the card is tappable AND carries a trailing action
+        // (the Home delete button), the action must not be swallowed by the
+        // card's MergeSemantics/ExcludeSemantics — it has to stay a separately
+        // reachable node, or screen-reader/switch users lose the only delete.
+        final handle = tester.ensureSemantics();
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 2,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            scoredAt: testDate,
+            onTap: () {},
+            tapSemanticLabel: 'Open spel',
+            headerTrailing: IconButton(
+              icon: const Icon(Symbols.delete),
+              tooltip: 'Verwijderen',
+              onPressed: () {},
+            ),
+          ),
+        );
+        // The trailing delete button is reachable as its own button node — its
+        // own tooltip proves it wasn't merged into the card's "Open spel" node
+        // (the regression returned that node instead, with no 'Verwijderen').
+        expect(
+          tester.getSemantics(find.byTooltip('Verwijderen')),
+          isSemantics(isButton: true, isEnabled: true, tooltip: 'Verwijderen'),
+        );
+        // ...alongside the still-reachable card-open button.
+        expect(find.bySemanticsLabel('Open spel'), findsOneWidget);
+        handle.dispose();
       },
     );
 

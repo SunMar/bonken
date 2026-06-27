@@ -1,7 +1,7 @@
-import 'package:bonken/theme/app_theme_extensions.dart';
 import 'package:bonken/utils.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+enum _Fruit { apple, banana }
 
 void main() {
   group('formatScore', () {
@@ -29,54 +29,25 @@ void main() {
     });
   });
 
-  group('scoreColor', () {
-    Future<Color> resolve(
-      WidgetTester tester,
-      int score,
-      ThemeData theme,
-    ) async {
-      late Color result;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: theme,
-          home: Builder(
-            builder: (context) {
-              result = scoreColor(score, context);
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
+  group('formatFileDate / formatFileTimestamp', () {
+    test('formatFileDate is a zero-padded, sortable yyyy-MM-dd stamp', () {
+      expect(formatFileDate(DateTime(2024, 1, 5)), '2024-01-05');
+      expect(formatFileDate(DateTime(2024, 12, 31)), '2024-12-31');
+    });
+
+    test('formatFileDate pads the year to four digits', () {
+      expect(formatFileDate(DateTime(987, 3, 4)), '0987-03-04');
+    });
+
+    test('formatFileTimestamp appends a zero-padded HH-mm to the date', () {
+      expect(
+        formatFileTimestamp(DateTime(2024, 1, 5, 9, 7)),
+        '2024-01-05_09-07',
       );
-      return result;
-    }
-
-    testWidgets('zero falls back to onSurfaceVariant', (tester) async {
-      final theme = ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        extensions: const [ScoreColors.light],
+      expect(
+        formatFileTimestamp(DateTime(2024, 12, 31, 23, 59)),
+        '2024-12-31_23-59',
       );
-      final color = await resolve(tester, 0, theme);
-      expect(color, theme.colorScheme.onSurfaceVariant);
-    });
-
-    testWidgets('positive uses ScoreColors.positive', (tester) async {
-      final theme = ThemeData(extensions: const [ScoreColors.light]);
-      final color = await resolve(tester, 10, theme);
-      expect(color, ScoreColors.light.positive);
-    });
-
-    testWidgets('negative uses ScoreColors.negative', (tester) async {
-      final theme = ThemeData(extensions: const [ScoreColors.dark]);
-      final color = await resolve(tester, -10, theme);
-      expect(color, ScoreColors.dark.negative);
-    });
-
-    testWidgets('falls back to brightness defaults when extension missing', (
-      tester,
-    ) async {
-      final theme = ThemeData(brightness: Brightness.dark);
-      final color = await resolve(tester, 5, theme);
-      expect(color, ScoreColors.dark.positive);
     });
   });
 
@@ -107,6 +78,66 @@ void main() {
       expect(adjustIndexAfterReorder(2, 2, 0), 0);
       expect(adjustIndexAfterReorder(2, 2, 1), 1);
       expect(adjustIndexAfterReorder(2, 2, 3), 3);
+    });
+  });
+
+  group('reorderPlayerFields', () {
+    test('moves the item and keeps the dealer pointing at the same field', () {
+      final fields = ['A', 'B', 'C', 'D'];
+      // Move C (2) to the front; the dealer was D (index 3).
+      final dealer = reorderPlayerFields(fields, 2, 0, 3);
+      expect(fields, ['C', 'A', 'B', 'D']);
+      // D shifted one seat to the right.
+      expect(dealer, 4 - 1); // still D, now at index 3
+      expect(fields[dealer!], 'D');
+    });
+
+    test('dealer that is the moved field follows it', () {
+      final fields = ['A', 'B', 'C', 'D'];
+      final dealer = reorderPlayerFields(fields, 1, 3, 1); // dealer is B
+      expect(fields, ['A', 'C', 'D', 'B']);
+      expect(fields[dealer!], 'B');
+    });
+
+    test('null dealer (random) stays null', () {
+      final fields = ['A', 'B', 'C', 'D'];
+      final dealer = reorderPlayerFields(fields, 0, 2, null);
+      expect(fields, ['B', 'C', 'A', 'D']);
+      expect(dealer, isNull);
+    });
+
+    test('oldIndex == newIndex is a no-op (list and dealer unchanged)', () {
+      final fields = ['A', 'B', 'C', 'D'];
+      final dealer = reorderPlayerFields(fields, 2, 2, 1);
+      expect(fields, ['A', 'B', 'C', 'D']);
+      expect(dealer, 1);
+    });
+  });
+
+  group('enumByNameOrNull', () {
+    test('returns the matching value', () {
+      expect(enumByNameOrNull(_Fruit.values, 'banana'), _Fruit.banana);
+    });
+    test('returns null for a null name', () {
+      expect(enumByNameOrNull(_Fruit.values, null), isNull);
+    });
+    test('returns null for an unknown name', () {
+      expect(enumByNameOrNull(_Fruit.values, 'cherry'), isNull);
+    });
+  });
+
+  group('enumByName', () {
+    test('returns the matching value', () {
+      expect(enumByName(_Fruit.values, 'banana', _Fruit.apple), _Fruit.banana);
+    });
+    test('returns the fallback when the name is null (absent)', () {
+      expect(enumByName(_Fruit.values, null, _Fruit.apple), _Fruit.apple);
+    });
+    test('throws on a present-but-unknown name (corrupt data)', () {
+      expect(
+        () => enumByName(_Fruit.values, 'cherry', _Fruit.apple),
+        throwsFormatException,
+      );
     });
   });
 }

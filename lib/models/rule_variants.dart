@@ -18,8 +18,8 @@ import 'starter_variant.dart';
 @immutable
 class RuleVariants {
   const RuleVariants({
-    this.starterVariant = StarterVariant.dealerStarts,
-    this.heartsVariant = HeartsVariant.onlyAfterPlayedHeart,
+    this.starterVariant = .dealerStarts,
+    this.heartsVariant = .onlyAfterPlayedHeart,
   });
 
   /// Which player leads the first trick of each round.
@@ -41,9 +41,11 @@ class RuleVariants {
     'heartsVariant': heartsVariant.name,
   };
 
-  /// Reads a [RuleVariants] from a stored map; unknown or absent entries fall
-  /// back to the defaults (storage is always migrated to the nested shape
-  /// before this runs — see `migrations.dart`).
+  /// Reads a [RuleVariants] from a stored map. An **absent** entry falls back
+  /// to its default; a **present-but-unrecognized** value throws (corrupt or
+  /// forward-version data is rejected at the storage/import boundary, not
+  /// silently coerced). Storage is always migrated to the nested shape before
+  /// this runs — see `migrations.dart`.
   factory RuleVariants.fromJson(Map<String, dynamic> json) => RuleVariants(
     starterVariant: enumByName(
       StarterVariant.values,

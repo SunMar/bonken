@@ -21,22 +21,27 @@ import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/screens/boot_error_screen.dart';
 import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/screens/export_screen.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/screens/import_screen.dart';
+import 'package:bonken/screens/migration_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/screens/rules_screen.dart';
 import 'package:bonken/screens/settings_screen.dart';
+import 'package:bonken/state/backup_codec.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/export_import_notifier.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/migrations.dart' show currentStorageVersion;
 import 'package:bonken/state/platform_io_providers.dart';
 import 'package:bonken/state/settings_storage.dart';
+import 'package:bonken/widgets/doubles_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -85,6 +90,15 @@ GameSession _finishedSession(List<Player> players) => GameSession(
   ],
 );
 
+/// Sets the tall surface the a11y gate runs against (so scrollable screens lay
+/// out fully) and restores it on teardown. Shared by [_pump] and the
+/// analyzed-import case — which can't use [_pump] (it needs a `ProviderScope`
+/// override + a tap) — so the gate's surface size lives in one place.
+Future<void> _setGateSurface(WidgetTester tester) async {
+  await tester.binding.setSurfaceSize(const Size(800, 2400));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+}
+
 Future<void> _pump(
   WidgetTester tester,
   Widget home, {
@@ -93,8 +107,7 @@ Future<void> _pump(
 }) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
-  await tester.binding.setSurfaceSize(const Size(800, 2400));
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await _setGateSurface(tester);
   await container.read(gameHistoryProvider.future);
   if (load != null) {
     await container.read(gameHistoryProvider.notifier).saveGame(load);
@@ -181,6 +194,55 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets(
+    'RoundInputScreen with dimmed force tiles meets a11y guidelines',
+    (tester) async {
+      final handle = tester.ensureSemantics();
+      final players = [for (final n in _names) Player(name: n)];
+      await _pump(
+        tester,
+        const RoundInputScreen(),
+        load: _session(players),
+        select: const Duck(),
+      );
+      // After 1 played round the dealer rotates Alice→Bob, so round 2's chooser
+      // is Carol (chooser = dealer + 1). Selecting the chooser as initiator
+      // turns every target into a dimmed-but-tappable "force" tile AND dims the
+      // other initiator tiles — the override + switch-selection states the
+      // sweep is meant to cover but the case above never renders. Both now read
+      // as disabled (contrast-exempt) with a custom action.
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(DoublesPicker),
+              matching: find.text('Carol'),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      // Sanity: a force tile (presented as disabled, with the 'Forceren' custom
+      // action) actually rendered, so the guideline sweep below exercises it.
+      // Scope to the picker so the bottom scoreboard's "Alice" isn't matched.
+      expect(
+        tester.getSemantics(
+          find
+              .descendant(
+                of: find.byType(DoublesPicker),
+                matching: find.text('Alice'),
+              )
+              .last,
+        ),
+        isSemantics(
+          isButton: true,
+          customActions: const [CustomSemanticsAction(label: 'Forceren')],
+        ),
+        reason: 'expected the dimmed chooser-initiate force tiles to render',
+      );
+      await _expectA11y(tester);
+      handle.dispose();
+    },
+  );
+
   testWidgets('EditGameScreen meets a11y guidelines', (tester) async {
     final handle = tester.ensureSemantics();
     final players = [for (final n in _names) Player(name: n)];
@@ -211,13 +273,17 @@ void main() {
   });
 
   testWidgets('ImportScreen (analyzed) meets a11y guidelines', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(800, 2400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _setGateSurface(tester);
     final zip = await _backupZip();
     final handle = tester.ensureSemantics();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [pickBackupBytesProvider.overrideWithValue(() async => zip)],
+        overrides: [
+          pickBackupBytesProvider.overrideWithValue(() async => zip),
+          // Decode inline: the tester's fake-async clock can't drive the
+          // production seam's real `Isolate.run`.
+          decodeBackupProvider.overrideWithValue(BackupCodec.decode),
+        ],
         child: const MaterialApp(home: ImportScreen()),
       ),
     );
@@ -233,6 +299,20 @@ void main() {
   testWidgets('ExportScreen meets a11y guidelines', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(tester, const ExportScreen());
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('BootErrorScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, const BootErrorScreen());
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('MigrationScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, const MigrationScreen());
     await _expectA11y(tester);
     handle.dispose();
   });
@@ -252,7 +332,7 @@ Future<Uint8List> _backupZip() async {
     firstDealerId: players[0].id,
     rounds: const [],
   );
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = SharedPreferencesAsync();
   await prefs.setString(
     GameHistoryNotifier.storageKey,
     jsonEncode({

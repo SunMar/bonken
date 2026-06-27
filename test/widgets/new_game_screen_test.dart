@@ -3,6 +3,7 @@ import 'package:bonken/models/player.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
+import 'package:bonken/widgets/game_name_field.dart';
 import 'package:bonken/widgets/player_name_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -238,6 +239,34 @@ void main() {
     },
   );
 
+  testWidgets('entering a game name commits it on Start', (tester) async {
+    // Tall surface so the (lazily built) game-name field is laid out.
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final container = await pumpSetup(tester);
+    for (int i = 0; i < 4; i++) {
+      await enterName(tester, i, ['Alice', 'Bob', 'Carol', 'Dan'][i]);
+    }
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(GameNameField),
+        matching: find.byType(TextField),
+      ),
+      'Vrijdagavond',
+    );
+    await tester.pumpAndSettle();
+
+    await pickDealer(tester, 'Alice');
+    await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+    await tester.pumpAndSettle();
+
+    expect(
+      (container.read(calculatorProvider) as ActiveSession).gameName,
+      'Vrijdagavond',
+    );
+  });
+
   testWidgets(
     'pressing Start with a chosen dealer commits names + dealer + sessionId',
     (tester) async {
@@ -288,7 +317,7 @@ void main() {
   );
 
   testWidgets(
-    'reorder via reorderPlayerNames keeps dealer pointing at same player',
+    'reordering players keeps the dealer pointing at the same player',
     (tester) async {
       await pumpSetup(tester);
       await enterName(tester, 0, 'Alice');
@@ -388,4 +417,50 @@ void main() {
       expect(find.text('Je speelt met je standaardregels.'), findsNothing);
     },
   );
+
+  testWidgets(
+    'discard confirm: filled form → ✕ → cancel keeps screen, confirm pops',
+    (tester) async {
+      await pumpSetup(tester);
+      await enterName(tester, 0, 'Aaron');
+
+      // Tap the leading "Verwerpen" close icon (tooltip == kDiscardLabel).
+      await tester.tap(find.byTooltip('Verwerpen'));
+      await tester.pumpAndSettle();
+
+      // The discard-confirm dialog is shown because the form has input.
+      expect(find.text('Invoer verwerpen'), findsOneWidget);
+      expect(find.text('Je invoer gaat verloren.'), findsOneWidget);
+
+      // Cancelling keeps the screen.
+      await tester.tap(find.widgetWithText(TextButton, 'Annuleren'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NewGameScreen), findsOneWidget);
+
+      // ✕ again, then confirm the discard (the dialog button, not the ✕).
+      await tester.tap(find.byTooltip('Verwerpen'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(TextButton, 'Verwerpen'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(NewGameScreen), findsNothing);
+    },
+  );
+
+  testWidgets('discard: blank form → ✕ → pops immediately with no dialog', (
+    tester,
+  ) async {
+    await pumpSetup(tester);
+
+    await tester.tap(find.byTooltip('Verwerpen'));
+    await tester.pumpAndSettle();
+
+    // No confirmation because the form is untouched; the screen just pops.
+    expect(find.text('Invoer verwerpen'), findsNothing);
+    expect(find.byType(NewGameScreen), findsNothing);
+  });
 }

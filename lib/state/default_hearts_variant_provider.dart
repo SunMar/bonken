@@ -1,26 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/hearts_variant.dart';
-import 'enum_preference_notifier.dart';
+import 'settings_provider.dart';
 
-/// Default resolves to [HeartsVariant.onlyAfterPlayedHeart]. Override in
-/// `ProviderScope.overrides` with `DefaultHeartsVariantNotifier(initialVariant: ...)`
-/// to seed the persisted value at startup — see
-/// [loadPersistedSettings] and `main.dart`.
-final defaultHeartsVariantProvider =
-    NotifierProvider<DefaultHeartsVariantNotifier, HeartsVariant>(
-      DefaultHeartsVariantNotifier.new,
-    );
-
-class DefaultHeartsVariantNotifier
-    extends EnumPreferenceNotifier<HeartsVariant> {
-  DefaultHeartsVariantNotifier({
-    HeartsVariant initialVariant = HeartsVariant.onlyAfterPlayedHeart,
-  }) : super(initialValue: initialVariant);
-
-  @override
-  String get settingsKey => 'heartsVariant';
-
-  @override
-  String get settingsSection => 'ruleVariants';
-}
+/// Read-only view of the app-wide default [HeartsVariant], derived from
+/// [settingsProvider] (the single in-memory settings blob). Write via
+/// `settingsProvider.notifier.setDefaultHeartsVariant(...)`.
+///
+/// `RulesIconButton` overrides this provider (scoped to the pushed rules route)
+/// with the session's committed variant — `overrideWithValue(...)` works
+/// because this is a plain derived [Provider].
+final defaultHeartsVariantProvider = Provider<HeartsVariant>(
+  (ref) => ref.watch(settingsProvider.select((s) => s.defaultHeartsVariant)),
+);

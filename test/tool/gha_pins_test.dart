@@ -194,6 +194,19 @@ jobs:
       const yaml = '    uses: actions/checkout@v6\n';
       expect(applyPinBump(yaml, 'actions/checkout', 'v6'), yaml);
     });
+
+    test('leaves a prefix-overlapping look-alike repo untouched', () {
+      // The path anchor must not corrupt a sibling whose path starts with the
+      // target path (`foo/bar` vs `foo/bar-extended`) — the @v… boundary is the
+      // only thing preventing the collision.
+      const yaml = '''
+      - uses: foo/bar@v1
+      - uses: foo/bar-extended@v1
+''';
+      final out = applyPinBump(yaml, 'foo/bar', 'v2');
+      expect(out, contains('foo/bar@v2'));
+      expect(out, contains('foo/bar-extended@v1'));
+    });
   });
 
   group('parseUbuntuRunners', () {

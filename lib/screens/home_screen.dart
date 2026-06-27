@@ -7,22 +7,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/game_session.dart';
+import '../navigation/app_routes.dart';
+import '../state/calculator_keep_alive.dart';
 import '../state/calculator_provider.dart';
-import '../state/default_hearts_variant_provider.dart';
-import '../state/default_starter_variant_provider.dart';
 import '../state/game_history_provider.dart';
+import '../state/settings_provider.dart';
 import '../state/settings_storage.dart';
 import '../state/storage_exceptions.dart';
-import '../state/theme_mode_provider.dart';
 import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/app_bar_widgets.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
+import '../widgets/full_width_bottom_bar_button.dart';
 import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/scoreboard_card.dart';
-import 'game_screen.dart';
-import 'new_game_screen.dart';
 
 /// Home screen: app-bar with About button (leading) and shared
 /// Spelregels / Thema actions, past-games list, and "Nieuw spel"
@@ -32,66 +31,45 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
-
     final appBar = AppBar(
       leading: const AboutIconButton(),
       title: const TitleWithRules(title: Text('Bonken')),
       actions: const [SettingsIconButton(), ThemeMenuButton()],
     );
 
+    // Settings failed to load → full-screen error. Strip the app-bar actions
+    // (theme menu + settings) down to a bare bar like MigrationScreen: those
+    // write through the very settings blob that's unreadable, so a write would
+    // decode the corrupt/unsupported data and throw — and being unawaited, fail
+    // silently while the corruption persists. "Instellingen wissen" is the one
+    // repair, so steer the user there.
     final settingsError = ref.watch(settingsLoadErrorProvider);
     if (settingsError != null) {
       final (e, st) = settingsError;
-      final kind = switch (e) {
-        UnsupportedSettingsVersionException() =>
-          _StorageErrorKind.unsupportedVersion,
-        CorruptSettingsException() => _StorageErrorKind.corrupt,
-        _ => _StorageErrorKind.unknown,
-      };
-      return AppScaffold(
-        appBar: appBar,
-        body: _StorageErrorScreen(
-          title: switch (kind) {
-            _StorageErrorKind.unsupportedVersion => 'App bijwerken vereist',
-            _StorageErrorKind.corrupt => 'Instellingen beschadigd',
-            _StorageErrorKind.unknown => 'Onbekende fout',
-          },
-          message: switch (kind) {
-            _StorageErrorKind.unsupportedVersion =>
-              'Je instellingen zijn opgeslagen door een nieuwere versie van '
-                  'de app en kunnen niet worden geladen. Update de app of wis de '
-                  'instellingen om verder te spelen.',
-            _StorageErrorKind.corrupt =>
-              'Je instellingen kunnen niet worden gelezen (mogelijk '
-                  'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
-                  'of wis de instellingen om verder te spelen.',
-            _StorageErrorKind.unknown =>
-              'Er is een onverwachte fout opgetreden bij het laden van de '
-                  'instellingen. Verstuur het foutrapport om dit probleem te '
-                  'melden, of wis de instellingen om verder te spelen.',
-          },
-          showReportButton: kind != _StorageErrorKind.unsupportedVersion,
-          exception: e,
-          stackTrace: st,
-          storageKey: settingsStorageKey,
-          clearLabel: 'Instellingen wissen',
-          clearConfirmTitle: 'Instellingen wissen',
-          clearConfirmText:
-              'Je instellingen worden teruggezet naar de standaardwaarden.',
-          clearIsDestructive: false,
-          onClear: () async {
-            await clearSettings();
-            ref.invalidate(themeModeProvider);
-            ref.invalidate(defaultStarterVariantProvider);
-            ref.invalidate(defaultHeartsVariantProvider);
-            ref.read(settingsLoadErrorProvider.notifier).clear();
-          },
+      return _HomeErrorView(
+        appBar: AppBar(
+          leading: const AboutIconButton(),
+          title: const Text('Bonken'),
         ),
+        exception: e,
+        stackTrace: st,
+        descriptor: _settingsErrorDescriptor(ref),
       );
     }
 
     final historyAsync = ref.watch(gameHistoryProvider);
+    // Game history failed to load → full-screen error. The app bar keeps its
+    // actions here: settings loaded fine, so the theme menu and settings screen
+    // still work.
+    if (historyAsync.hasError) {
+      return _HomeErrorView(
+        appBar: appBar,
+        exception: historyAsync.error!,
+        stackTrace: historyAsync.stackTrace,
+        descriptor: _historyErrorDescriptor(ref),
+      );
+    }
+
     return AppScaffold(
       appBar: appBar,
       bottomBar: historyAsync.hasValue
@@ -102,120 +80,71 @@ class HomeScreen extends ConsumerWidget {
                 // NewGameScreen holds its own local working state; the
                 // calculator provider is only mutated when the user
                 // confirms "Start spel".
-                unawaited(
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const NewGameScreen(),
-                      fullscreenDialog: true,
-                    ),
-                  ),
-                );
+                unawaited(AppRoutes.openNewGame(context));
               },
             )
           : null,
-      body: historyAsync.when(
-        skipLoadingOnReload: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) {
-          final kind = switch (e) {
-            UnsupportedStorageVersionException() =>
-              _StorageErrorKind.unsupportedVersion,
-            CorruptStorageException() => _StorageErrorKind.corrupt,
-            _ => _StorageErrorKind.unknown,
-          };
-          return _StorageErrorScreen(
-            title: switch (kind) {
-              _StorageErrorKind.unsupportedVersion => 'App bijwerken vereist',
-              _StorageErrorKind.corrupt => 'Geschiedenis beschadigd',
-              _StorageErrorKind.unknown => 'Onbekende fout',
-            },
-            message: switch (kind) {
-              _StorageErrorKind.unsupportedVersion =>
-                'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
-                    'de app en kan niet worden geladen. Update de app om je '
-                    'geschiedenis te bekijken, of wis de geschiedenis om verder te '
-                    'spelen.',
-              _StorageErrorKind.corrupt =>
-                'Je opgeslagen spelgeschiedenis kan niet worden gelezen (mogelijk '
-                    'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
-                    'of wis de geschiedenis om verder te spelen.',
-              _StorageErrorKind.unknown =>
-                'Er is een onverwachte fout opgetreden bij het laden van de '
-                    'spelgeschiedenis. Verstuur het foutrapport om dit probleem te '
-                    'melden, of wis de geschiedenis om verder te spelen.',
-            },
-            showReportButton: kind != _StorageErrorKind.unsupportedVersion,
-            exception: e,
-            stackTrace: st,
-            storageKey: GameHistoryNotifier.storageKey,
-            clearLabel: 'Geschiedenis wissen',
-            clearConfirmTitle: 'Geschiedenis wissen',
-            clearConfirmText:
-                'Alle gespeelde spellen worden permanent verwijderd. '
-                'Dit kan niet ongedaan worden gemaakt.',
-            clearIsDestructive: true,
-            onClear: () =>
-                ref.read(gameHistoryProvider.notifier).clearHistory(),
-          );
-        },
-        data: (sessions) => sessions.isEmpty
-            ? Center(
-                child: Text(
-                  'Nog geen gespeelde spellen',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+      // History is either still loading or loaded — the error case returned
+      // above. hasValue covers skipLoadingOnReload: a reload keeps the existing
+      // list rather than flashing the spinner.
+      body: historyAsync.hasValue
+          ? _sessionsBody(context, ref, historyAsync.requireValue)
+          : const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _sessionsBody(
+    BuildContext context,
+    WidgetRef ref,
+    List<GameSession> sessions,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    if (sessions.isEmpty) {
+      return Center(
+        child: Text(
+          'Nog geen gespeelde spellen',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // +1 for the "Spellen" header at index 0.
+      itemCount: sessions.length + 1,
+      // separator-i sits between item-i and item-(i+1): index 0 = below the
+      // header (smaller gap), the rest = between cards.
+      separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 8 : 10),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Semantics(
+              header: true,
+              child: Text(
+                'Spellen',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.5,
                 ),
-              )
-            : ListView.separated(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                // +1 for the "Spellen" header at index 0.
-                itemCount: sessions.length + 1,
-                // separator-i sits between item-i and item-(i+1):
-                // index 0 = below the header (smaller gap), the rest
-                // = between cards.
-                separatorBuilder: (_, index) =>
-                    SizedBox(height: index == 0 ? 8 : 10),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          'Spellen',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: cs.onSurfaceVariant,
-                                letterSpacing: 0.5,
-                              ),
-                        ),
-                      ),
-                    );
-                  }
-                  final session = sessions[index - 1];
-                  return _GameSessionCard(
-                    session: session,
-                    onDelete: () async {
-                      // Capture the messenger BEFORE any awaits, so we
-                      // don't depend on a context that may change.
-                      final messenger = ScaffoldMessenger.of(context);
-                      final container = ProviderScope.containerOf(
-                        context,
-                        listen: false,
-                      );
-                      await ref
-                          .read(gameHistoryProvider.notifier)
-                          .deleteGame(session.id);
-                      showGameDeletedSnackBar(messenger, container, session);
-                    },
-                  );
-                },
               ),
-      ),
+            ),
+          );
+        }
+        final session = sessions[index - 1];
+        return _GameSessionCard(
+          session: session,
+          onDelete: () async {
+            // Capture the messenger BEFORE any awaits, so we don't depend on a
+            // context that may change.
+            final messenger = ScaffoldMessenger.of(context);
+            final container = ProviderScope.containerOf(context, listen: false);
+            await ref.read(gameHistoryProvider.notifier).deleteGame(session.id);
+            showGameDeletedSnackBar(messenger, container, session);
+          },
+        );
+      },
     );
   }
 }
@@ -226,6 +155,155 @@ class HomeScreen extends ConsumerWidget {
 // =============================================================================
 
 enum _StorageErrorKind { unsupportedVersion, corrupt, unknown }
+
+/// Classifies a persistence load failure into the kind that drives the shared
+/// title / message / report-button selection. Shared by both error sources —
+/// the two stores throw the same [PersistenceException] family — so the
+/// exception→kind switch lives here once instead of in each call site.
+_StorageErrorKind _kindFor(Object error) => switch (error) {
+  UnsupportedVersionException() => _StorageErrorKind.unsupportedVersion,
+  CorruptPersistenceException() => _StorageErrorKind.corrupt,
+  _ => _StorageErrorKind.unknown,
+};
+
+/// Per-source variable content for the storage-error screen.
+///
+/// Everything that differs between the settings and game-history error flows —
+/// the corrupt-kind title (the only title that varies by source), the three
+/// messages, the storage key, and the clear/reset wiring — lives here. The
+/// parts that are identical across sources (the unsupported-version and unknown
+/// titles, and the report-button rule) stay in [_HomeErrorView], so a new error
+/// kind or a change to the shared text is a one-place edit.
+class _StorageErrorDescriptor {
+  const _StorageErrorDescriptor({
+    required this.corruptTitle,
+    required this.unsupportedVersionMessage,
+    required this.corruptMessage,
+    required this.unknownMessage,
+    required this.storageKey,
+    required this.clearLabel,
+    required this.clearConfirmTitle,
+    required this.clearConfirmText,
+    required this.clearIsDestructive,
+    required this.onClear,
+  });
+
+  final String corruptTitle;
+  final String unsupportedVersionMessage;
+  final String corruptMessage;
+  final String unknownMessage;
+  final String storageKey;
+  final String clearLabel;
+  final String clearConfirmTitle;
+  final String clearConfirmText;
+  final bool clearIsDestructive;
+  final Future<void> Function() onClear;
+}
+
+_StorageErrorDescriptor _settingsErrorDescriptor(WidgetRef ref) =>
+    _StorageErrorDescriptor(
+      corruptTitle: 'Instellingen beschadigd',
+      unsupportedVersionMessage:
+          'Je instellingen zijn opgeslagen door een nieuwere versie van '
+          'de app en kunnen niet worden geladen. Update de app of wis de '
+          'instellingen om verder te spelen.',
+      corruptMessage:
+          'Je instellingen kunnen niet worden gelezen (mogelijk '
+          'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
+          'of wis de instellingen om verder te spelen.',
+      unknownMessage:
+          'Er is een onverwachte fout opgetreden bij het laden van de '
+          'instellingen. Verstuur het foutrapport om dit probleem te '
+          'melden, of wis de instellingen om verder te spelen.',
+      storageKey: settingsStorageKey,
+      clearLabel: 'Instellingen wissen',
+      clearConfirmTitle: 'Instellingen wissen',
+      clearConfirmText:
+          'Je instellingen worden teruggezet naar de standaardwaarden.',
+      clearIsDestructive: false,
+      onClear: () async {
+        await clearSettings();
+        // Rebuild the single settings blob from its override (defaults, as
+        // load failed) so the in-memory state matches the cleared storage.
+        ref.invalidate(settingsProvider);
+        ref.read(settingsLoadErrorProvider.notifier).clear();
+      },
+    );
+
+_StorageErrorDescriptor _historyErrorDescriptor(WidgetRef ref) =>
+    _StorageErrorDescriptor(
+      corruptTitle: 'Geschiedenis beschadigd',
+      unsupportedVersionMessage:
+          'Je spelgeschiedenis is opgeslagen door een nieuwere versie van '
+          'de app en kan niet worden geladen. Update de app om je '
+          'geschiedenis te bekijken, of wis de geschiedenis om verder te '
+          'spelen.',
+      corruptMessage:
+          'Je opgeslagen spelgeschiedenis kan niet worden gelezen (mogelijk '
+          'beschadigd). Verstuur het foutrapport om dit probleem te melden, '
+          'of wis de geschiedenis om verder te spelen.',
+      unknownMessage:
+          'Er is een onverwachte fout opgetreden bij het laden van de '
+          'spelgeschiedenis. Verstuur het foutrapport om dit probleem te '
+          'melden, of wis de geschiedenis om verder te spelen.',
+      storageKey: GameHistoryNotifier.storageKey,
+      clearLabel: 'Geschiedenis wissen',
+      clearConfirmTitle: 'Geschiedenis wissen',
+      clearConfirmText:
+          'Alle gespeelde spellen worden permanent verwijderd. '
+          'Dit kan niet ongedaan worden gemaakt.',
+      clearIsDestructive: true,
+      onClear: () => ref.read(gameHistoryProvider.notifier).clearHistory(),
+    );
+
+/// Full-screen storage-error view: an [appBar] (bare for the settings error so
+/// its write actions can't touch the corrupt blob — CORR-style; full for the
+/// history error) over a [_StorageErrorScreen] whose variable content comes from
+/// [descriptor]. Classifying the error and projecting (kind → title / message /
+/// report-button) happens here once, so the two call sites in [HomeScreen.build]
+/// differ only by their descriptor and app bar.
+class _HomeErrorView extends StatelessWidget {
+  const _HomeErrorView({
+    required this.appBar,
+    required this.exception,
+    required this.stackTrace,
+    required this.descriptor,
+  });
+
+  final PreferredSizeWidget appBar;
+  final Object exception;
+  final StackTrace? stackTrace;
+  final _StorageErrorDescriptor descriptor;
+
+  @override
+  Widget build(BuildContext context) {
+    final kind = _kindFor(exception);
+    return AppScaffold(
+      appBar: appBar,
+      body: _StorageErrorScreen(
+        title: switch (kind) {
+          .unsupportedVersion => 'App bijwerken vereist',
+          .corrupt => descriptor.corruptTitle,
+          .unknown => 'Onbekende fout',
+        },
+        message: switch (kind) {
+          .unsupportedVersion => descriptor.unsupportedVersionMessage,
+          .corrupt => descriptor.corruptMessage,
+          .unknown => descriptor.unknownMessage,
+        },
+        showReportButton: kind != _StorageErrorKind.unsupportedVersion,
+        exception: exception,
+        stackTrace: stackTrace,
+        storageKey: descriptor.storageKey,
+        clearLabel: descriptor.clearLabel,
+        clearConfirmTitle: descriptor.clearConfirmTitle,
+        clearConfirmText: descriptor.clearConfirmText,
+        clearIsDestructive: descriptor.clearIsDestructive,
+        onClear: descriptor.onClear,
+      ),
+    );
+  }
+}
 
 class _StorageErrorScreen extends StatelessWidget {
   const _StorageErrorScreen({
@@ -348,8 +426,8 @@ Future<void> _sendErrorReport(
   if (confirmed != true) return;
   if (!context.mounted) return;
 
-  final prefs = await SharedPreferences.getInstance();
-  final rawData = prefs.getString(storageKey);
+  final prefs = SharedPreferencesAsync();
+  final rawData = await prefs.getString(storageKey);
 
   final report = buildDebugReport(
     exception,
@@ -427,7 +505,7 @@ String _truncate(String text, int maxChars) {
 }
 
 String _buildEmailBody(String debugReport) {
-  return 'Voeg hier uw bericht toe (optioneel)...'
+  return 'Voeg hier je bericht toe (optioneel)...'
       '\n\n\n'
       '────────────────────────────────────────────────────\n'
       'Bonken foutrapport — automatisch gegenereerd\n'
@@ -448,35 +526,19 @@ class _GameSessionCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cs = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
 
     void onTap() {
-      // Hold a persistent subscription so Riverpod's autoDispose timer
-      // cannot fire in the gap between loadSession() and GameScreen
-      // subscribing via ref.watch(). Without this, container.read() in
-      // ref.read() creates a temporary sub that immediately closes,
-      // scheduling disposal (via Future.microtask in flutter_riverpod's
-      // vsync) before the first frame draws GameScreen.
-      final container = ProviderScope.containerOf(context, listen: false);
-      final sub = container.listen<CalculatorState>(
-        calculatorProvider,
-        (_, _) {},
-      );
+      holdCalculatorAcrossNavigation(context);
       ref.read(calculatorProvider.notifier).loadSession(session);
-      WidgetsBinding.instance.addPostFrameCallback((_) => sub.close());
-      unawaited(
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const GameScreen())),
-      );
+      unawaited(AppRoutes.openGame(context));
     }
 
     // Muted tint for the trailing Verwijderen IconButton (standard 48dp
     // tap target). Any future trailing icon inherits the same tint.
     final mutedIconTheme = mutedIconButtonTheme(
       theme,
-      foregroundColor: cs.onSurfaceVariant,
+      foregroundColor: theme.colorScheme.onSurfaceVariant,
     );
 
     final names = session.displayedPlayerNames.join(', ');

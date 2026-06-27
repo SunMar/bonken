@@ -12,7 +12,7 @@ import '../widgets/rules_block_view.dart';
 /// "rules of this minigame" button on the score input screen).  Otherwise the
 /// full document is rendered.
 ///
-/// Which variant text is shown — and whether the "Spelregel variant"
+/// Which variant text is shown — and whether the "Spelregelvariant"
 /// alternative is offered — is controlled by the variant providers and
 /// `rulesEditModeProvider`, which `RulesIconButton` overrides for the pushed
 /// route when rules are opened from within a game. See [RulesBlockView].
@@ -88,6 +88,46 @@ class RulesScreen extends StatelessWidget {
       gameById(gameId).category == GameCategory.positive;
 }
 
+/// Shared section scaffold: an optional `Semantics(header)` title followed by a
+/// [RulesBlockView] per block, in a stretched column. The title text style and
+/// inner padding (and whether a title shows at all) are the only things the two
+/// section types vary, so they pass them in rather than copying the layout.
+class _RulesSectionBody extends StatelessWidget {
+  const _RulesSectionBody({
+    required this.title,
+    required this.titleStyle,
+    required this.titlePadding,
+    required this.blocks,
+  });
+
+  /// Section heading, or null to omit it (the page-title game section).
+  final String? title;
+  final TextStyle? titleStyle;
+  final EdgeInsets titlePadding;
+  final List<Block> blocks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (title != null)
+            Padding(
+              padding: titlePadding,
+              child: Semantics(
+                header: true,
+                child: Text(title!, style: titleStyle),
+              ),
+            ),
+          for (final b in blocks) RulesBlockView(block: b),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionView extends StatelessWidget {
   const _SectionView({required this.section});
 
@@ -95,22 +135,11 @@ class _SectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8),
-            child: Semantics(
-              header: true,
-              child: Text(section.title, style: tt.titleLarge),
-            ),
-          ),
-          for (final b in section.blocks) RulesBlockView(block: b),
-        ],
-      ),
+    return _RulesSectionBody(
+      title: section.title,
+      titleStyle: Theme.of(context).textTheme.titleLarge,
+      titlePadding: const EdgeInsets.only(top: 8, bottom: 8),
+      blocks: section.blocks,
     );
   }
 }
@@ -126,23 +155,11 @@ class _GameSectionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!asPageTitle)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 6),
-              child: Semantics(
-                header: true,
-                child: Text(section.title, style: tt.titleMedium),
-              ),
-            ),
-          for (final b in section.blocks) RulesBlockView(block: b),
-        ],
-      ),
+    return _RulesSectionBody(
+      title: asPageTitle ? null : section.title,
+      titleStyle: Theme.of(context).textTheme.titleMedium,
+      titlePadding: const EdgeInsets.only(top: 4, bottom: 6),
+      blocks: section.blocks,
     );
   }
 }

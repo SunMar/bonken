@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/starter_variant.dart';
+import 'package:bonken/screens/export_screen.dart';
+import 'package:bonken/screens/import_screen.dart';
 import 'package:bonken/screens/settings_screen.dart';
 import 'package:bonken/state/default_hearts_variant_provider.dart';
 import 'package:bonken/state/default_starter_variant_provider.dart';
@@ -71,9 +73,9 @@ void main() {
       container.read(defaultStarterVariantProvider),
       StarterVariant.oppositeChooserStarts,
     );
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     final blob =
-        jsonDecode(prefs.getString(settingsStorageKey)!)
+        jsonDecode((await prefs.getString(settingsStorageKey))!)
             as Map<String, dynamic>;
     expect(
       (blob['ruleVariants'] as Map)['starterVariant'],
@@ -89,6 +91,24 @@ void main() {
     expect(find.text('Gegevens'), findsOneWidget);
     expect(find.text('Exporteer gegevens'), findsOneWidget);
     expect(find.text('Importeer gegevens'), findsOneWidget);
+  });
+
+  testWidgets('export tile navigates to ExportScreen', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 2000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(tester);
+    await tester.tap(find.text('Exporteer gegevens'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ExportScreen), findsOneWidget);
+  });
+
+  testWidgets('import tile navigates to ImportScreen', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 2000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(tester);
+    await tester.tap(find.text('Importeer gegevens'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ImportScreen), findsOneWidget);
   });
 
   testWidgets('tapping HeartsVariant radio updates provider and persists', (
@@ -113,9 +133,9 @@ void main() {
       container.read(defaultHeartsVariantProvider),
       HeartsVariant.graduatedUnlock,
     );
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = SharedPreferencesAsync();
     final blob =
-        jsonDecode(prefs.getString(settingsStorageKey)!)
+        jsonDecode((await prefs.getString(settingsStorageKey))!)
             as Map<String, dynamic>;
     expect((blob['ruleVariants'] as Map)['heartsVariant'], 'graduatedUnlock');
   });

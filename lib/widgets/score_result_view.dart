@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../models/double_matrix.dart';
+import '../models/game_session.dart' show leaderIndices;
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/score_result.dart';
+import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import 'doubles_chips.dart';
 
@@ -39,15 +41,10 @@ class ScoreResultView extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // Winner(s): highest score among players. Only shown when complete.
+    // Winner(s): highest score among players (ties shared), via the shared
+    // domain primitive so the rule isn't re-derived. Only shown when complete.
     final scores = [for (final p in players) result.scores[p.id] ?? 0];
-    final best = scores.reduce((a, b) => a > b ? a : b);
-    final winners = isPartial
-        ? <int>[]
-        : [
-            for (int i = 0; i < scores.length; i++)
-              if (scores[i] == best) i,
-          ];
+    final winners = isPartial ? const <int>[] : leaderIndices(scores);
 
     return Opacity(
       opacity: isPartial ? 0.7 : 1.0,

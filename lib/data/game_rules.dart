@@ -164,14 +164,6 @@ class GameSection {
 // Reusable text fragments
 // -----------------------------------------------------------------------------
 
-/// Starter (who goes first) rule texts, used in the Verloop numbered list
-/// and in the "Alternatieve spelregel" callout below it.
-const Map<Enum, String> kStarterVariantTexts = {
-  StarterVariant.dealerStarts: 'Het spelen begint, de deler komt uit.',
-  StarterVariant.oppositeChooserStarts:
-      'Het spelen begint, de speler tegenover de kiezer komt uit.',
-};
-
 /// Hearts lead-rule texts, shared by Harten Heer and Hartenpunten.
 const Map<Enum, String> kHeartsLeadRuleTexts = {
   HeartsVariant.onlyAfterPlayedHeart:
@@ -245,7 +237,7 @@ const Section kOpzetSection = Section(
 );
 
 const Section kVariantenSection = Section(
-  title: 'Spelregel varianten',
+  title: 'Spelregelvarianten',
   blocks: [
     Para(
       'Bonken heeft geen vaste spelregels. Het is net als Klaverjassen een '
@@ -308,12 +300,17 @@ final Section kVerloopSection = Section(
         'De speler links van de deler is de kiezer en kiest een spelvorm die nog niet gespeeld is (maximaal 2 negatieve en 1 positieve spelvorm per speler).',
       ),
       TextItem(
-        'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatst. De kiezer mag niet dubbelen, alleen teruggaan.',
+        'Voor het spelen kunnen spelers dubbelen of teruggaan. De speler links van de kiezer gaat eerst, de kiezer als laatste. De kiezer mag niet dubbelen, alleen teruggaan.',
       ),
       VariantItem(
         VariantBlock(
           variantKind: VariantKind.starter,
-          texts: kStarterVariantTexts,
+          texts: <Enum, String>{
+            StarterVariant.dealerStarts:
+                'Het spelen begint, de deler komt uit.',
+            StarterVariant.oppositeChooserStarts:
+                'Het spelen begint, de speler tegenover de kiezer komt uit.',
+          },
         ),
       ),
       TextItem('De ronde wordt gescoord.'),

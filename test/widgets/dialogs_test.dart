@@ -27,6 +27,19 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.text('Verwijderen'), findsOneWidget);
+
+      // Default (non-destructive) confirm is NOT error-tinted (no style override).
+      final errorColor = Theme.of(
+        tester.element(find.text('Ja')),
+      ).colorScheme.error;
+      final confirm = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Ja'),
+      );
+      expect(
+        confirm.style?.foregroundColor?.resolve(<WidgetState>{}),
+        isNot(errorColor),
+      );
+
       await tester.tap(find.text('Ja'));
       await tester.pumpAndSettle();
       expect(result, isTrue);
@@ -56,7 +69,40 @@ void main() {
       expect(result, isFalse);
     });
 
-    testWidgets('destructive uses error color on confirm button', (
+    testWidgets('returns null when dismissed by tapping the barrier', (
+      tester,
+    ) async {
+      bool? result;
+      var resolved = false;
+      await pumpHost(
+        tester,
+        Builder(
+          builder: (ctx) => ElevatedButton(
+            onPressed: () async {
+              result = await showConfirmDialog(
+                ctx,
+                title: 'X',
+                contentText: 'Y',
+              );
+              resolved = true;
+            },
+            child: const Text('open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('X'), findsOneWidget);
+
+      // Tapping the modal barrier (outside the centered dialog) dismisses it
+      // without choosing — the future must resolve to null, not true/false.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(resolved, isTrue);
+      expect(result, isNull);
+    });
+
+    testWidgets('destructive tints the confirm button with the error color', (
       tester,
     ) async {
       await pumpHost(
@@ -76,12 +122,34 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      expect(find.text('Verwijderen'), findsOneWidget);
+
+      final errorColor = Theme.of(
+        tester.element(find.text('Verwijderen')),
+      ).colorScheme.error;
+      // The confirm button's resolved foreground is the error colour …
+      final confirm = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Verwijderen'),
+      );
+      expect(
+        confirm.style?.foregroundColor?.resolve(<WidgetState>{}),
+        errorColor,
+      );
+      // … while the cancel button is never error-tinted.
+      final cancel = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Annuleren'),
+      );
+      expect(
+        cancel.style?.foregroundColor?.resolve(<WidgetState>{}),
+        isNot(errorColor),
+      );
     });
 
-    testWidgets('asserts when neither contentText nor content is provided', (
+    testWidgets('throws when neither contentText nor content is provided', (
       tester,
     ) async {
+      // No defensive `assert` guards the "exactly one of content/contentText"
+      // precondition; misuse surfaces loudly when the dialog builds, via the
+      // `contentText!` null-check, rather than rendering an empty dialog.
       await pumpHost(
         tester,
         Builder(
@@ -93,7 +161,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pump();
-      expect(tester.takeException(), isA<AssertionError>());
+      expect(tester.takeException(), isA<TypeError>());
     });
   });
 

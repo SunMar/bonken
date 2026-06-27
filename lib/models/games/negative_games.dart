@@ -81,7 +81,7 @@ class Duck extends CountsMiniGame {
 }
 
 // =============================================================================
-// Negative game 5 — Harten punten (Heart points)
+// Negative game 5 — Hartenpunten (Heart points)
 // =============================================================================
 // Every Heart card won in a trick costs -10. Per-player counts summing to
 // 13 → -130.
@@ -90,7 +90,7 @@ class HeartPoints extends CountsMiniGame {
   const HeartPoints()
     : super(
         id: 'heartPoints',
-        name: 'Harten punten',
+        name: 'Hartenpunten',
         symbol: const IconSymbol(Symbols.heart_broken),
         category: GameCategory.negative,
         pointsPerUnit: -10,

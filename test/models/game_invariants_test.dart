@@ -91,6 +91,32 @@ void main() {
       expect(() => assertGameInvariants(s), throwsA(isA<GameInvariantError>()));
     });
 
+    test('duplicate player id throws', () {
+      // Two players share an id but carry distinct names, so the id check (which
+      // runs before the name check) is unambiguously the branch that fires.
+      final dupId = Player.fromJson({'id': pc.id, 'name': 'E'});
+      final dt = DateTime.parse(now);
+      final s = GameSession(
+        id: 's1',
+        createdAt: dt,
+        updatedAt: dt,
+        scoredAt: dt,
+        players: [pa, pb, pc, dupId],
+        firstDealerId: pa.id,
+        rounds: const [],
+      );
+      expect(
+        () => assertGameInvariants(s),
+        throwsA(
+          isA<GameInvariantError>().having(
+            (e) => e.message,
+            'message',
+            contains('duplicate player id'),
+          ),
+        ),
+      );
+    });
+
     test('duplicate player name throws', () {
       final dup = Player(name: 'A'); // same name as pa
       final dt = DateTime.parse(now);
@@ -240,6 +266,30 @@ void main() {
         chooserId: pa.id,
         scoresByPlayer: {pa.id: -100, pb.id: 0, pc.id: 0, pd.id: 0},
         input: const RecipientInput([null]), // null slot — incomplete
+        doubles: const DoubleMatrix(),
+      );
+      final s = GameSession(
+        id: 's1',
+        createdAt: dt,
+        updatedAt: dt,
+        scoredAt: dt,
+        players: four,
+        firstDealerId: pa.id,
+        rounds: [badRound],
+      );
+      expect(() => assertGameInvariants(s), throwsA(isA<GameInvariantError>()));
+    });
+
+    test('count value out of range throws', () {
+      final dt = DateTime.parse(now);
+      final badRound = RoundRecord(
+        roundNumber: 1,
+        game: const Clubs(),
+        chooserId: pa.id,
+        scoresByPlayer: {pa.id: 260, pb.id: 0, pc.id: 0, pd.id: 0},
+        // Σ counts is 13 (passes the sum check) but pa wins 14 > total 13 and
+        // pb wins -1 < 0 — each individually out of the 0..13 range.
+        input: CountsInput({pa.id: 14, pb.id: -1, pc.id: 0, pd.id: 0}),
         doubles: const DoubleMatrix(),
       );
       final s = GameSession(

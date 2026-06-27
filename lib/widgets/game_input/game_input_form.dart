@@ -57,16 +57,20 @@ class GameInputForm extends StatelessWidget {
       onInputChanged(RecipientInput(updated));
     }
 
-    if (d.prompts.length == 1) {
-      final uuid = ri.recipients.isNotEmpty ? ri.recipients[0] : null;
+    // Resolves slot [i]'s stored recipient UUID back to its player index (null
+    // when the slot is unset or the UUID is unknown). One resolution path serves
+    // both single- and multi-slot games — a one-prompt game is just the loop
+    // running once.
+    Widget pickerFor(int i) {
+      final uuid = i < ri.recipients.length ? ri.recipients[i] : null;
       final rawIdx = uuid == null
           ? -1
           : players.indexWhere((p) => p.id == uuid);
       return PlayerPicker(
         playerNames: playerNames,
         selectedIndex: rawIdx < 0 ? null : rawIdx,
-        prompt: d.prompts[0],
-        onSelected: (i) => updateSlot(0, i == null ? null : players[i].id),
+        prompt: d.prompts[i],
+        onSelected: (j) => updateSlot(i, j == null ? null : players[j].id),
       );
     }
 
@@ -75,21 +79,7 @@ class GameInputForm extends StatelessWidget {
       children: [
         for (int i = 0; i < d.prompts.length; i++) ...[
           if (i > 0) const SizedBox(height: 16),
-          Builder(
-            builder: (context) {
-              final uuid = i < ri.recipients.length ? ri.recipients[i] : null;
-              final rawIdx = uuid == null
-                  ? -1
-                  : players.indexWhere((p) => p.id == uuid);
-              return PlayerPicker(
-                playerNames: playerNames,
-                selectedIndex: rawIdx < 0 ? null : rawIdx,
-                prompt: d.prompts[i],
-                onSelected: (j) =>
-                    updateSlot(i, j == null ? null : players[j].id),
-              );
-            },
-          ),
+          pickerFor(i),
         ],
       ],
     );

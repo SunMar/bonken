@@ -34,12 +34,15 @@ Future<void> checkForAndroidUpdate() async {
     // If the user dismisses the snackbar this is also fine — the install
     // will happen the next time the app starts.
     await InAppUpdate.completeFlexibleUpdate();
-  } on Exception catch (e) {
+  } on Object catch (e) {
     // Most common reasons we get here:
     //   * App was sideloaded (not installed via Play).
     //   * Device has no Play Services / no network.
     //   * No newer versionCode published.
-    // None of these should affect the running app, so swallow.
+    // Catch `Object`, not just `Exception`: this runs fire-and-forget from
+    // `main()` (`unawaited`), so an escaping `Error` (e.g. a plugin throwing a
+    // non-`Exception` subtype) would become an unhandled async error. None of
+    // these should affect the running app, so swallow them all.
     debugPrint('In-app update check skipped: $e');
   }
 }

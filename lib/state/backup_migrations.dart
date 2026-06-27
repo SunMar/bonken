@@ -14,6 +14,8 @@ typedef BackupData = ({
 /// so [apply] receives and returns all three. Steps must handle null [games] /
 /// [settings] defensively: the caller may not have decoded those streams yet.
 abstract class BackupMigration {
+  const BackupMigration();
+
   int get fromVersion;
   BackupData apply(BackupData data);
 }
@@ -39,9 +41,12 @@ BackupData runBackupMigrations(BackupData data, {required int fromVersion}) {
     current = migration.apply(current);
     v++;
   }
-  assert(
-    v == currentBackupVersion,
-    'backup migration chain stalled at v$v (expected $currentBackupVersion)',
-  );
+  // Fail loudly in release too (not just a debug `assert`): a mis-registered or
+  // out-of-order step would otherwise silently return partially-migrated data.
+  if (v != currentBackupVersion) {
+    throw StateError(
+      'backup migration chain stalled at v$v (expected $currentBackupVersion)',
+    );
+  }
   return current;
 }

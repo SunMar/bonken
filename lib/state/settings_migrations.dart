@@ -33,9 +33,13 @@ Map<String, dynamic> runSettingsMigrations(
     data = migration.apply(data);
     v++;
   }
-  assert(
-    v == currentSettingsVersion,
-    'settings migration chain stalled at v$v (expected $currentSettingsVersion)',
-  );
+  // Fail loudly in release too (not just a debug `assert`): a mis-registered or
+  // out-of-order step would otherwise silently return partially-migrated data.
+  if (v != currentSettingsVersion) {
+    throw StateError(
+      'settings migration chain stalled at v$v '
+      '(expected $currentSettingsVersion)',
+    );
+  }
   return data;
 }

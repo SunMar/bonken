@@ -29,21 +29,24 @@ class PlayerNameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Case-folded set of names already chosen by other slots, used by both
+    // builders to hide already-taken suggestions. Computed once per build so
+    // the two callbacks can't apply different filters.
+    final foldedTaken = takenNames.map(caseFoldName).toSet();
     return RawAutocomplete<String>(
       textEditingController: controller,
       focusNode: focusNode,
       optionsBuilder: (textEditingValue) {
         if (suggestions.isEmpty) return const Iterable<String>.empty();
-        final query = textEditingValue.text.toLowerCase();
+        final query = caseFoldName(textEditingValue.text);
         // Hide suggestions already chosen for other players (case-insensitive).
-        final lowerTaken = takenNames.map((n) => n.toLowerCase()).toSet();
         final available = suggestions.where(
-          (s) => !lowerTaken.contains(s.toLowerCase()),
+          (s) => !foldedTaken.contains(caseFoldName(s)),
         );
         // Show all suggestions (sorted by frequency) when field is empty;
         // otherwise filter to those containing the typed text.
         if (query.isEmpty) return available;
-        return available.where((s) => s.toLowerCase().contains(query));
+        return available.where((s) => caseFoldName(s).contains(query));
       },
       onSelected: (value) {
         controller.value = TextEditingValue(
@@ -56,9 +59,8 @@ class PlayerNameField extends StatelessWidget {
         // takenNames even when [optionsBuilder] hasn't been re-run yet
         // (it only runs on text changes, not on parent rebuilds caused by
         // another field being committed).
-        final lowerTaken = takenNames.map((n) => n.toLowerCase()).toSet();
         final visible = options
-            .where((s) => !lowerTaken.contains(s.toLowerCase()))
+            .where((s) => !foldedTaken.contains(caseFoldName(s)))
             .toList();
         if (visible.isEmpty) return const SizedBox.shrink();
         return Align(

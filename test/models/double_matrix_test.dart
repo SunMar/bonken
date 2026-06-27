@@ -10,9 +10,9 @@ const c = 'player-c';
 const d = 'player-d';
 
 void main() {
-  group('DoubleMatrix.empty', () {
+  group('empty matrix (default const constructor)', () {
     test('returns a matrix with no doubles', () {
-      final m = DoubleMatrix.empty();
+      const m = DoubleMatrix();
       expect(m.hasAnyDouble, isFalse);
       for (final x in [a, b, c, d]) {
         for (final y in [a, b, c, d]) {
@@ -27,19 +27,19 @@ void main() {
 
   group('canonicalisation', () {
     test('stateFor is symmetric (a,b) == (b,a)', () {
-      final m = DoubleMatrix.empty().withState(b, d, DoubleState.doubled);
+      final m = const DoubleMatrix().withState(b, d, DoubleState.doubled);
       expect(m.stateFor(b, d), DoubleState.doubled);
       expect(m.stateFor(d, b), DoubleState.doubled);
     });
 
     test('multiplierFor is symmetric', () {
-      final m = DoubleMatrix.empty().withState(a, c, DoubleState.redoubled);
+      final m = const DoubleMatrix().withState(a, c, DoubleState.redoubled);
       expect(m.multiplierFor(a, c), 2);
       expect(m.multiplierFor(c, a), 2);
     });
 
     test('initiatorFor is symmetric', () {
-      final m = DoubleMatrix.empty().withPair(
+      final m = const DoubleMatrix().withPair(
         c,
         a,
         DoubleState.doubled,
@@ -52,7 +52,7 @@ void main() {
 
   group('withPair / withState', () {
     test('multipliers map to expected values', () {
-      final m = DoubleMatrix.empty()
+      final m = const DoubleMatrix()
           .withState(a, b, DoubleState.doubled)
           .withState(a, c, DoubleState.redoubled);
       expect(m.multiplierFor(a, b), 1);
@@ -61,12 +61,12 @@ void main() {
     });
 
     test('withState sets initiator to first arg', () {
-      final m = DoubleMatrix.empty().withState(c, b, DoubleState.doubled);
+      final m = const DoubleMatrix().withState(c, b, DoubleState.doubled);
       expect(m.initiatorFor(b, c), c);
     });
 
     test('withPair preserves explicit initiator', () {
-      final m = DoubleMatrix.empty().withPair(
+      final m = const DoubleMatrix().withPair(
         a,
         d,
         DoubleState.doubled,
@@ -76,7 +76,7 @@ void main() {
     });
 
     test('clearing a pair (state none) removes state and initiator', () {
-      final m = DoubleMatrix.empty()
+      final m = const DoubleMatrix()
           .withState(b, c, DoubleState.doubled)
           .withPair(b, c, DoubleState.none);
       expect(m.stateFor(b, c), DoubleState.none);
@@ -85,7 +85,7 @@ void main() {
     });
 
     test('updating preserves other pairs', () {
-      final m = DoubleMatrix.empty()
+      final m = const DoubleMatrix()
           .withState(a, b, DoubleState.doubled)
           .withState(c, d, DoubleState.redoubled);
       final updated = m.withState(a, b, DoubleState.redoubled);
@@ -94,7 +94,7 @@ void main() {
     });
 
     test('immutability: original matrix is not mutated', () {
-      final original = DoubleMatrix.empty();
+      const original = DoubleMatrix();
       original.withState(a, b, DoubleState.doubled);
       expect(original.hasAnyDouble, isFalse);
     });
@@ -102,12 +102,12 @@ void main() {
 
   group('hasAnyDouble', () {
     test('true after a single double', () {
-      final m = DoubleMatrix.empty().withState(a, b, DoubleState.doubled);
+      final m = const DoubleMatrix().withState(a, b, DoubleState.doubled);
       expect(m.hasAnyDouble, isTrue);
     });
 
     test('false after clearing all doubles', () {
-      final m = DoubleMatrix.empty()
+      final m = const DoubleMatrix()
           .withState(a, b, DoubleState.doubled)
           .withPair(a, b, DoubleState.none);
       expect(m.hasAnyDouble, isFalse);
@@ -116,15 +116,15 @@ void main() {
 
   group('equality', () {
     test('empty matrices are equal', () {
-      expect(DoubleMatrix.empty(), DoubleMatrix.empty());
-      expect(DoubleMatrix.empty().hashCode, DoubleMatrix.empty().hashCode);
+      expect(const DoubleMatrix(), const DoubleMatrix());
+      expect(const DoubleMatrix().hashCode, const DoubleMatrix().hashCode);
     });
 
     test('matrices with same pairs/initiators are equal', () {
-      final x = DoubleMatrix.empty()
+      final x = const DoubleMatrix()
           .withState(a, b, DoubleState.doubled)
           .withState(c, d, DoubleState.redoubled);
-      final y = DoubleMatrix.empty()
+      final y = const DoubleMatrix()
           .withState(c, d, DoubleState.redoubled)
           .withState(a, b, DoubleState.doubled);
       expect(x, y);
@@ -132,19 +132,19 @@ void main() {
     });
 
     test('matrices with different states are not equal', () {
-      final x = DoubleMatrix.empty().withState(a, b, DoubleState.doubled);
-      final y = DoubleMatrix.empty().withState(a, b, DoubleState.redoubled);
+      final x = const DoubleMatrix().withState(a, b, DoubleState.doubled);
+      final y = const DoubleMatrix().withState(a, b, DoubleState.redoubled);
       expect(x, isNot(y));
     });
 
     test('matrices with different initiators are not equal', () {
-      final x = DoubleMatrix.empty().withPair(
+      final x = const DoubleMatrix().withPair(
         a,
         b,
         DoubleState.doubled,
         initiator: a,
       );
-      final y = DoubleMatrix.empty().withPair(
+      final y = const DoubleMatrix().withPair(
         a,
         b,
         DoubleState.doubled,
@@ -156,13 +156,13 @@ void main() {
 
   group('JSON serialization', () {
     test('empty matrix roundtrips', () {
-      final m = DoubleMatrix.empty();
+      const m = DoubleMatrix();
       final back = DoubleMatrix.fromJson(m.toJson());
       expect(back, m);
     });
 
     test('complex matrix roundtrips with state and initiators', () {
-      final m = DoubleMatrix.empty()
+      final m = const DoubleMatrix()
           .withPair(a, b, DoubleState.doubled, initiator: b)
           .withPair(a, c, DoubleState.redoubled, initiator: a)
           .withPair(c, d, DoubleState.doubled, initiator: d);
@@ -179,6 +179,15 @@ void main() {
     test('fromJson handles empty object (no active pairs)', () {
       final m = DoubleMatrix.fromJson(<String, dynamic>{});
       expect(m.hasAnyDouble, isFalse);
+    });
+
+    test('fromJson rejects a pair key with no comma', () {
+      expect(
+        () => DoubleMatrix.fromJson({
+          'nocomma': {'state': 'doubled', 'initiator': a},
+        }),
+        throwsFormatException,
+      );
     });
   });
 }

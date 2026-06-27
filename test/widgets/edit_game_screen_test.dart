@@ -13,6 +13,7 @@ import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/amber_warning_box.dart';
+import 'package:bonken/widgets/game_name_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,7 @@ const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
 Future<ProviderContainer> _pumpEditPlayers(
   WidgetTester tester, {
   bool gameInProgress = false,
+  String? gameName,
 }) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
@@ -32,6 +34,7 @@ Future<ProviderContainer> _pumpEditPlayers(
   notifier.startNewGame(
     players: [for (final name in _names) Player(name: name)],
     dealerIndex: 0,
+    gameName: gameName,
   );
   if (gameInProgress) {
     // Select a game then deselect to leave it as a pending (incomplete)
@@ -217,6 +220,155 @@ void main() {
         StarterVariant.oppositeChooserStarts,
       );
       expect(s.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
+    },
+  );
+
+  // The game-name TextField (inside the GameNameField section), distinct from
+  // the player-name fields and the dealer dropdown's internal field.
+  Finder nameField() => find.descendant(
+    of: find.byType(GameNameField),
+    matching: find.byType(TextField),
+  );
+
+  testWidgets('entering a game name commits it on Opslaan', (tester) async {
+    // Tall surface so the (lazily built) game-name field is laid out.
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final container = await _pumpEditPlayers(tester);
+
+    await tester.enterText(nameField(), 'Avondje kaarten');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EditGameScreen), findsNothing);
+    expect(
+      (container.read(calculatorProvider) as ActiveSession).gameName,
+      'Avondje kaarten',
+    );
+  });
+
+  testWidgets('clearing the game name commits null on Opslaan', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final container = await _pumpEditPlayers(tester, gameName: 'Oud potje');
+    expect(
+      (container.read(calculatorProvider) as ActiveSession).gameName,
+      'Oud potje',
+    );
+
+    await tester.enterText(nameField(), '');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EditGameScreen), findsNothing);
+    expect(
+      (container.read(calculatorProvider) as ActiveSession).gameName,
+      isNull,
+    );
+  });
+
+  group('"Lopend spel wijzigen" in-progress confirm gate', () {
+    // Opens the dealer DropdownMenu and picks Bob (slot 1).
+    Future<void> changeDealerToBob(WidgetTester tester) async {
+      await tester.tap(find.byType(DropdownMenu<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(MenuItemButton),
+          matching: find.text('Bob'),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('confirming "Wijzigen" applies the change and pops', (
+      tester,
+    ) async {
+      final container = await _pumpEditPlayers(tester, gameInProgress: true);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).firstDealerIndex,
+        0,
+      );
+
+      await changeDealerToBob(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lopend spel wijzigen'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Wijzigen'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(EditGameScreen), findsNothing);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).firstDealerIndex,
+        1,
+      );
+    });
+
+    testWidgets('declining "Annuleren" aborts the save and stays', (
+      tester,
+    ) async {
+      final container = await _pumpEditPlayers(tester, gameInProgress: true);
+
+      await changeDealerToBob(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lopend spel wijzigen'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Annuleren'));
+      await tester.pumpAndSettle();
+
+      // Dialog dismissed, screen stays, nothing committed.
+      expect(find.byType(EditGameScreen), findsOneWidget);
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).firstDealerIndex,
+        0,
+      );
+    });
+  });
+
+  testWidgets(
+    'drag-reorder shows the order warning and preserves UUIDs on save',
+    (tester) async {
+      final container = await _pumpEditPlayers(tester, gameInProgress: true);
+
+      // Capture the original UUID↔name binding before reordering.
+      final original =
+          (container.read(calculatorProvider) as ActiveSession).players;
+      final idByName = {for (final p in original) p.name: p.id};
+
+      // Move Carol (slot 2) to the front.
+      tester
+          .widget<ReorderableListView>(find.byType(ReorderableListView))
+          .onReorderItem!(2, 0);
+      await tester.pumpAndSettle();
+
+      // The inline player-order warning appears (game in progress + reorder).
+      expect(
+        find.text('De volgorde van de spelers wordt aangepast.'),
+        findsWidgets,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tester.pumpAndSettle();
+      // Mid-game reorder routes through the confirm gate.
+      expect(find.text('Lopend spel wijzigen'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Wijzigen'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(EditGameScreen), findsNothing);
+      final saved =
+          (container.read(calculatorProvider) as ActiveSession).players;
+      // New seat order is [Carol, Alice, Bob, Dan] …
+      expect([for (final p in saved) p.name], ['Carol', 'Alice', 'Bob', 'Dan']);
+      // … and every player kept the UUID it entered the screen with.
+      for (final p in saved) {
+        expect(p.id, idByName[p.name], reason: '${p.name} must keep its UUID');
+      }
     },
   );
 }

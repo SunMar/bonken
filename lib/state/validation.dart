@@ -5,6 +5,7 @@ import '../models/game_invariants.dart';
 import '../models/game_session.dart';
 import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
+import '../utils.dart';
 import 'settings_migrations.dart';
 
 /// Thrown by the import validation layer when data fails a structural or
@@ -22,7 +23,7 @@ class ValidationError implements Exception {
 // Manifest
 // ---------------------------------------------------------------------------
 
-/// Validates a decoded manifest map (§5.3). Throws [ValidationError] on any
+/// Validates a decoded manifest map (§9). Throws [ValidationError] on any
 /// violation. Does not check `version` against [currentBackupVersion] — that
 /// comparison is the caller's responsibility; this function only verifies
 /// structural correctness.
@@ -107,12 +108,15 @@ void validateManifest(Map<String, dynamic> json) {
 // Games
 // ---------------------------------------------------------------------------
 
-/// Migrates (if needed) and validates a decoded games envelope, returning the
-/// parsed [GameSession] list. Throws [ValidationError] on any failure.
+/// Validates an already-migrated games list (migration is the codec's job),
+/// returning the parsed [GameSession] list. Throws [ValidationError] on any
+/// failure.
 ///
-/// Calls [GameSession.fromJson] (the real load path) for structural validation,
-/// then [assertGameInvariants] for the business rules the engine checks with
-/// debug-only asserts. Duplicate game IDs are also rejected here.
+/// Each game is parsed via [GameSession.fromJson] (the real load path) for
+/// structural validation — `_parseAndCheck` converts any malformed-JSON throw
+/// into a [ValidationError] so the codec reports a soft `StreamCorrupt` rather
+/// than crashing — then checked with [assertGameInvariants] and the
+/// `game_constraints` name predicates. Duplicate game IDs are rejected here.
 List<GameSession> validateMigratedGames(List<dynamic> rawGames) {
   final seenIds = <String>{};
   return [
@@ -139,7 +143,17 @@ void validateGameSession(GameSession game) {
 }
 
 GameSession _parseAndCheck(Map<String, dynamic> raw, Set<String> seenIds) {
-  final game = GameSession.fromJson(raw);
+  // GameSession.fromJson throws domain/parse errors (StateError, FormatException,
+  // TypeError) on malformed JSON. Convert them to ValidationError so the import
+  // gate reports a typed soft failure (→ StreamCorrupt) instead of letting a raw
+  // error escape the codec. The storage-load path has its own `on Object`
+  // boundary in GameHistoryNotifier.build, so it is unaffected.
+  final GameSession game;
+  try {
+    game = GameSession.fromJson(raw);
+  } on Object catch (e) {
+    throw ValidationError('Malformed game JSON: $e');
+  }
   if (!seenIds.add(game.id)) {
     throw ValidationError('Duplicate game id "${game.id}".');
   }
@@ -174,11 +188,19 @@ void _checkPlayerIds(GameSession game) {
 
 void _checkPlayerNames(GameSession game) {
   for (final p in game.players) {
-    final trimmed = normalizePlayerName(p.name);
-    if (trimmed.isEmpty) {
+    // Strict: the gate certifies that stored/imported data already matches the
+    // canonical form the UI always produces — reject an un-normalized name
+    // rather than silently storing a leading/trailing-space value.
+    // Whitespace-only names fail this (they don't equal their trimmed form);
+    // the empty string is caught by the isEmpty check below.
+    if (normalizePlayerName(p.name) != p.name) {
       throw ValidationError(
-        'Game ${game.id}: player name must not be empty or whitespace-only.',
+        'Game ${game.id}: player name "${p.name}" must be trimmed '
+        '(no leading or trailing whitespace).',
       );
+    }
+    if (p.name.isEmpty) {
+      throw ValidationError('Game ${game.id}: player name must not be empty.');
     }
     if (!playerNameLengthValid(p.name)) {
       throw ValidationError(
@@ -200,14 +222,14 @@ void _checkPlayerNames(GameSession game) {
 void _checkGameName(GameSession game) {
   final name = game.gameName;
   if (name == null) return;
-  if (name.isEmpty) {
+  // Strict: compose normalizeGameName instead of re-deriving the empty/
+  // whitespace rule. A non-null gameName must already be its canonical trimmed,
+  // non-empty form — the empty string, whitespace-only, and leading/trailing-
+  // space names are all un-normalized and rejected.
+  if (normalizeGameName(name) != name) {
     throw ValidationError(
-      'Game ${game.id}: gameName must be null, not an empty string.',
-    );
-  }
-  if (name.trim().isEmpty) {
-    throw ValidationError(
-      'Game ${game.id}: gameName must not be whitespace-only.',
+      'Game ${game.id}: gameName must be the trimmed, non-empty form '
+      '(or null when unset).',
     );
   }
   if (!gameNameLengthValid(name)) {
@@ -221,7 +243,7 @@ void _checkGameName(GameSession game) {
 // Settings
 // ---------------------------------------------------------------------------
 
-/// Validates a settings envelope **after migration** (§5.5). The version field
+/// Validates a settings envelope **after migration** (§9). The version field
 /// must equal [currentSettingsVersion]; all required fields must be present
 /// with valid enum values. Throws [ValidationError] on any violation.
 void validateMigratedSettings(Map<String, dynamic> json) {
@@ -234,7 +256,7 @@ void validateMigratedSettings(Map<String, dynamic> json) {
   }
 
   final themeMode = json['themeMode'];
-  if (_enumByNameOrNull(ThemeMode.values, themeMode as String?) == null) {
+  if (enumByNameOrNull(ThemeMode.values, themeMode as String?) == null) {
     throw ValidationError(
       'Settings: invalid themeMode "$themeMode". '
       'Expected one of: ${ThemeMode.values.map((e) => e.name).join(', ')}.',
@@ -247,7 +269,7 @@ void validateMigratedSettings(Map<String, dynamic> json) {
   }
 
   final starterVariant = ruleVariants['starterVariant'];
-  if (_enumByNameOrNull(StarterVariant.values, starterVariant as String?) ==
+  if (enumByNameOrNull(StarterVariant.values, starterVariant as String?) ==
       null) {
     throw ValidationError(
       'Settings: invalid starterVariant "$starterVariant". '
@@ -257,7 +279,7 @@ void validateMigratedSettings(Map<String, dynamic> json) {
   }
 
   final heartsVariant = ruleVariants['heartsVariant'];
-  if (_enumByNameOrNull(HeartsVariant.values, heartsVariant as String?) ==
+  if (enumByNameOrNull(HeartsVariant.values, heartsVariant as String?) ==
       null) {
     throw ValidationError(
       'Settings: invalid heartsVariant "$heartsVariant". '
@@ -270,14 +292,6 @@ void validateMigratedSettings(Map<String, dynamic> json) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-T? _enumByNameOrNull<T extends Enum>(List<T> values, String? name) {
-  if (name == null) return null;
-  for (final v in values) {
-    if (v.name == name) return v;
-  }
-  return null;
-}
 
 bool _isValidIso8601(String s) {
   try {

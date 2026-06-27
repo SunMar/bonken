@@ -9,7 +9,11 @@ import 'rule_variants.dart';
 /// (`{'counts': [ {uuid:int}, ... ]}`); `[]` when absent.
 List<Map<String, int>> _countsFromInputJson(Map<String, dynamic>? inputJson) {
   final raw = (inputJson?['counts'] as List?) ?? const [];
-  return [for (final m in raw) (m as Map).cast<String, int>()];
+  // Eager `Map<String, int>.from` (not a lazy `.cast`) so a non-int stored count
+  // (e.g. a JS `2.0` / `-0.0` double) throws a `TypeError` here at the parse
+  // boundary — mirroring the scores path — instead of deferring past validation
+  // into scoring.
+  return [for (final m in raw) Map<String, int>.from(m as Map)];
 }
 
 /// Per-player cumulative score, summed across [rounds], in the order of
@@ -47,7 +51,7 @@ class PendingRound {
     required this.gameId,
     required this.chooserId,
     this.input,
-    this.doublesJson,
+    this.doubles,
   });
 
   final String gameId;
@@ -58,7 +62,7 @@ class PendingRound {
   final String chooserId;
 
   final GameInput? input;
-  final Map<String, dynamic>? doublesJson;
+  final DoubleMatrix? doubles;
 
   Map<String, dynamic> toJson() => {
     'gameId': gameId,
@@ -68,7 +72,7 @@ class PendingRound {
           ? const <Map<String, int>>[]
           : gameById(gameId).inputToCounts(input!),
     },
-    if (doublesJson != null) 'doublesJson': doublesJson,
+    'doublesJson': ?doubles?.toJson(),
   };
 
   factory PendingRound.fromJson(Map<String, dynamic> json) {
@@ -79,7 +83,9 @@ class PendingRound {
       input: gameById(gameId).countsToInput(
         _countsFromInputJson(json['input'] as Map<String, dynamic>?),
       ),
-      doublesJson: json['doublesJson'] as Map<String, dynamic>?,
+      doubles: json['doublesJson'] != null
+          ? DoubleMatrix.fromJson(json['doublesJson'] as Map<String, dynamic>)
+          : null,
     );
   }
 }
@@ -144,9 +150,6 @@ class GameSession {
   /// True when all [totalRounds] rounds have been played.
   bool get isFinished => rounds.length >= totalRounds;
 
-  /// Seat index of the round-1 dealer.
-  late final int firstDealerIndex = seatIndexOf(players, firstDealerId);
-
   /// Players in display order — starting from the round-1 dealer, rotating forward.
   late final List<Player> displayedPlayers = rotatedFromDealer(
     players,
@@ -192,12 +195,12 @@ class GameSession {
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'scoredAt': scoredAt.toIso8601String(),
-    if (gameName != null) 'gameName': gameName,
+    'gameName': ?gameName,
     'players': [for (final p in players) p.toJson()],
     'firstDealerId': firstDealerId,
     'ruleVariants': ruleVariants.toJson(),
     'rounds': [for (final r in rounds) r.toJson()],
-    if (pendingRound != null) 'pendingRound': pendingRound!.toJson(),
+    'pendingRound': ?pendingRound?.toJson(),
   };
 
   factory GameSession.fromJson(Map<String, dynamic> json) {
@@ -230,7 +233,7 @@ class GameSession {
   // Validates every player-id reference in the raw JSON before any round or
   // pending-round objects are constructed. A dangling ref throws, which is
   // caught by the `on Object` boundary in GameHistoryNotifier.build() and
-  // surfaces as a CorruptStorageException. Game ids are already validated by
+  // surfaces as a CorruptPersistenceException. Game ids are already validated by
   // gameById() during construction and need not be repeated here.
   static void _validateReferences(
     List<Player> players,
@@ -244,11 +247,30 @@ class GameSession {
       }
     }
 
+    void checkGameId(String id, String context) {
+      if (allGames.every((g) => g.id != id)) {
+        throw StateError('$context game id "$id" is not a known game');
+      }
+    }
+
     void checkDoublesJson(Map<String, dynamic> doublesJson, String ctx) {
       for (final entry in doublesJson.entries) {
         final comma = entry.key.indexOf(',');
-        checkId(entry.key.substring(0, comma), '$ctx doubles pair A');
-        checkId(entry.key.substring(comma + 1), '$ctx doubles pair B');
+        if (comma < 0) {
+          throw StateError('$ctx doubles pair key "${entry.key}" is malformed');
+        }
+        final a = entry.key.substring(0, comma);
+        final b = entry.key.substring(comma + 1);
+        // Pair keys are stored canonically (smaller id first); a non-canonical
+        // key from a hand-edited/foreign backup would silently miss every lookup
+        // (which canonicalizes), so reject it as corrupt at the boundary.
+        if (a.compareTo(b) > 0) {
+          throw StateError(
+            '$ctx doubles pair key "${entry.key}" is not in canonical order',
+          );
+        }
+        checkId(a, '$ctx doubles pair A');
+        checkId(b, '$ctx doubles pair B');
         checkId(
           (entry.value as Map<String, dynamic>)['initiator'] as String,
           '$ctx doubles initiator',
@@ -261,6 +283,7 @@ class GameSession {
     for (final r in json['rounds'] as List) {
       final roundJson = r as Map<String, dynamic>;
       final n = roundJson['roundNumber'];
+      checkGameId(roundJson['gameId'] as String, 'round $n');
       checkId(roundJson['chooserId'] as String, 'round $n chooserId');
       for (final id in (roundJson['scores'] as Map).keys) {
         checkId(id as String, 'round $n scoresByPlayer key');
@@ -279,6 +302,7 @@ class GameSession {
 
     final pendingJson = json['pendingRound'] as Map<String, dynamic>?;
     if (pendingJson != null) {
+      checkGameId(pendingJson['gameId'] as String, 'pendingRound');
       checkId(pendingJson['chooserId'] as String, 'pendingRound chooserId');
       final inputJson = pendingJson['input'] as Map<String, dynamic>?;
       if (inputJson != null) {

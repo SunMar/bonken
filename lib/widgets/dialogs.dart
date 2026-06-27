@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../utils.dart';
+
 /// Shows a yes/no confirmation [AlertDialog] and resolves to:
 ///
 /// * `true` — user pressed the confirm button
@@ -20,10 +22,6 @@ Future<bool?> showConfirmDialog(
   String cancelLabel = 'Annuleren',
   bool destructive = false,
 }) {
-  assert(
-    contentText != null || content != null,
-    'Provide either contentText or content',
-  );
   return showDialog<bool>(
     context: context,
     builder: (ctx) {
@@ -54,6 +52,31 @@ Future<bool?> showConfirmDialog(
   );
 }
 
+/// Shows the standard destructive discard-confirmation dialog when [dirty] and
+/// returns whether the caller should proceed (i.e. pop). Returns `true`
+/// immediately when not [dirty], so the form is only guarded when it has
+/// unsaved work.
+///
+/// The caller keeps the `pop` and the post-await `mounted` check local so the
+/// use-of-context-after-await lint stays at the call site. Always uses the
+/// [kDiscardLabel] confirm button and the destructive (error-tinted) treatment.
+Future<bool> confirmDiscard(
+  BuildContext context, {
+  required bool dirty,
+  required String title,
+  required String message,
+}) async {
+  if (!dirty) return true;
+  final confirmed = await showConfirmDialog(
+    context,
+    title: title,
+    contentText: message,
+    confirmLabel: kDiscardLabel,
+    destructive: true,
+  );
+  return confirmed == true;
+}
+
 /// Shows a single-button informational [AlertDialog].
 Future<void> showInfoDialog(
   BuildContext context, {
@@ -62,10 +85,6 @@ Future<void> showInfoDialog(
   Widget? content,
   String buttonLabel = 'OK',
 }) {
-  assert(
-    contentText != null || content != null,
-    'Provide either contentText or content',
-  );
   return showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(

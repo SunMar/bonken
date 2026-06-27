@@ -1,37 +1,27 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-
-/// Pending force-close timer from the most recent [showTimedSnackBar] call.
-/// Cancelled before scheduling a new one so back-to-back calls don't leave a
-/// stale timer that later tries to close a snackbar that has already been
-/// replaced (which trips an assertion inside [ScaffoldMessengerState]).
-///
-/// A single variable works because [showTimedSnackBar] calls
-/// [ScaffoldMessengerState.hideCurrentSnackBar] before showing a new one, so
-/// there is never more than one snackbar on screen at a time. The app uses a
-/// single root [ScaffoldMessengerState], so this is always true. If the app
-/// ever introduces a second messenger, this logic will need to be updated to
-/// track a timer per messenger instance.
-Timer? _pendingCloseTimer;
 
 /// Project-standard snackbar helper.
 ///
-/// Always sets [SnackBar.showCloseIcon] to `true` and wraps
-/// [ScaffoldMessengerState.showSnackBar] with a belt-and-suspenders [Timer]:
-/// SnackBar's built-in auto-dismiss timer is unreliable on some platforms
-/// (notably web) when [SnackBar.showCloseIcon] is set, so a manual close
-/// ensures the bar always disappears on schedule.
+/// Shows [content] via [ScaffoldMessengerState.showSnackBar] with the close
+/// icon always present, and lets the framework auto-dismiss the bar after its
+/// [SnackBar.duration].
 ///
-/// Also hides any currently-visible snackbar first so back-to-back calls
-/// don't queue up behind each other.
+/// The one non-obvious flag is `persist: false`. Since Flutter 3.38 a SnackBar
+/// *with an action* no longer auto-dismisses by default; setting it `false`
+/// restores "dismiss after [SnackBar.duration]" uniformly for both the action
+/// and plain paths, so the framework owns the whole lifecycle and the app keeps
+/// no timer of its own (it also cancels that timer on any manual close, so a
+/// dismissed bar never leaves a pending timer behind).
+///
+/// Also hides any currently-visible snackbar first so back-to-back calls don't
+/// queue up behind each other.
 ///
 /// Actionable snackbars (an [action] is given) stay on screen a little longer
 /// (6s) so the user has time to act — Material allows up to ~10s for actionable
 /// snackbars; plain ones use Flutter's 4s default.
 ///
 /// **Always prefer [showTimedSnackBar] over calling [showSnackBar] directly**
-/// so the close icon and web auto-dismiss timer are never accidentally omitted.
+/// so the close icon and auto-dismiss are never accidentally omitted.
 void showTimedSnackBar(
   ScaffoldMessengerState messenger, {
   required Widget content,
@@ -42,15 +32,13 @@ void showTimedSnackBar(
     action: action,
     behavior: SnackBarBehavior.floating,
     showCloseIcon: true,
+    // Auto-dismiss after `duration` even with an action (Flutter 3.38+ makes
+    // action snackbars persist by default).
+    persist: false,
     duration: action != null
         ? const Duration(seconds: 6)
         : const Duration(seconds: 4),
   );
-  _pendingCloseTimer?.cancel();
   messenger.hideCurrentSnackBar();
-  final controller = messenger.showSnackBar(snackBar);
-  _pendingCloseTimer = Timer(snackBar.duration, () {
-    _pendingCloseTimer = null;
-    controller.close();
-  });
+  messenger.showSnackBar(snackBar);
 }

@@ -29,7 +29,7 @@ Bonken is een kaartspel voor vier spelers. Een spel bestaat uit twaalf rondes; e
 | 2 | Heren / Boeren | Negatief | −200 |
 | 3 | Vrouwen | Negatief | −180 |
 | 4 | Bukken | Negatief | −130 |
-| 5 | Harten punten | Negatief | −130 |
+| 5 | Hartenpunten | Negatief | −130 |
 | 6 | 7e / 13e slag | Negatief | −100 |
 | 7 | Laatste slag | Negatief | −100 |
 | 8 | Domino | Negatief | −100 |
@@ -47,7 +47,7 @@ Bonken is een kaartspel voor vier spelers. Een spel bestaat uit twaalf rondes; e
 - **Spelnaam** — geef een spel een optionele naam die zichtbaar is op het scorebord en in gedeelde uitslagen.
 - **Spelregels** — de volledige spelregels zijn in de app te raadplegen, ook per spelvorm vanuit het invoerscherm. Het spel ondersteunt verschillende regelvarianten (wie de eerste slag opent en wanneer harten gespeeld mogen worden) die per spel zijn aan te passen; ook als app-brede standaard in te stellen via Instellingen.
 - **Rondes bijhouden** — kies een spelvorm per ronde, voer de dubbels en het resultaat in, en zie een scorebord van de ronde.
-- **Dubbelen & terug gaan** — dubbels volgen de beurtvolgorde en de app laat zien welke toegestaan zijn; snelknoppen voor zaal en slappe hap passen alle dubbels in één tik aan. De ingevulde dubbels zijn ook zichtbaar op het invoerscherm en in het overzicht van al gespeelde rondes.
+- **Dubbelen & teruggaan** — dubbels volgen de beurtvolgorde en de app laat zien welke toegestaan zijn; snelknoppen voor zaal en slappe hap passen alle dubbels in één tik aan. De ingevulde dubbels zijn ook zichtbaar op het invoerscherm en in het overzicht van al gespeelde rondes.
 - **Tussenstand & eindstand** — de tussenstand (of eindstand als alle rondes gespeeld zijn) wordt altijd getoond.
 - **Pauzeren en hervatten** — lopende spellen worden automatisch opgeslagen; sluit de app, veeg hem weg of ga ergens anders heen en ga later precies verder waar je gebleven was. Onderbroken rondes worden gemarkeerd en blokkeren andere spelvormen totdat de vorige score is ingevuld of verworpen.
 - **Nieuw spel met dezelfde spelers** — als een spel afgelopen is, start je met één tik een nieuw spel met dezelfde opstelling.

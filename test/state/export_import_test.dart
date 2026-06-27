@@ -9,12 +9,14 @@ import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/round_record.dart';
+import 'package:bonken/state/backup_codec.dart';
 import 'package:bonken/state/backup_migrations.dart';
 import 'package:bonken/state/export_import_notifier.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/migrations.dart';
 import 'package:bonken/state/settings_storage.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -45,7 +47,7 @@ void main() {
       // With an empty migration list and fromVersion already at current, the
       // runner returns data unchanged (no steps apply).
       // We call the runner with fromVersion equal to current — the loop is a
-      // no-op and the assert passes because v == currentBackupVersion.
+      // no-op and the completeness check passes because v == currentBackupVersion.
       final result = runBackupMigrations(
         data,
         fromVersion: currentBackupVersion,
@@ -58,7 +60,7 @@ void main() {
 
   // ── Fixtures ──────────────────────────────────────────────────────────────
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() => setAsyncPrefs({}));
 
   final pa = Player(name: 'A');
   final pb = Player(name: 'B');
@@ -123,7 +125,7 @@ void main() {
   group('exportBackup', () {
     group('All (games + settings)', () {
       test('produces a valid ZIP with all three files', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.setString(
           GameHistoryNotifier.storageKey,
           gamesEnvelopeWith([oneSession()]),
@@ -144,7 +146,7 @@ void main() {
       });
 
       test('manifest has correct metadata', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.setString(
           GameHistoryNotifier.storageKey,
           gamesEnvelopeWith([oneSession()]),
@@ -170,7 +172,7 @@ void main() {
       });
 
       test('SHA-256 hashes in manifest match file content', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         final gamesJson = gamesEnvelopeWith([oneSession()]);
         await prefs.setString(GameHistoryNotifier.storageKey, gamesJson);
         await prefs.setString(settingsStorageKey, validSettingsJson);
@@ -197,7 +199,7 @@ void main() {
       });
 
       test('games.json content round-trips correctly', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         final gamesJson = gamesEnvelopeWith([oneSession()]);
         await prefs.setString(GameHistoryNotifier.storageKey, gamesJson);
         await prefs.setString(settingsStorageKey, validSettingsJson);
@@ -215,7 +217,7 @@ void main() {
 
     group('Games only', () {
       test('no settings.json in archive', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.setString(
           GameHistoryNotifier.storageKey,
           gamesEnvelopeWith([oneSession()]),
@@ -238,7 +240,7 @@ void main() {
 
       test('zero games falls back to empty envelope', () async {
         // No game_history key written — fresh install.
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
 
         final zip = await exportBackup(
           prefs: prefs,
@@ -256,7 +258,7 @@ void main() {
 
     group('Settings only', () {
       test('no games.json in archive', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.setString(settingsStorageKey, validSettingsJson);
 
         final zip = await exportBackup(
@@ -275,7 +277,7 @@ void main() {
       });
 
       test('settings.json content matches stored blob', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.setString(settingsStorageKey, validSettingsJson);
 
         final zip = await exportBackup(
@@ -290,7 +292,7 @@ void main() {
     });
 
     test('manifest hash algo is sha256', () async {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       await prefs.setString(
         GameHistoryNotifier.storageKey,
         gamesEnvelopeWith([oneSession()]),
@@ -312,7 +314,7 @@ void main() {
     });
 
     test('manifest version equals currentBackupVersion', () async {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       await prefs.setString(settingsStorageKey, validSettingsJson);
 
       final zip = await exportBackup(
@@ -327,15 +329,15 @@ void main() {
     });
   });
 
-  // ── analyzeBackup ─────────────────────────────────────────────────────────
+  // ── BackupCodec.decode ──────────────────────────────────────────────────
 
-  group('analyzeBackup', () {
-    // Helper: build a valid ZIP using exportBackup, then analyze it.
+  group('BackupCodec.decode', () {
+    // Helper: build a valid ZIP using exportBackup, then decode it.
     Future<Uint8List> validZip({
       bool includeGames = true,
       bool includeSettings = true,
     }) async {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       await prefs.setString(
         GameHistoryNotifier.storageKey,
         gamesEnvelopeWith([oneSession()]),
@@ -349,15 +351,32 @@ void main() {
       );
     }
 
+    test('decodeBackupProvider decodes in a background isolate '
+        '(the whole DecodedBackup graph is sendable)', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      // Exercises the real production seam — Isolate.run(BackupCodec.decode) —
+      // so a large backup never decodes on the UI frame. It also proves the
+      // decoded graph (StreamValid payloads, GameSessions, DateTimes) survives
+      // transfer back across the isolate boundary, i.e. is sendable. Widget
+      // tests can't run this (their fake-async clock can't drive a real
+      // isolate), so they override decodeBackupProvider to decode inline.
+      final a = await container.read(decodeBackupProvider)(await validZip());
+      expect(a.canImportGames, isTrue);
+      expect(a.canImportSettings, isTrue);
+      expect(a.games, hasLength(1));
+      expect(a.settings, isNotNull);
+    });
+
     group('valid backup — All', () {
       test('returns without throwing', () async {
-        await expectLater(analyzeBackup(await validZip()), completes);
+        await expectLater(BackupCodec.decode(await validZip()), completes);
       });
 
       test(
         'appVersionThatCreatedIt and buildNumberThatCreatedIt match',
         () async {
-          final a = await analyzeBackup(await validZip());
+          final a = await BackupCodec.decode(await validZip());
           expect(a.appVersionThatCreatedIt, '2.3.4');
           expect(a.buildNumberThatCreatedIt, '7');
         },
@@ -365,7 +384,7 @@ void main() {
 
       test('exportedAt is a recent datetime', () async {
         final before = DateTime.now();
-        final a = await analyzeBackup(await validZip());
+        final a = await BackupCodec.decode(await validZip());
         final after = DateTime.now();
         expect(
           a.exportedAt.isAfter(before.subtract(const Duration(seconds: 5))),
@@ -378,26 +397,26 @@ void main() {
       });
 
       test('hasGames and hasSettings are true', () async {
-        final a = await analyzeBackup(await validZip());
+        final a = await BackupCodec.decode(await validZip());
         expect(a.hasGames, isTrue);
         expect(a.hasSettings, isTrue);
       });
 
       test('gamesCount equals number of exported sessions', () async {
-        final a = await analyzeBackup(await validZip());
+        final a = await BackupCodec.decode(await validZip());
         expect(a.gamesCount, 1);
       });
 
       test('canImportGames and canImportSettings are true', () async {
-        final a = await analyzeBackup(await validZip());
+        final a = await BackupCodec.decode(await validZip());
         expect(a.canImportGames, isTrue);
         expect(a.canImportSettings, isTrue);
       });
 
       test('both stream statuses are StreamValid', () async {
-        final a = await analyzeBackup(await validZip());
-        expect(a.gamesStatus, isA<StreamValid>());
-        expect(a.settingsStatus, isA<StreamValid>());
+        final a = await BackupCodec.decode(await validZip());
+        expect(a.gamesStatus, isA<StreamValid<List<GameSession>>>());
+        expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
       });
     });
 
@@ -405,12 +424,14 @@ void main() {
       test(
         'hasGames true, hasSettings false, gamesStatus StreamValid',
         () async {
-          final a = await analyzeBackup(await validZip(includeSettings: false));
+          final a = await BackupCodec.decode(
+            await validZip(includeSettings: false),
+          );
           expect(a.hasGames, isTrue);
           expect(a.hasSettings, isFalse);
           expect(a.canImportGames, isTrue);
           expect(a.canImportSettings, isFalse);
-          expect(a.gamesStatus, isA<StreamValid>());
+          expect(a.gamesStatus, isA<StreamValid<List<GameSession>>>());
           expect(a.settingsStatus, isA<StreamNotPresent>());
         },
       );
@@ -420,12 +441,14 @@ void main() {
       test(
         'hasSettings true, hasGames false, settingsStatus StreamValid',
         () async {
-          final a = await analyzeBackup(await validZip(includeGames: false));
+          final a = await BackupCodec.decode(
+            await validZip(includeGames: false),
+          );
           expect(a.hasGames, isFalse);
           expect(a.hasSettings, isTrue);
           expect(a.canImportSettings, isTrue);
           expect(a.canImportGames, isFalse);
-          expect(a.settingsStatus, isA<StreamValid>());
+          expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
           expect(a.gamesStatus, isA<StreamNotPresent>());
         },
       );
@@ -434,14 +457,14 @@ void main() {
     group('corrupt archive', () {
       test('random bytes → throws BackupCorrupt', () async {
         await expectLater(
-          analyzeBackup(Uint8List.fromList([1, 2, 3, 4, 5])),
+          BackupCodec.decode(Uint8List.fromList([1, 2, 3, 4, 5])),
           throwsA(isA<BackupCorrupt>()),
         );
       });
 
       test('empty bytes → throws BackupCorrupt', () async {
         await expectLater(
-          analyzeBackup(Uint8List(0)),
+          BackupCodec.decode(Uint8List(0)),
           throwsA(isA<BackupCorrupt>()),
         );
       });
@@ -453,11 +476,14 @@ void main() {
         final archive = Archive()
           ..addFile(ArchiveFile.string('games.json', '{}'));
         final zip = ZipEncoder().encodeBytes(archive);
-        await expectLater(analyzeBackup(zip), throwsA(isA<BackupCorrupt>()));
+        await expectLater(
+          BackupCodec.decode(zip),
+          throwsA(isA<BackupCorrupt>()),
+        );
       });
 
       test('backup version too new → throws BackupTooNew', () async {
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.setString(settingsStorageKey, validSettingsJson);
         final zip = await exportBackup(
           prefs: prefs,
@@ -485,7 +511,7 @@ void main() {
         final patchedZip = ZipEncoder().encodeBytes(newArchive);
 
         await expectLater(
-          analyzeBackup(patchedZip),
+          BackupCodec.decode(patchedZip),
           throwsA(isA<BackupTooNew>()),
         );
       });
@@ -508,7 +534,7 @@ void main() {
         }
         final tampered = ZipEncoder().encodeBytes(newArchive);
         await expectLater(
-          analyzeBackup(tampered),
+          BackupCodec.decode(tampered),
           throwsA(isA<BackupCorrupt>()),
         );
       });
@@ -547,12 +573,12 @@ void main() {
             ..addFile(ArchiveFile.string('settings.json', validSettingsJson));
           final zip = ZipEncoder().encodeBytes(archive);
 
-          final a = await analyzeBackup(zip);
+          final a = await BackupCodec.decode(zip);
           expect(a.gamesStatus, isA<StreamVersionTooNew>());
           expect(a.hasGames, isTrue);
           expect(a.canImportGames, isFalse);
           // Settings are still valid and importable despite games being too new.
-          expect(a.settingsStatus, isA<StreamValid>());
+          expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
           expect(a.canImportSettings, isTrue);
         },
       );
@@ -599,20 +625,26 @@ void main() {
 
       test('games version 0 → gamesStatus StreamCorrupt', () async {
         final badEnvelope = jsonEncode({'version': 0, 'games': <dynamic>[]});
-        final a = await analyzeBackup(archiveWith(gamesEnvelope: badEnvelope));
+        final a = await BackupCodec.decode(
+          archiveWith(gamesEnvelope: badEnvelope),
+        );
         expect(a.gamesStatus, isA<StreamCorrupt>());
         expect(a.canImportGames, isFalse);
       });
 
       test('games version as string → gamesStatus StreamCorrupt', () async {
         final badEnvelope = jsonEncode({'version': '1', 'games': <dynamic>[]});
-        final a = await analyzeBackup(archiveWith(gamesEnvelope: badEnvelope));
+        final a = await BackupCodec.decode(
+          archiveWith(gamesEnvelope: badEnvelope),
+        );
         expect(a.gamesStatus, isA<StreamCorrupt>());
       });
 
       test('games missing "games" array → gamesStatus StreamCorrupt', () async {
         final badEnvelope = jsonEncode({'version': currentStorageVersion});
-        final a = await analyzeBackup(archiveWith(gamesEnvelope: badEnvelope));
+        final a = await BackupCodec.decode(
+          archiveWith(gamesEnvelope: badEnvelope),
+        );
         expect(a.gamesStatus, isA<StreamCorrupt>());
       });
 
@@ -625,7 +657,7 @@ void main() {
             'heartsVariant': 'onlyAfterPlayedHeart',
           },
         });
-        final a = await analyzeBackup(
+        final a = await BackupCodec.decode(
           archiveWith(settingsEnvelope: badEnvelope),
         );
         expect(a.settingsStatus, isA<StreamCorrupt>());
@@ -643,7 +675,7 @@ void main() {
               'heartsVariant': 'onlyAfterPlayedHeart',
             },
           });
-          final a = await analyzeBackup(
+          final a = await BackupCodec.decode(
             archiveWith(settingsEnvelope: badEnvelope),
           );
           expect(a.settingsStatus, isA<StreamCorrupt>());
@@ -655,16 +687,64 @@ void main() {
         () async {
           final badGames = jsonEncode({'version': 0, 'games': <dynamic>[]});
           final goodSettings = validSettingsJson;
-          final a = await analyzeBackup(
+          final a = await BackupCodec.decode(
             archiveWith(
               gamesEnvelope: badGames,
               settingsEnvelope: goodSettings,
             ),
           );
           expect(a.gamesStatus, isA<StreamCorrupt>());
-          expect(a.settingsStatus, isA<StreamValid>());
+          expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
           expect(a.canImportGames, isFalse);
           expect(a.canImportSettings, isTrue);
+        },
+      );
+
+      // A hash-valid stream whose top-level JSON is not an object (or not JSON
+      // at all) must surface as a soft StreamCorrupt, not escape decode() as an
+      // untyped CastError/FormatException — and the other stream stays
+      // importable (per-stream independence holds for malformed content too).
+      test(
+        'games stream that is a JSON array → StreamCorrupt, settings importable',
+        () async {
+          final a = await BackupCodec.decode(
+            archiveWith(
+              gamesEnvelope: '[1, 2, 3]',
+              settingsEnvelope: validSettingsJson,
+            ),
+          );
+          expect(a.gamesStatus, isA<StreamCorrupt>());
+          expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
+          expect(a.canImportGames, isFalse);
+          expect(a.canImportSettings, isTrue);
+        },
+      );
+
+      test('games stream that is not valid JSON → StreamCorrupt', () async {
+        final a = await BackupCodec.decode(
+          archiveWith(gamesEnvelope: 'this is not json'),
+        );
+        expect(a.gamesStatus, isA<StreamCorrupt>());
+        expect(a.canImportGames, isFalse);
+      });
+
+      test(
+        'settings stream that is a JSON array → StreamCorrupt, games importable',
+        () async {
+          final validGames = jsonEncode({
+            'version': currentStorageVersion,
+            'games': <dynamic>[],
+          });
+          final a = await BackupCodec.decode(
+            archiveWith(
+              gamesEnvelope: validGames,
+              settingsEnvelope: '[1, 2, 3]',
+            ),
+          );
+          expect(a.settingsStatus, isA<StreamCorrupt>());
+          expect(a.gamesStatus, isA<StreamValid<List<GameSession>>>());
+          expect(a.canImportSettings, isFalse);
+          expect(a.canImportGames, isTrue);
         },
       );
     });
@@ -677,7 +757,7 @@ void main() {
           // valid ZIP — only larger than _maxBackupFileBytes (10 MB).
           final tooBig = Uint8List(10 * 1024 * 1024 + 1);
           await expectLater(
-            analyzeBackup(tooBig),
+            BackupCodec.decode(tooBig),
             throwsA(isA<BackupCorrupt>()),
           );
         },
@@ -690,8 +770,38 @@ void main() {
           archive.addFile(ArchiveFile.string('extra$i.json', '{}'));
         }
         final zip = ZipEncoder().encodeBytes(archive);
-        await expectLater(analyzeBackup(zip), throwsA(isA<BackupCorrupt>()));
+        await expectLater(
+          BackupCodec.decode(zip),
+          throwsA(isA<BackupCorrupt>()),
+        );
       });
+
+      test(
+        'archive with an unexpected extra entry → throws BackupCorrupt',
+        () async {
+          // A valid games-only backup (manifest + games = 2 entries) plus one
+          // junk entry: 3 total, so it passes the entry-count cap, but the
+          // manifest declares only "games" so the allowlist rejects the extra.
+          final prefs = SharedPreferencesAsync();
+          await prefs.setString(
+            GameHistoryNotifier.storageKey,
+            gamesEnvelopeWith([oneSession()]),
+          );
+          final zip = await exportBackup(
+            prefs: prefs,
+            appVersion: testAppVersion,
+            includeGames: true,
+            includeSettings: false,
+          );
+          final archive = ZipDecoder().decodeBytes(zip)
+            ..addFile(ArchiveFile.string('junk.bin', 'gotcha'));
+          final tampered = ZipEncoder().encodeBytes(archive);
+          await expectLater(
+            BackupCodec.decode(tampered),
+            throwsA(isA<BackupCorrupt>()),
+          );
+        },
+      );
 
       test(
         'archive whose entries exceed uncompressed size limit → throws BackupCorrupt',
@@ -702,7 +812,10 @@ void main() {
           final archive = Archive()
             ..addFile(ArchiveFile('big.bin', bigContent.length, bigContent));
           final zip = ZipEncoder().encodeBytes(archive);
-          await expectLater(analyzeBackup(zip), throwsA(isA<BackupCorrupt>()));
+          await expectLater(
+            BackupCodec.decode(zip),
+            throwsA(isA<BackupCorrupt>()),
+          );
         },
       );
     });
@@ -758,13 +871,62 @@ void main() {
             ..addFile(ArchiveFile.string('settings.json', validSettingsJson));
           final zip = ZipEncoder().encodeBytes(archive);
 
-          final a = await analyzeBackup(zip);
+          final a = await BackupCodec.decode(zip);
           expect(a.gamesStatus, isA<StreamCorrupt>());
           expect(a.canImportGames, isFalse);
           expect(a.hasGames, isTrue);
           // Settings are unaffected — can still be imported.
-          expect(a.settingsStatus, isA<StreamValid>());
+          expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
           expect(a.canImportSettings, isTrue);
+        },
+      );
+
+      test(
+        'non-int games count → gamesStatus StreamCorrupt, settings importable',
+        () async {
+          // Start from a valid games envelope, then corrupt one stored count to
+          // a non-int (double). GameSession.fromJson throws a TypeError inside
+          // validateMigratedGames; the import gate converts it to a soft
+          // StreamCorrupt rather than letting it escape as a hard decode error.
+          final env =
+              jsonDecode(gamesEnvelopeWith([oneSession()]))
+                  as Map<String, dynamic>;
+          final games = (env['games'] as List).first as Map<String, dynamic>;
+          final round = (games['rounds'] as List).first as Map<String, dynamic>;
+          ((round['input'] as Map<String, dynamic>)['counts'] as List)[0] = {
+            pa.id: 2.5,
+            pb.id: 0,
+            pc.id: 0,
+            pd.id: 0,
+          };
+          final badGamesJson = jsonEncode(env);
+          final gamesHash = sha256
+              .convert(utf8.encode(badGamesJson))
+              .toString();
+          final settingsHash = sha256
+              .convert(utf8.encode(validSettingsJson))
+              .toString();
+          final manifest = jsonEncode({
+            'version': currentBackupVersion,
+            'appVersion': '1.0.0',
+            'exportedAt': DateTime(2024).toIso8601String(),
+            'utcOffset': '+00:00',
+            'contains': ['games', 'settings'],
+            'hashes': {
+              'games': {'algo': 'sha256', 'hash': gamesHash},
+              'settings': {'algo': 'sha256', 'hash': settingsHash},
+            },
+          });
+          final archive = Archive()
+            ..addFile(ArchiveFile.string('manifest.json', manifest))
+            ..addFile(ArchiveFile.string('games.json', badGamesJson))
+            ..addFile(ArchiveFile.string('settings.json', validSettingsJson));
+          final zip = ZipEncoder().encodeBytes(archive);
+
+          final a = await BackupCodec.decode(zip);
+          expect(a.gamesStatus, isA<StreamCorrupt>());
+          expect(a.canImportGames, isFalse);
+          expect(a.settingsStatus, isA<StreamValid<Map<String, dynamic>>>());
         },
       );
     });

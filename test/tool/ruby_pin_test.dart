@@ -77,6 +77,16 @@ void main() {
     test('returns null for empty ruby list', () {
       expect(parseLatestRubyBuilderCycle('{"ruby": []}'), isNull);
     });
+
+    test('throws on a non-string array entry rather than swallowing it', () {
+      // A non-string element escapes the FormatException tolerance and throws.
+      // That is deliberate: a numeric/object entry signals an upstream manifest
+      // format change, which should surface loudly, not be silently dropped.
+      expect(
+        () => parseLatestRubyBuilderCycle('{"ruby": [3, "3.4.9"]}'),
+        throwsA(isA<TypeError>()),
+      );
+    });
   });
 
   group('rubyIsNewer', () {

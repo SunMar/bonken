@@ -5,11 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../navigation/app_routes.dart';
 import '../state/game_history_provider.dart';
 import '../widgets/app_bar_widgets.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/timed_snackbar.dart';
-import 'export_screen.dart';
 
 const _newAppId = 'org.suninet.bonken';
 
@@ -19,12 +19,16 @@ class MigrationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // Export reads the raw stored history blob, so only offer it once the
+    // history has loaded CLEANLY (hasValue). Gating on a clean load guarantees
+    // we never produce a backup from unreadable data: a corrupt history should
+    // not occur here (the legacy app reads its own data), and if it somehow did
+    // we must not hand the user an export the new app would reject.
     final historyReady = ref.watch(gameHistoryProvider).hasValue;
     return PopScope(
       canPop: false,
       child: AppScaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: false,
           leading: const AboutIconButton(),
           title: const Text('Bonken'),
         ),
@@ -88,10 +92,6 @@ class MigrationScreen extends ConsumerWidget {
   }
 
   void _openExport(BuildContext context) {
-    unawaited(
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const ExportScreen())),
-    );
+    unawaited(AppRoutes.openExport(context));
   }
 }

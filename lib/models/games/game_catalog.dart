@@ -29,7 +29,7 @@ const List<MiniGame> allGames = [
 ///
 /// Throws a [StateError] with a descriptive message on an unknown id. An
 /// unknown id during JSON deserialization is caught by the `on Object` boundary
-/// in `GameHistoryNotifier.build()` and surfaces as a [CorruptStorageException].
+/// in `GameHistoryNotifier.build()` and surfaces as a [CorruptPersistenceException].
 /// An unknown id after a successful load is a programming error — the throw
 /// makes it loud rather than silently loading the wrong game.
 MiniGame gameById(String gameId) => allGames.firstWhere(

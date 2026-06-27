@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import '../../models/mini_game.dart';
-
 /// Displays four stepper rows (one per player) for games where each player's
 /// count must be entered and all four must sum to [total].
 class CountsStepper extends StatelessWidget {
@@ -25,27 +23,28 @@ class CountsStepper extends StatelessWidget {
 
   int get _sum => counts.fold(0, (a, b) => a + b);
 
-  void _increment(int index) {
+  void _applyDelta(int index, int delta) {
     final updated = List<int>.from(counts);
-    updated[index]++;
+    updated[index] += delta;
     onCountsChanged(updated);
   }
 
-  void _decrement(int index) {
-    final updated = List<int>.from(counts);
-    updated[index]--;
-    onCountsChanged(updated);
-  }
+  void _increment(int index) => _applyDelta(index, 1);
+
+  void _decrement(int index) => _applyDelta(index, -1);
 
   void _addRemaining(int index, int remaining) {
     if (remaining <= 0) return;
-    final updated = List<int>.from(counts);
-    updated[index] += remaining;
-    onCountsChanged(updated);
+    _applyDelta(index, remaining);
   }
 
   @override
   Widget build(BuildContext context) {
+    assert(
+      counts.length == playerNames.length,
+      'counts (${counts.length}) and playerNames (${playerNames.length}) '
+      'must have the same length',
+    );
     final theme = Theme.of(context);
     final sum = _sum;
     final remaining = total - sum;
@@ -69,7 +68,7 @@ class CountsStepper extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (int i = 0; i < playerCount; i++)
+          for (int i = 0; i < counts.length; i++)
             _PlayerCountRow(
               name: playerNames[i],
               count: counts[i],

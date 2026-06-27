@@ -5,24 +5,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../data/game_rules.dart';
+import '../models/game_mechanics.dart';
 import '../models/hearts_variant.dart';
 import '../models/mini_game.dart';
 import '../models/player.dart';
 import '../models/score_result.dart';
 import '../state/calculator_provider.dart';
 import '../state/rules_edit_mode_provider.dart';
+import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 import '../widgets/amber_warning_box.dart';
 import '../widgets/app_bar_widgets.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
-import '../widgets/disabled_tap_detector.dart';
+import '../widgets/disabled_tappable_button.dart';
 import '../widgets/doubles_picker.dart';
 import '../widgets/game_avatar.dart';
 import '../widgets/game_input/game_input_form.dart';
-import '../widgets/incomplete_form_snackbar.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/score_result_view.dart';
+import '../widgets/timed_snackbar.dart';
 
 /// Per-round score input destination.
 ///
@@ -47,6 +49,86 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
   // loudly rather than silently render nothing.
   late final MiniGame _game = ref.read(activeSessionProvider).selectedGame!;
 
+  void _popIfMounted() {
+    if (context.mounted) Navigator.of(context).pop();
+  }
+
+  /// Whether this screen is re-editing a saved round (vs entering a pending
+  /// one). Fixed for the screen's lifetime; read on demand by the handlers.
+  bool _isEditing() => ref.read(activeSessionProvider).isEditingExistingRound;
+
+  void _cancelInputPhase() {
+    if (_isEditing()) {
+      ref.read(calculatorProvider.notifier).cancelEditRound();
+    } else {
+      ref.read(calculatorProvider.notifier).discardGame();
+    }
+    _popIfMounted();
+  }
+
+  Future<void> _confirmAndCancelInput() async {
+    final isEditing = _isEditing();
+    final hasChanges = ref.read(
+      activeSessionProvider.select((a) => a.hasActiveChanges),
+    );
+    final proceed = await confirmDiscard(
+      context,
+      dirty: hasChanges,
+      title: isEditing ? kDiscardChangesTitle : 'Ronde verwerpen',
+      message: isEditing
+          ? kDiscardChangesMessage
+          : 'De dubbels en scores van de huidige ronde worden verworpen.',
+    );
+    if (!proceed) return;
+    _cancelInputPhase();
+  }
+
+  // Only called for pending rounds (editing uses _confirmAndCancelInput).
+  Future<void> _exitPendingRound() async {
+    final hasChanges = ref.read(
+      activeSessionProvider.select((a) => a.hasActiveChanges),
+    );
+    if (hasChanges) {
+      ref.read(calculatorProvider.notifier).exitPendingSlot();
+    } else {
+      ref.read(calculatorProvider.notifier).discardGame();
+    }
+    _popIfMounted();
+  }
+
+  // Only called when the input is complete (the save button enables only then).
+  Future<void> _confirmAndSave() async {
+    final s = ref.read(activeSessionProvider);
+    if (s.hasActiveChanges) {
+      if (!context.mounted) return;
+      final confirm = await showConfirmDialog(
+        context,
+        title: 'Score',
+        content: SingleChildScrollView(
+          child: ScoreResultView(
+            result: s.result!,
+            game: s.selectedGame!,
+            players: s.displayedPlayers,
+            doubles: s.doubles,
+            chooserIndex: s.displayedChooserIndex,
+            showHeader: false,
+          ),
+        ),
+        confirmLabel: kSaveLabel,
+      );
+      if (confirm != true) return;
+    }
+    ref.read(calculatorProvider.notifier).deselectGame();
+    _popIfMounted();
+  }
+
+  void _showSaveIncompleteSnackbar() {
+    showTimedSnackBar(
+      ScaffoldMessenger.of(context),
+      content: const Text('Vul de score volledig in om op te slaan.'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final game = _game;
@@ -57,93 +139,12 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
       activeSessionProvider.select((a) => a.inputState == InputState.complete),
     );
 
-    void popIfMounted() {
-      if (context.mounted) Navigator.of(context).pop();
-    }
-
-    void cancelInputPhase() {
-      if (isEditing) {
-        ref.read(calculatorProvider.notifier).cancelEditRound();
-      } else {
-        ref.read(calculatorProvider.notifier).discardGame();
-      }
-      popIfMounted();
-    }
-
-    Future<void> confirmAndCancelInput() async {
-      final hasChanges = ref.read(
-        activeSessionProvider.select((a) => a.hasActiveChanges),
-      );
-      if (hasChanges) {
-        if (!context.mounted) return;
-        final confirmed =
-            await showConfirmDialog(
-              context,
-              title: isEditing ? kDiscardChangesTitle : 'Ronde verwerpen',
-              contentText: isEditing
-                  ? kDiscardChangesMessage
-                  : 'De dubbels en scores van de huidige ronde worden verworpen.',
-              confirmLabel: kDiscardLabel,
-              destructive: true,
-            ) ==
-            true;
-        if (!confirmed) return;
-      }
-      cancelInputPhase();
-    }
-
-    // Only called for pending rounds (isEditing uses confirmAndCancelInput).
-    Future<void> exitPendingRound() async {
-      final hasChanges = ref.read(
-        activeSessionProvider.select((a) => a.hasActiveChanges),
-      );
-      if (hasChanges) {
-        ref.read(calculatorProvider.notifier).exitPendingSlot();
-      } else {
-        ref.read(calculatorProvider.notifier).discardGame();
-      }
-      popIfMounted();
-    }
-
-    // Only called when isComplete (button is enabled only then).
-    Future<void> confirmAndSave() async {
-      final s = ref.read(activeSessionProvider);
-      if (s.hasActiveChanges) {
-        if (!context.mounted) return;
-        final confirm = await showConfirmDialog(
-          context,
-          title: 'Score',
-          content: SingleChildScrollView(
-            child: ScoreResultView(
-              result: s.result!,
-              game: s.selectedGame!,
-              players: s.displayedPlayers,
-              doubles: s.doubles,
-              chooserIndex: s.displayedChooserIndex,
-              showHeader: false,
-            ),
-          ),
-          confirmLabel: kSaveLabel,
-        );
-        if (confirm != true) return;
-      }
-      ref.read(calculatorProvider.notifier).deselectGame();
-      popIfMounted();
-    }
-
-    void showSaveIncompleteSnackbar() {
-      showIncompleteFormSnackBar(
-        ScaffoldMessenger.of(context),
-        message: 'Vul de score volledig in om op te slaan.',
-      );
-    }
-
     return PopScope(
       // Always intercept back so the appropriate discard handler can run.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          unawaited(isEditing ? confirmAndCancelInput() : exitPendingRound());
+          unawaited(isEditing ? _confirmAndCancelInput() : _exitPendingRound());
         }
       },
       child: AppScaffold(
@@ -167,26 +168,26 @@ class _RoundInputScreenState extends ConsumerState<RoundInputScreen> {
               ? IconButton(
                   icon: const Icon(Symbols.close),
                   tooltip: kDiscardLabel,
-                  onPressed: confirmAndCancelInput,
+                  onPressed: _confirmAndCancelInput,
                 )
               : Tooltip(
                   message: 'Terug',
-                  child: BackButton(onPressed: exitPendingRound),
+                  child: BackButton(onPressed: _exitPendingRound),
                 ),
         ),
         bottomBar: BottomAppBar(
           child: Row(
             children: [
               TextButton(
-                onPressed: confirmAndCancelInput,
+                onPressed: _confirmAndCancelInput,
                 child: const Text(kDiscardLabel),
               ),
               const Spacer(),
-              DisabledTapDetector(
-                enabled: !isComplete,
-                onTap: showSaveIncompleteSnackbar,
-                child: FilledButton(
-                  onPressed: isComplete ? confirmAndSave : null,
+              DisabledTappableButton(
+                onPressed: isComplete ? _confirmAndSave : null,
+                onDisabledTap: _showSaveIncompleteSnackbar,
+                builder: (onPressed) => FilledButton(
+                  onPressed: onPressed,
                   child: const Text(kSaveLabel),
                 ),
               ),
@@ -250,15 +251,16 @@ class _ChooserSelectorCard extends ConsumerWidget {
     return _ChooserSelector(
       playerNames: [for (final p in displayedPlayers) p.name],
       chooserIndex: seatIndexOf(displayedPlayers, chooserId),
-      defaultChooserIndex:
-          (seatIndexOf(displayedPlayers, dealerId) + 1) % playerCount,
+      defaultChooserIndex: chooserIndexFor(
+        seatIndexOf(displayedPlayers, dealerId),
+      ),
       onChanged: (dispI) => ref
           .read(calculatorProvider.notifier)
           .setChooser(
-            ref
-                .read(activeSessionProvider)
-                .players
-                .indexWhere((p) => p.id == displayedPlayers[dispI].id),
+            seatIndexOf(
+              ref.read(activeSessionProvider).players,
+              displayedPlayers[dispI].id,
+            ),
           ),
     );
   }
@@ -358,22 +360,14 @@ class _ScoreResultSection extends ConsumerWidget {
             ),
           ),
         );
-    return result != null
-        ? ScoreResultView(
-            result: result,
-            game: game,
-            players: dispPlayers,
-            doubles: doubles,
-            chooserIndex: dispChooser,
-          )
-        : ScoreResultView(
-            result: partialResult ?? const ScoreResult(scores: {}),
-            game: game,
-            players: dispPlayers,
-            doubles: doubles,
-            chooserIndex: dispChooser,
-            isPartial: true,
-          );
+    return ScoreResultView(
+      result: result ?? partialResult ?? const ScoreResult(scores: {}),
+      game: game,
+      players: dispPlayers,
+      doubles: doubles,
+      chooserIndex: dispChooser,
+      isPartial: result == null,
+    );
   }
 }
 
@@ -434,32 +428,28 @@ class _RoundInputHeader extends ConsumerWidget {
 }
 
 /// Per-game amber warnings shown between the chooser selector and the doubles
-/// card.  Surfaces every [Note] block from the rules data so any condition or
-/// special rule is visible at the moment the player needs it.
+/// card.  Surfaces the rules blocks a player needs reminding of mid-game: every
+/// [Note] block, plus any in-game-relevant [VariantBlock] (currently the active
+/// hearts variant), so the condition or special rule is visible at the moment
+/// it applies.
 List<Widget> _gameRulesWarnings(MiniGame game, HeartsVariant heartsVariant) {
   final section = gameSectionFor(game.id);
   if (section == null) return const [];
-  final warningBlocks = section.blocks
-      .where(
-        (b) =>
-            b is Note ||
-            (b is VariantBlock && b.variantKind == VariantKind.hearts),
-      )
-      .toList();
-  if (warningBlocks.isEmpty) return const [];
+  // Map matching blocks straight to their warning boxes: a typed collection-if
+  // yields only the two relevant cases, so there is no unreachable default arm.
+  final boxes = <AmberWarningBox>[
+    for (final b in section.blocks)
+      if (b is Note)
+        AmberWarningBox(label: b.label, text: b.text)
+      else if (b is VariantBlock && b.variantKind == VariantKind.hearts)
+        AmberWarningBox(label: b.label, text: b.textFor(heartsVariant)),
+  ];
+  if (boxes.isEmpty) return const [];
   return [
     const SizedBox(height: 12),
-    for (int i = 0; i < warningBlocks.length; i++) ...[
+    for (int i = 0; i < boxes.length; i++) ...[
       if (i > 0) const SizedBox(height: 8),
-      switch (warningBlocks[i]) {
-        final Note b => AmberWarningBox(label: b.label, text: b.text),
-        final VariantBlock b => AmberWarningBox(
-          label: b.label,
-          text: b.textFor(heartsVariant),
-        ),
-        // unreachable — warningBlocks is pre-filtered to Note|VariantBlock
-        _ => const SizedBox.shrink(),
-      },
+      boxes[i],
     ],
   ];
 }
@@ -488,45 +478,62 @@ class _ChooserSelector extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Wie koos dit spel?',
-              style: Theme.of(context).textTheme.labelLarge,
+            // The visible heading doubles as the dropdown's programmatic label
+            // (added below), so exclude it from the semantics tree to avoid a
+            // screen reader announcing "Wie koos dit spel?" twice.
+            ExcludeSemantics(
+              child: Text(
+                'Wie koos dit spel?',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
             ),
             const SizedBox(height: 6),
-            DropdownMenu<int>(
-              key: ValueKey(chooserIndex),
-              initialSelection: chooserIndex,
-              enableSearch: false,
-              requestFocusOnTap: false,
-              expandedInsets: EdgeInsets.zero,
-              menuStyle: const MenuStyle(visualDensity: VisualDensity.compact),
-              inputDecorationTheme: const InputDecorationTheme(
-                isDense: true,
-                border: OutlineInputBorder(),
+            // Labelled for assistive tech: a bare DropdownMenu exposes only its
+            // current value (the chooser's name), never its purpose.
+            // `selectOnly` makes the inner field a genuine read-only picker (not
+            // a search box); `requestFocusOnTap: false` additionally keeps the
+            // mobile keyboard hidden. No `ValueKey` is needed — DropdownMenu
+            // re-seeds its displayed value from `initialSelection` on a rebuild.
+            MergeSemantics(
+              child: Semantics(
+                label: 'Wie koos dit spel?',
+                child: DropdownMenu<int>(
+                  initialSelection: chooserIndex,
+                  selectOnly: true,
+                  requestFocusOnTap: false,
+                  expandedInsets: EdgeInsets.zero,
+                  menuStyle: const MenuStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  inputDecorationTheme: const InputDecorationTheme(
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  dropdownMenuEntries: [
+                    for (int i = 0; i < playerCount; i++)
+                      DropdownMenuEntry<int>(value: i, label: playerNames[i]),
+                  ],
+                  onSelected: (selected) async {
+                    if (selected == null || selected == chooserIndex) return;
+                    if (selected == defaultChooserIndex) {
+                      onChanged(selected);
+                      return;
+                    }
+                    final expectedName = playerNames[defaultChooserIndex];
+                    final selectedName = playerNames[selected];
+                    if (!context.mounted) return;
+                    final confirm = await showConfirmDialog(
+                      context,
+                      title: 'Kiezer wijzigen',
+                      contentText:
+                          '$expectedName is aan de beurt om te kiezen. '
+                          'Wil je toch $selectedName als kiezer instellen?',
+                      confirmLabel: 'Instellen',
+                    );
+                    if (confirm == true) onChanged(selected);
+                  },
+                ),
               ),
-              dropdownMenuEntries: [
-                for (int i = 0; i < playerCount; i++)
-                  DropdownMenuEntry<int>(value: i, label: playerNames[i]),
-              ],
-              onSelected: (selected) async {
-                if (selected == null || selected == chooserIndex) return;
-                if (selected == defaultChooserIndex) {
-                  onChanged(selected);
-                  return;
-                }
-                final expectedName = playerNames[defaultChooserIndex];
-                final selectedName = playerNames[selected];
-                if (!context.mounted) return;
-                final confirm = await showConfirmDialog(
-                  context,
-                  title: 'Kiezer wijzigen',
-                  contentText:
-                      '$expectedName is aan de beurt om te kiezen. '
-                      'Wil je toch $selectedName als kiezer instellen?',
-                  confirmLabel: 'Instellen',
-                );
-                if (confirm == true) onChanged(selected);
-              },
             ),
           ],
         ),

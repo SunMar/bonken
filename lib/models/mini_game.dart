@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' show IconData;
 
 import 'double_matrix.dart';
 import 'input_descriptor.dart';
@@ -7,16 +7,6 @@ import 'score_result.dart';
 
 /// Number of players in a Bonken game (always 4).
 const int playerCount = 4;
-
-/// Position of [player] in the doubling turn order for a round chosen by
-/// [chooserIndex]: `0` is the first to double (the player to the left of
-/// the chooser, i.e. `(chooserIndex + 1) % 4`) and `3` is the chooser
-/// themselves, who doubles last.
-///
-/// The same index drives both the input list ordering in `DoublesPicker`
-/// and the chip ordering in `DoublesChips`, so they always agree.
-int doublingTurnIndex(int player, int chooserIndex) =>
-    (player - chooserIndex - 1 + playerCount) % playerCount;
 
 /// The category of a mini-game.
 enum GameCategory { positive, negative }
@@ -169,14 +159,14 @@ abstract class MiniGame {
 // prompts).
 // =============================================================================
 
-/// Returns the single player id in a count map (the entry with count ≥ 1), or
-/// `null` when the map is empty. Used to invert a recipient-slot storage
-/// element back into a player UUID.
-String? _soleKey(Map<String, int> counts) {
-  for (final e in counts.entries) {
-    if (e.value >= 1) return e.key;
-  }
-  return null;
+/// Inverts a stored recipient-slot map back into a player UUID, or `null` for an
+/// empty slot. A slot is self-written as `{}` or `{id: 1}`; anything else
+/// (multiple ids, or a count other than 1) is malformed foreign data and is
+/// rejected as corrupt rather than silently collapsed to a single recipient.
+String? _recipientForSlot(Map<String, int> slot) {
+  if (slot.isEmpty) return null;
+  if (slot.length == 1 && slot.values.first == 1) return slot.keys.first;
+  throw FormatException('Recipient slot must be {} or {id: 1}, got $slot');
 }
 
 /// Games where each of the 4 players enters a count (tricks / scoring cards
@@ -215,8 +205,14 @@ abstract class CountsMiniGame extends MiniGame {
   ];
 
   @override
-  GameInput countsToInput(List<Map<String, int>> counts) =>
-      CountsInput(counts.isEmpty ? {} : counts.first);
+  GameInput countsToInput(List<Map<String, int>> counts) {
+    if (counts.length > 1) {
+      throw FormatException(
+        '$id: counts input must have at most one element, got ${counts.length}',
+      );
+    }
+    return CountsInput(counts.isEmpty ? {} : counts.first);
+  }
 }
 
 /// Games where one or more players are identified as the recipient of an
@@ -262,8 +258,18 @@ abstract class RecipientMiniGame extends MiniGame {
   }
 
   @override
-  GameInput countsToInput(List<Map<String, int>> counts) => RecipientInput([
-    for (int i = 0; i < prompts.length; i++)
-      _soleKey(i < counts.length ? counts[i] : const {}),
-  ]);
+  GameInput countsToInput(List<Map<String, int>> counts) {
+    if (counts.length > prompts.length) {
+      throw FormatException(
+        '$id: recipient input has ${counts.length} slots, '
+        'expected at most ${prompts.length}',
+      );
+    }
+    return RecipientInput([
+      for (int i = 0; i < prompts.length; i++)
+        _recipientForSlot(
+          i < counts.length ? counts[i] : const <String, int>{},
+        ),
+    ]);
+  }
 }

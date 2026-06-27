@@ -1,7 +1,6 @@
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/input_descriptor.dart';
-import 'package:bonken/models/mini_game.dart';
 import 'package:bonken/models/player.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -71,37 +70,47 @@ void main() {
       ]);
       expect(game.countsToInput(stored), RecipientInput([ids[1], null]));
     });
-  });
 
-  group('doublingTurnIndex', () {
-    test('chooser themselves is always last (turn 3)', () {
-      for (var chooser = 0; chooser < playerCount; chooser++) {
-        expect(doublingTurnIndex(chooser, chooser), playerCount - 1);
-      }
+    test('recipient slot with two ids is rejected', () {
+      const game = KingOfHearts();
+      expect(
+        () => game.countsToInput([
+          {ids[0]: 1, ids[1]: 1},
+        ]),
+        throwsFormatException,
+      );
     });
 
-    test('player to the left of the chooser is first (turn 0)', () {
-      for (var chooser = 0; chooser < playerCount; chooser++) {
-        final left = (chooser + 1) % playerCount;
-        expect(doublingTurnIndex(left, chooser), 0);
-      }
+    test('recipient slot with a count other than 1 is rejected', () {
+      const game = KingOfHearts();
+      expect(
+        () => game.countsToInput([
+          {ids[0]: 2},
+        ]),
+        throwsFormatException,
+      );
     });
 
-    test('every chooser yields a permutation 0..3 over all players', () {
-      for (var chooser = 0; chooser < playerCount; chooser++) {
-        final turns = [
-          for (var p = 0; p < playerCount; p++) doublingTurnIndex(p, chooser),
-        ]..sort();
-        expect(turns, [0, 1, 2, 3]);
-      }
+    test('recipient input with more slots than prompts is rejected', () {
+      const game = KingOfHearts(); // one prompt
+      expect(
+        () => game.countsToInput([
+          {ids[0]: 1},
+          {ids[1]: 1},
+        ]),
+        throwsFormatException,
+      );
     });
 
-    test('matches the documented order: chooser+1, +2, +3, chooser', () {
-      // chooser=2 → expected order: 3, 0, 1, 2 with turns 0..3.
-      expect(doublingTurnIndex(3, 2), 0);
-      expect(doublingTurnIndex(0, 2), 1);
-      expect(doublingTurnIndex(1, 2), 2);
-      expect(doublingTurnIndex(2, 2), 3);
+    test('counts input with more than one element is rejected', () {
+      const game = Clubs();
+      expect(
+        () => game.countsToInput([
+          {ids[0]: 13, ids[1]: 0, ids[2]: 0, ids[3]: 0},
+          {ids[0]: 1},
+        ]),
+        throwsFormatException,
+      );
     });
   });
 }

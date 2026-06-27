@@ -59,10 +59,43 @@ void main() {
       );
     });
 
+    test('parses at least one italic variant', () {
+      // The normal-weight assertions above (and hashForWeight) all filter to
+      // FontStyle.normal, so the italic axis would go unguarded otherwise.
+      final variants = parseFontVariants(robotoSource, 'roboto');
+      expect(variants.any((v) => v.fontStyle == FontStyle.italic), isTrue);
+    });
+
     test('throws FormatException when font name is not found', () {
       expect(
         () => parseFontVariants(robotoSource, 'notAFont'),
         throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('throws the layout-change FormatException when no hashes parse', () {
+      // The method block IS found (passing the first guard) but contains no
+      // parseable GoogleFontsFile('<hash>') — the distinct second guard that
+      // catches a future google_fonts source-layout change.
+      const noHashes = '''
+static TextStyle roboto({
+  // a block with no GoogleFontsVariant(...) -> GoogleFontsFile('<hash>') pairs
+}) {
+  return GoogleFonts.getFont(
+    'Roboto',
+    fontFamily: 'Roboto',
+  );
+}
+''';
+      expect(
+        () => parseFontVariants(noHashes, 'roboto'),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('No hashes found'),
+          ),
+        ),
       );
     });
   });
@@ -79,6 +112,25 @@ void main() {
         hashForWeight(variants, FontWeight.w400),
         'dbc3f5256cfcb1aa62736daaab3bea7dc85c7c68028cd408671a796537da3a0e',
       );
+    });
+  });
+
+  group('hashForWeight', () {
+    test('throws StateError when the requested weight is absent', () {
+      const variants = <FontVariant>[
+        (fontWeight: FontWeight.w400, fontStyle: FontStyle.normal, hash: 'abc'),
+      ];
+      expect(() => hashForWeight(variants, FontWeight.w700), throwsStateError);
+    });
+
+    test('ignores an italic-only match for the requested weight', () {
+      // The weight exists, but only in italic — the normal-style filter must
+      // not accept it, so the lookup still throws rather than returning the
+      // wrong (italic) hash.
+      const variants = <FontVariant>[
+        (fontWeight: FontWeight.w700, fontStyle: FontStyle.italic, hash: 'xyz'),
+      ];
+      expect(() => hashForWeight(variants, FontWeight.w700), throwsStateError);
     });
   });
 

@@ -1,10 +1,40 @@
 import 'package:bonken/screens/export_screen.dart';
 import 'package:bonken/screens/migration_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
+
+/// Mocks the `url_launcher` platform channel so the Play Store launch can be
+/// exercised without a real platform. Returns the list of launched URLs;
+/// [result] is what the platform reports (true = handled, false = no handler).
+List<String> _mockUrlLauncher(WidgetTester tester, {required bool result}) {
+  final launched = <String>[];
+  const channel = MethodChannel('plugins.flutter.io/url_launcher');
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+    call,
+  ) async {
+    switch (call.method) {
+      case 'canLaunch':
+        return true;
+      case 'launch':
+      case 'launchUrl':
+        launched.add((call.arguments as Map)['url'] as String);
+        return result;
+    }
+    return null;
+  });
+  addTearDown(
+    () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      null,
+    ),
+  );
+  return launched;
+}
 
 void main() {
   setUpPrefs();
@@ -48,6 +78,35 @@ void main() {
     expect(exportButton().onPressed, isNotNull);
   });
 
+  testWidgets(
+    '"Exporteer gegevens" stays disabled when the game history is corrupt',
+    (tester) async {
+      // Export reads the raw stored blob, so a corrupt/unreadable history must
+      // NOT be exportable — we never hand the user a backup the new app would
+      // reject. (A corrupt history shouldn't occur here in the first place: the
+      // legacy app reads its own data.)
+      setAsyncPrefs({'bonken_game_history': 'this is not json'});
+
+      await tester.pumpWidget(
+        const ProviderScope(child: MaterialApp(home: MigrationScreen())),
+      );
+      // Let build() settle into AsyncError before the ~200ms Riverpod retry.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final exportButton = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Exporteer gegevens'),
+      );
+      expect(exportButton.onPressed, isNull);
+
+      // Drain the retry: clear the bad key so the retried build() returns [].
+      final prefs = SharedPreferencesAsync();
+      await prefs.remove('bonken_game_history');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    },
+  );
+
   testWidgets('"Exporteer gegevens" opens the export screen', (tester) async {
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: MigrationScreen())),
@@ -59,4 +118,48 @@ void main() {
 
     expect(find.byType(ExportScreen), findsOneWidget);
   });
+
+  testWidgets('"Installeer de nieuwe app" launches the Play Store listing', (
+    tester,
+  ) async {
+    final launched = _mockUrlLauncher(tester, result: true);
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: MigrationScreen())),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Installeer de nieuwe app'),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      launched.single,
+      'https://play.google.com/store/apps/details?id=org.suninet.bonken',
+    );
+    // The launch succeeded, so no failure snackbar is shown.
+    expect(find.text('Kan de Play Store niet openen.'), findsNothing);
+  });
+
+  testWidgets(
+    'a failed Play Store launch shows the "Kan de Play Store niet openen" snackbar',
+    (tester) async {
+      _mockUrlLauncher(tester, result: false);
+      await tester.pumpWidget(
+        const ProviderScope(child: MaterialApp(home: MigrationScreen())),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Installeer de nieuwe app'),
+      );
+      await tester.pump(); // run _openPlayStore through the awaited launchUrl
+      await tester.pump(); // let the snackbar insert
+
+      expect(find.text('Kan de Play Store niet openen.'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5)); // drain the snackbar timer
+    },
+  );
 }

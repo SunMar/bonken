@@ -45,6 +45,20 @@ void main() {
     });
   });
 
+  group('caseFoldName', () {
+    test('folds ASCII case so variants compare equal', () {
+      expect(caseFoldName('Alice'), caseFoldName('ALICE'));
+      expect(caseFoldName('Bob'), 'bob');
+    });
+
+    test('is toLowerCase, not a full Unicode fold (ß does not fold to ss)', () {
+      // Characterizes the current seam: a real Unicode case-fold would treat
+      // 'STRASSE' and 'straße' as equal. This deliberate, benign limitation is
+      // pinned so a future change to caseFoldName is a conscious decision.
+      expect(caseFoldName('STRASSE') == caseFoldName('straße'), isFalse);
+    });
+  });
+
   group('duplicatePlayerNameIndices', () {
     test('no duplicates → empty', () {
       expect(duplicatePlayerNameIndices(['A', 'B', 'C', 'D']), isEmpty);

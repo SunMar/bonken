@@ -21,7 +21,7 @@ abstract class StorageMigration {
 }
 
 /// Latest on-disk schema version. Bumped whenever a new step is appended.
-const int currentStorageVersion = 10;
+const int currentStorageVersion = 11;
 
 /// Ordered registry — append one entry per new version. Nothing else changes.
 const List<StorageMigration> _migrations = [
@@ -34,6 +34,7 @@ const List<StorageMigration> _migrations = [
   _V7ToV8(),
   _V8ToV9(),
   _V9ToV10(),
+  _V10ToV11(),
 ];
 
 /// Applies every registered step from [fromVersion] up to
@@ -49,10 +50,15 @@ List<dynamic> runStorageMigrations(
     data = migration.apply(data);
     v++;
   }
-  assert(
-    v == currentStorageVersion,
-    'migration chain stalled at v$v (expected $currentStorageVersion)',
-  );
+  // Fail loudly in release too (not just a debug `assert`): a mis-registered or
+  // out-of-order step would otherwise silently return partially-migrated data
+  // that gets stamped at the current version — the exact version-stamp-lie class
+  // of bug. Throwing turns that into a loud CorruptPersistenceException on load.
+  if (v != currentStorageVersion) {
+    throw StateError(
+      'migration chain stalled at v$v (expected $currentStorageVersion)',
+    );
+  }
   return data;
 }
 
@@ -513,9 +519,9 @@ class _V7ToV8 extends StorageMigration {
 //
 // v9 introduces `scoredAt`, which advances only when a RoundRecord is
 // committed (round appended, replaced, or deleted). For all existing games the
-// best approximation is `updatedAt`, so this step copies it verbatim.
-// GameSession.fromJson also falls back to `updatedAt` when `scoredAt` is
-// absent, so direct-model tests written against pre-v9 JSON keep working.
+// best approximation is `updatedAt`, so this step copies it verbatim — which is
+// why every stored game ends up with a `scoredAt`, and `GameSession.fromJson`
+// can require the field (no fallback) without breaking older data.
 
 class _V8ToV9 extends StorageMigration {
   const _V8ToV9();
@@ -577,4 +583,53 @@ class _V9ToV10 extends StorageMigration {
     for (final e in holder.entries)
       if (e.key != 'gameName') e.key: e.value,
   };
+}
+
+// =============================================================================
+// v10 → v11: normalize stored player + game names
+// =============================================================================
+//
+// The import/write validation gate now REJECTS un-normalized names: a player
+// name with leading/trailing whitespace, or a gameName that isn't its trimmed,
+// non-empty form. The create/edit UI always trimmed before saving, so stored
+// names are already normalized in practice — but a stray space could have
+// slipped through historically (or via a hand-edited backup imported before the
+// gate existed). This step trims every player name and normalizes every
+// gameName (trim; drop to null when empty), so all stored data conforms to the
+// invariant the gate enforces and an export→import round-trip can't be rejected
+// by the freshly-strict gate.
+//
+// Self-contained: the normalization is inlined (`String.trim`) rather than
+// calling `game_constraints`, so this frozen step keeps working unchanged.
+
+class _V10ToV11 extends StorageMigration {
+  const _V10ToV11();
+
+  @override
+  int get fromVersion => 10;
+
+  @override
+  List<dynamic> apply(List<dynamic> games) => [
+    for (final raw in games) _migrateGame(raw as Map<String, dynamic>),
+  ];
+
+  static Map<String, dynamic> _migrateGame(Map<String, dynamic> game) {
+    final result = {
+      ...game,
+      'players': [
+        for (final p in game['players'] as List<dynamic>)
+          {...p as Map<String, dynamic>, 'name': (p['name'] as String).trim()},
+      ],
+    };
+    final rawName = game['gameName'];
+    if (rawName is String) {
+      final trimmed = rawName.trim();
+      if (trimmed.isEmpty) {
+        result.remove('gameName');
+      } else {
+        result['gameName'] = trimmed;
+      }
+    }
+    return result;
+  }
 }

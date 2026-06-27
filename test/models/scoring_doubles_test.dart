@@ -2,24 +2,24 @@ import 'package:bonken/models/double_matrix.dart';
 import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/input_descriptor.dart';
-import 'package:bonken/models/player.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '_double_matrix_helpers.dart';
+import '_scoring_helpers.dart';
 
 void main() {
-  final pa = Player(name: 'A');
-  final pb = Player(name: 'B');
-  final pc = Player(name: 'C');
-  final pd = Player(name: 'D');
-  final players = [pa, pb, pc, pd];
+  final players = fourTestPlayers();
+  final pa = players[0];
+  final pb = players[1];
+  final pc = players[2];
+  final pd = players[3];
 
   group('Doubles edge cases', () {
     const clubs = Clubs();
 
     test('Total invariant holds with arbitrary doubles', () {
       // Mixed doubles + redoubles on a positive game should still sum to +260.
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           .withState(pa.id, pb.id, DoubleState.doubled)
           .withState(pa.id, pc.id, DoubleState.redoubled)
           .withState(pb.id, pd.id, DoubleState.doubled)
@@ -29,13 +29,37 @@ void main() {
         doubles: doubles,
         players: players,
       );
-      final sum = r.scores.values.fold(0, (a, b) => a + b);
-      expect(sum, 260);
+      expectTotal(r.scores, 260);
     });
+
+    test(
+      'Unequal doubled pair shifts the difference once, total preserved',
+      () {
+        // Counts 2 vs 7 on the doubled pair (diff 5, multiplier 1):
+        //   effective[0] = 2 + (2-7)*1 = -3 → -60
+        //   effective[1] = 7 + (7-2)*1 = 12 → 240
+        // The other two players are untouched, and Σ still equals +260.
+        final doubles = const DoubleMatrix().withState(
+          pa.id,
+          pb.id,
+          DoubleState.doubled,
+        );
+        final r = clubs.calculateScores(
+          input: CountsInput({pa.id: 2, pb.id: 7, pc.id: 3, pd.id: 1}),
+          doubles: doubles,
+          players: players,
+        );
+        expect(r.scores[pa.id], -60);
+        expect(r.scores[pb.id], 240);
+        expect(r.scores[pc.id], 60);
+        expect(r.scores[pd.id], 20);
+        expectTotal(r.scores, 260);
+      },
+    );
 
     test('Single double doesn\'t change scores when counts are equal', () {
       // Equal raw counts → diff is zero → multiplier doesn't matter.
-      final doubles = DoubleMatrix.empty().withState(
+      final doubles = const DoubleMatrix().withState(
         pa.id,
         pb.id,
         DoubleState.redoubled,
@@ -52,7 +76,7 @@ void main() {
       // Tricks 5 vs 1 — diff 4 — doubled = +/-4 tricks of swing for that pair.
       // Player 0: 5 + (5-1)*1 = 9 tricks; Player 1: 1 + (1-5)*1 = -3 tricks.
       // Others unchanged.
-      final doubles = DoubleMatrix.empty().withState(
+      final doubles = const DoubleMatrix().withState(
         pa.id,
         pb.id,
         DoubleState.doubled,
@@ -70,7 +94,7 @@ void main() {
 
     test('Redoubled pair amplifies twice', () {
       // 5 vs 1, redoubled: P0 = 5 + (5-1)*2 = 13; P1 = 1 + (1-5)*2 = -7.
-      final doubles = DoubleMatrix.empty().withState(
+      final doubles = const DoubleMatrix().withState(
         pa.id,
         pb.id,
         DoubleState.redoubled,
@@ -86,7 +110,7 @@ void main() {
 
     test('Negative game total invariant holds with doubles', () {
       const heartPoints = HeartPoints();
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           .withState(pa.id, pd.id, DoubleState.doubled)
           .withState(pb.id, pc.id, DoubleState.redoubled);
       final r = heartPoints.calculateScores(
@@ -94,15 +118,14 @@ void main() {
         doubles: doubles,
         players: players,
       );
-      final sum = r.scores.values.fold(0, (a, b) => a + b);
-      expect(sum, -130);
+      expectTotal(r.scores, -130);
     });
 
     test('Zero-count player still receives differences from doubles', () {
       // Player 1 has 0 tricks, but is doubled with player 0 who has 13.
       // P0 = 13 + (13-0)*1 = 26 (others: 0)
       // P1 = 0  + (0-13)*1 = -13 (others: 0)
-      final doubles = DoubleMatrix.empty().withState(
+      final doubles = const DoubleMatrix().withState(
         pa.id,
         pb.id,
         DoubleState.doubled,
@@ -125,7 +148,7 @@ void main() {
         for (final g in games)
           g.calculateScores(
             input: input,
-            doubles: DoubleMatrix.empty(),
+            doubles: const DoubleMatrix(),
             players: players,
           ),
       ];
@@ -140,7 +163,7 @@ void main() {
       const duck = Duck();
       final r = duck.calculateScores(
         input: CountsInput({pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0}),
-        doubles: DoubleMatrix.empty(),
+        doubles: const DoubleMatrix(),
         players: players,
       );
       expect(r.scores[pa.id], -130);
@@ -153,7 +176,7 @@ void main() {
       const queens = Queens();
       final r = queens.calculateScores(
         input: CountsInput({pa.id: 4, pb.id: 0, pc.id: 0, pd.id: 0}),
-        doubles: DoubleMatrix.empty(),
+        doubles: const DoubleMatrix(),
         players: players,
       );
       expect(r.scores[pa.id], -180);
@@ -163,7 +186,7 @@ void main() {
       const hp = HeartPoints();
       final r = hp.calculateScores(
         input: CountsInput({pa.id: 0, pb.id: 13, pc.id: 0, pd.id: 0}),
-        doubles: DoubleMatrix.empty(),
+        doubles: const DoubleMatrix(),
         players: players,
       );
       expect(r.scores[pb.id], -130);
@@ -176,7 +199,7 @@ void main() {
     test('Clubs [13,0,0,0] no doubles → losing players score 0', () {
       final r = clubs.calculateScores(
         input: CountsInput({pa.id: 13, pb.id: 0, pc.id: 0, pd.id: 0}),
-        doubles: DoubleMatrix.empty(),
+        doubles: const DoubleMatrix(),
         players: players,
       );
       expect(r.scores[pb.id], 0);
@@ -186,7 +209,7 @@ void main() {
     });
 
     test('Clubs [13,0,0,0] doubled (0,1) → player 1 scores -260', () {
-      final doubles = DoubleMatrix.empty().withState(
+      final doubles = const DoubleMatrix().withState(
         pa.id,
         pb.id,
         DoubleState.doubled,
@@ -205,7 +228,7 @@ void main() {
       'Clubs tricks=[5,2,3,3] all 3 pairs (0,x) doubled — total preserved',
       () {
         const clubs = Clubs();
-        final doubles = DoubleMatrix.empty()
+        final doubles = const DoubleMatrix()
             .withState(pa.id, pb.id, DoubleState.doubled)
             .withState(pa.id, pc.id, DoubleState.doubled)
             .withState(pa.id, pd.id, DoubleState.doubled);
@@ -222,14 +245,13 @@ void main() {
         expect(r.scores[pb.id], -20);
         expect(r.scores[pc.id], 20);
         expect(r.scores[pd.id], 20);
-        final sum = r.scores.values.fold(0, (a, b) => a + b);
-        expect(sum, 260);
+        expectTotal(r.scores, 260);
       },
     );
 
     test('Negative game (Duck) with 3-way doubling preserves total = -130', () {
       const duck = Duck();
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           .withState(pa.id, pb.id, DoubleState.doubled)
           .withState(pa.id, pc.id, DoubleState.doubled)
           .withState(pa.id, pd.id, DoubleState.doubled);
@@ -238,15 +260,14 @@ void main() {
         doubles: doubles,
         players: players,
       );
-      final sum = r.scores.values.fold(0, (a, b) => a + b);
-      expect(sum, -130);
+      expectTotal(r.scores, -130);
     });
   });
 
   group('SeventhAndThirteenth with doubling', () {
     test('both tricks won by player 1, doubled (1,2)', () {
       const game = SeventhAndThirteenth();
-      final doubles = DoubleMatrix.empty().withState(
+      final doubles = const DoubleMatrix().withState(
         pb.id,
         pc.id,
         DoubleState.doubled,
@@ -263,6 +284,94 @@ void main() {
       expect(r.scores[pc.id], 100);
       expect(r.scores[pa.id], 0);
       expect(r.scores[pd.id], 0);
+    });
+
+    test('same player wins both 7th and 13th, redoubled (1,2)', () {
+      const game = SeventhAndThirteenth();
+      final doubles = const DoubleMatrix().withState(
+        pb.id,
+        pc.id,
+        DoubleState.redoubled,
+      );
+      final r = game.calculateScores(
+        input: RecipientInput([pb.id, pb.id]),
+        doubles: doubles,
+        players: players,
+      );
+      // raw counts = [0,2,0,0]; redoubled multiplier is 2.
+      // effective[1] = 2 + (2-0)*2 = 6 → 6 * -50 = -300
+      // effective[2] = 0 + (0-2)*2 = -4 → -4 * -50 = 200
+      expect(r.scores[pb.id], -300);
+      expect(r.scores[pc.id], 200);
+      expect(r.scores[pa.id], 0);
+      expect(r.scores[pd.id], 0);
+      expectTotal(r.scores, -100);
+    });
+  });
+
+  group('Effective-zero from doubling cancellation', () {
+    test('doubled difference cancels a count to a true zero (no -0)', () {
+      // Duck (pointsPerUnit -10). Player 0 has 3 tricks, doubled with player 1
+      // who has 6: effective[0] = 3 + (3-6)*1 = 0. On dart2js `0 * -10` yields
+      // negative-zero, which would survive an `int` map as -0.0; the engine's
+      // guard returns a literal 0 instead. Assert both the value and its sign.
+      const duck = Duck();
+      final doubles = const DoubleMatrix().withState(
+        pa.id,
+        pb.id,
+        DoubleState.doubled,
+      );
+      final r = duck.calculateScores(
+        input: CountsInput({pa.id: 3, pb.id: 6, pc.id: 4, pd.id: 0}),
+        doubles: doubles,
+        players: players,
+      );
+      expect(r.scores[pa.id], 0);
+      expect(r.scores[pa.id]!.isNegative, isFalse);
+      expect(r.scores[pb.id], -90);
+      expect(r.scores[pc.id], -40);
+      expect(r.scores[pd.id], 0);
+      expectTotal(r.scores, -130);
+    });
+  });
+
+  group('Initiator does not affect the math', () {
+    test('same pair + state, different initiator → identical scores', () {
+      // §6: the initiator is UI-only direction metadata; the multiplier depends
+      // solely on the pair state, so swapping who initiated must not move a
+      // single score.
+      const clubs = Clubs();
+      final byA = const DoubleMatrix().withPair(
+        pa.id,
+        pb.id,
+        DoubleState.doubled,
+        initiator: pa.id,
+      );
+      final byB = const DoubleMatrix().withPair(
+        pa.id,
+        pb.id,
+        DoubleState.doubled,
+        initiator: pb.id,
+      );
+      // The two matrices genuinely differ in initiator (so this isn't a no-op).
+      expect(byA.initiatorFor(pa.id, pb.id), pa.id);
+      expect(byB.initiatorFor(pa.id, pb.id), pb.id);
+
+      final input = CountsInput({pa.id: 5, pb.id: 1, pc.id: 4, pd.id: 3});
+      final r1 = clubs.calculateScores(
+        input: input,
+        doubles: byA,
+        players: players,
+      );
+      final r2 = clubs.calculateScores(
+        input: input,
+        doubles: byB,
+        players: players,
+      );
+      expect(r1.scores, r2.scores);
+      // Sanity: the double actually shifted the unequal pair (not a trivial tie).
+      expect(r1.scores[pa.id], 180);
+      expect(r1.scores[pb.id], -60);
     });
   });
 }

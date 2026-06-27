@@ -11,6 +11,13 @@ permissions:
   contents: write   # needed to create the GitHub Release
   security-events: write
 
+# Serialize releases: never run two store uploads at once. Unlike develop
+# (which cancels superseded builds), a release in flight must finish — cancelling
+# mid-upload could leave a half-published store draft — so queue instead.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   # =====================================================================
   # Universal gate: verify (format → analyze → dart fix → test → OSV scan)

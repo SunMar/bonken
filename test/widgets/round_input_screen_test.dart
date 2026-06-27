@@ -156,6 +156,43 @@ void main() {
     },
   );
 
+  testWidgets('chooser dropdown exposes its purpose label to assistive tech', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _pumpRoundInput(tester);
+    // The visible heading is excluded from semantics, so the only node
+    // carrying the purpose is the (merged) DropdownMenu itself.
+    expect(find.bySemanticsLabel(RegExp('Wie koos dit spel')), findsOneWidget);
+    handle.dispose();
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
+  testWidgets(
+    'chooser field re-seeds its displayed value from an external change '
+    '(no ValueKey rebuild needed)',
+    (tester) async {
+      final container = await _pumpRoundInput(tester);
+      TextField field() => tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(DropdownMenu<int>),
+          matching: find.byType(TextField),
+        ),
+      );
+
+      // dealerIndex 0 → default chooser is Bob (index 1).
+      expect(field().controller!.text, 'Bob');
+
+      // Externally move the chooser; DropdownMenu re-seeds the closed field's
+      // displayed label from initialSelection (didUpdateWidget) — no key.
+      container.read(calculatorProvider.notifier).setChooser(2);
+      await tester.pumpAndSettle();
+      expect(field().controller!.text, 'Carol');
+
+      await tester.pump(const Duration(milliseconds: 500));
+    },
+  );
+
   testWidgets(
     'tapping Opslaan while editing a non-last round with incomplete input shows the snackbar',
     (tester) async {
@@ -224,6 +261,66 @@ void main() {
       // Drain the snackbar timer + autosave debounce so no Timer
       // survives into teardown.
       await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'tapping the enabled Opslaan shows the Score preview, appends the round, and pops',
+    (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final keepAlive = container.listen<CalculatorState>(
+        calculatorProvider,
+        (_, _) {},
+      );
+      addTearDown(keepAlive.close);
+      final notifier = container.read(calculatorProvider.notifier);
+      notifier.startNewGame(players: _makePlayers(), dealerIndex: 0);
+      final ps = (container.read(calculatorProvider) as ActiveSession).players;
+      notifier.selectGame(const Clubs());
+      // Complete input (sum 13) → the Opslaan button enables.
+      notifier.updateInput(
+        CountsInput({ps[0].id: 4, ps[1].id: 4, ps[2].id: 2, ps[3].id: 3}),
+      );
+      expect(
+        (container.read(calculatorProvider) as ActiveSession).inputState,
+        InputState.complete,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      await tester.pumpWidget(_wrapWithNavigator(container));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // Opslaan is genuinely enabled now (not the disabled-overlay path).
+      final opslaan = find.widgetWithText(FilledButton, 'Opslaan');
+      expect(tester.widget<FilledButton>(opslaan).onPressed, isNotNull);
+
+      await tester.tap(opslaan);
+      await tester.pumpAndSettle();
+
+      // A "Score" preview dialog (with the result) is shown before committing.
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Score'),
+        ),
+        findsOneWidget,
+      );
+
+      // Confirm via the dialog's own 'Opslaan' (a TextButton, distinct from the
+      // bottom-bar FilledButton): the round is appended and the screen pops.
+      await tester.tap(find.widgetWithText(TextButton, 'Opslaan'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RoundInputScreen), findsNothing);
+      final s = container.read(calculatorProvider) as ActiveSession;
+      expect(s.history.length, 1);
+      expect(s.history.first.game.id, 'clubs');
+
+      // Drain the autosave debounce so no Timer survives into teardown.
+      await tester.pump(const Duration(milliseconds: 500));
     },
   );
 

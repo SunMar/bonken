@@ -10,6 +10,7 @@ import 'package:bonken/models/round_record.dart';
 import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/migrations.dart' show currentStorageVersion;
+import 'package:bonken/state/storage_exceptions.dart';
 import 'package:bonken/state/validation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,11 +50,9 @@ void main() {
     });
 
     testWidgets(
-      'enters AsyncError with CorruptStorageException when storage is unreadable',
+      'enters AsyncError with CorruptPersistenceException when storage is unreadable',
       (tester) async {
-        SharedPreferences.setMockInitialValues({
-          'bonken_game_history': 'this is not json',
-        });
+        setAsyncPrefs({'bonken_game_history': 'this is not json'});
         final c = ProviderContainer();
         addTearDown(c.dispose);
         await tester.pumpWidget(
@@ -63,10 +62,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           c.read(gameHistoryProvider).error,
-          isA<CorruptStorageException>(),
+          isA<CorruptPersistenceException>(),
         );
         // Drain the Riverpod retry timer (same pattern as the unsupported test).
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.remove('bonken_game_history');
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
@@ -75,7 +74,7 @@ void main() {
 
     // Helper: store a single session JSON under the versioned storage key.
     Future<void> storeSession(Map<String, dynamic> sessionJson) async {
-      SharedPreferences.setMockInitialValues({
+      setAsyncPrefs({
         'game_history': jsonEncode({
           'version': currentStorageVersion,
           'games': [sessionJson],
@@ -84,7 +83,7 @@ void main() {
     }
 
     testWidgets(
-      'enters AsyncError with CorruptStorageException on dangling firstDealerId',
+      'enters AsyncError with CorruptPersistenceException on dangling firstDealerId',
       (tester) async {
         final players = [
           for (final n in ['A', 'B', 'C', 'D']) Player(name: n),
@@ -107,9 +106,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           c.read(gameHistoryProvider).error,
-          isA<CorruptStorageException>(),
+          isA<CorruptPersistenceException>(),
         );
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.remove('game_history');
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
@@ -117,7 +116,7 @@ void main() {
     );
 
     testWidgets(
-      'enters AsyncError with CorruptStorageException on dangling round chooserId',
+      'enters AsyncError with CorruptPersistenceException on dangling round chooserId',
       (tester) async {
         final players = [
           for (final n in ['A', 'B', 'C', 'D']) Player(name: n),
@@ -149,9 +148,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           c.read(gameHistoryProvider).error,
-          isA<CorruptStorageException>(),
+          isA<CorruptPersistenceException>(),
         );
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         await prefs.remove('game_history');
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
@@ -282,18 +281,16 @@ void main() {
     // the error state, we remove the bad prefs key and drain the timer so
     // the retry succeeds (returns []) and no pending timers remain at teardown.
     Future<void> drainRetry(WidgetTester tester) async {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       await prefs.remove('game_history');
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
     }
 
     testWidgets(
-      'enters AsyncError with UnsupportedStorageVersionException for a future version',
+      'enters AsyncError with UnsupportedVersionException for a future version',
       (tester) async {
-        SharedPreferences.setMockInitialValues({
-          'game_history': '{"version":99,"games":[]}',
-        });
+        setAsyncPrefs({'game_history': '{"version":99,"games":[]}'});
         final c = ProviderContainer();
         addTearDown(c.dispose);
         await tester.pumpWidget(
@@ -304,18 +301,19 @@ void main() {
 
         expect(
           c.read(gameHistoryProvider).error,
-          isA<UnsupportedStorageVersionException>(),
+          isA<UnsupportedVersionException>(),
         );
 
         await drainRetry(tester);
       },
     );
 
-    testWidgets('clearHistory resets state to empty and removes storage key', (
-      tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({
+    testWidgets('clearHistory resets state to empty and writes an empty '
+        'envelope (not key removal), dropping the legacy key', (tester) async {
+      setAsyncPrefs({
         'game_history': '{"version":99,"games":[]}',
+        // A stale legacy blob that must NOT survive a clear (re-promotion guard).
+        'bonken_game_history': '[]',
       });
       final c = ProviderContainer();
       addTearDown(c.dispose);
@@ -326,16 +324,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         c.read(gameHistoryProvider).error,
-        isA<UnsupportedStorageVersionException>(),
+        isA<UnsupportedVersionException>(),
       );
 
       await c.read(gameHistoryProvider.notifier).clearHistory();
 
       expect(c.read(gameHistoryProvider).value, isEmpty);
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.containsKey('game_history'), isFalse);
+      final prefs = SharedPreferencesAsync();
+      // Canonical empty envelope written (consistent with replaceAll/_persist),
+      // not a removed key.
+      final blob =
+          jsonDecode((await prefs.getString('game_history'))!)
+              as Map<String, dynamic>;
+      expect(blob['version'], currentStorageVersion);
+      expect(blob['games'], isEmpty);
+      // Legacy key removed so a cold start can't re-promote the cleared games.
+      expect(await prefs.containsKey('bonken_game_history'), isFalse);
 
-      // Drain the retry timer (prefs key is gone so build() returns [] cleanly).
+      // Drain the retry timer (build() now reads the empty envelope cleanly).
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
     });
@@ -406,7 +412,7 @@ void main() {
     test(
       'legacy key: scores are migrated from index-keyed to UUID-keyed',
       () async {
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([
             v1Game(
               rounds: [
@@ -453,7 +459,7 @@ void main() {
     test(
       'counts game input (v1 tricks list) migrated to the canonical counts map',
       () async {
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([
             v1Game(
               rounds: [
@@ -494,7 +500,7 @@ void main() {
     test(
       'RecipientInputDescriptor input (winner int) migrated to UUID',
       () async {
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([
             v1Game(
               rounds: [
@@ -522,7 +528,7 @@ void main() {
     );
 
     test('RecipientInputDescriptor input (null winner) stays null', () async {
-      SharedPreferences.setMockInitialValues({
+      setAsyncPrefs({
         'bonken_game_history': v1Storage([
           v1Game(
             rounds: [
@@ -556,7 +562,7 @@ void main() {
     test(
       'RecipientInputDescriptor input (trick7/13 ints) migrated to UUIDs',
       () async {
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([
             v1Game(
               rounds: [
@@ -589,7 +595,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('doubles pair keys and initiators are migrated to UUIDs', () async {
-      SharedPreferences.setMockInitialValues({
+      setAsyncPrefs({
         'bonken_game_history': v1Storage([
           v1Game(
             rounds: [
@@ -635,7 +641,7 @@ void main() {
       () async {
         // 2 rounds, last dealer = index 1 (Bob):
         // firstDealerIdx = ((1 - 2 + 1) % 4 + 4) % 4 = 0 → Alice
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([
             v1Game(
               rounds: [
@@ -680,7 +686,7 @@ void main() {
       () async {
         // 1 round completed, pending dealerIndex = 2 (Carol):
         // firstDealerIdx = ((2 - 1) % 4 + 4) % 4 = 1 → Bob
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([
             v1Game(
               rounds: [
@@ -719,7 +725,7 @@ void main() {
     test(
       'firstDealerId defaults to index 0 when there are no rounds',
       () async {
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([v1Game()]),
         });
         final c = ProviderContainer();
@@ -735,7 +741,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('pending round chooserId and input are migrated to UUIDs', () async {
-      SharedPreferences.setMockInitialValues({
+      setAsyncPrefs({
         'bonken_game_history': v1Storage([
           v1Game(
             pendingRound: {
@@ -768,20 +774,20 @@ void main() {
     test(
       'legacy key is removed and current key is written after migration',
       () async {
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'bonken_game_history': v1Storage([v1Game()]),
         });
         final c = ProviderContainer();
         addTearDown(c.dispose);
         await c.read(gameHistoryProvider.future);
 
-        final prefs = await SharedPreferences.getInstance();
-        expect(prefs.containsKey('bonken_game_history'), isFalse);
-        expect(prefs.containsKey('game_history'), isTrue);
+        final prefs = SharedPreferencesAsync();
+        expect(await prefs.containsKey('bonken_game_history'), isFalse);
+        expect(await prefs.containsKey('game_history'), isTrue);
 
         // Verify what was written is valid versioned (current) JSON.
         final written =
-            jsonDecode(prefs.getString('game_history')!)
+            jsonDecode((await prefs.getString('game_history'))!)
                 as Map<String, dynamic>;
         expect(written['version'], currentStorageVersion);
         expect(written['games'], isA<List<dynamic>>());
@@ -793,7 +799,7 @@ void main() {
     // -------------------------------------------------------------------------
 
     test('version:1 in versioned key is migrated to current version', () async {
-      SharedPreferences.setMockInitialValues({
+      setAsyncPrefs({
         'game_history': jsonEncode({
           'version': 1,
           'games': [
@@ -833,9 +839,10 @@ void main() {
       expect(counts[session.players[2].id], 5);
 
       // Verify storage was upgraded to the current version.
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       final written =
-          jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
+          jsonDecode((await prefs.getString('game_history'))!)
+              as Map<String, dynamic>;
       expect(written['version'], currentStorageVersion);
     });
 
@@ -846,7 +853,7 @@ void main() {
         for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
       ];
       final ids = [for (final p in players) p.id];
-      SharedPreferences.setMockInitialValues({
+      setAsyncPrefs({
         'game_history': jsonEncode({
           'version': 2,
           'games': [
@@ -879,9 +886,10 @@ void main() {
       expect(ri.recipients[0], ids[0]);
       expect(ri.recipients[1], ids[2]);
 
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       final written =
-          jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
+          jsonDecode((await prefs.getString('game_history'))!)
+              as Map<String, dynamic>;
       expect(written['version'], currentStorageVersion);
       // On disk the round input is the uniform counts list.
       final game0 =
@@ -906,7 +914,7 @@ void main() {
             a.compareTo(b) <= 0 ? '$a,$b' : '$b,$a';
         final k01 = pairKey(ids[0], ids[1]);
         final k23 = pairKey(ids[2], ids[3]);
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'game_history': jsonEncode({
             'version': 3,
             'games': [
@@ -962,7 +970,7 @@ void main() {
           for (final n in ['Alice', 'Bob', 'Carol', 'Dan']) Player(name: n),
         ];
         final ids = [for (final p in players) p.id];
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'game_history': jsonEncode({
             'version': 4,
             'games': [
@@ -987,9 +995,9 @@ void main() {
         expect(session.ruleVariants.heartsVariant.name, 'onlyAfterPlayedHeart');
 
         // Verify the written JSON nests the variants under `ruleVariants`.
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         final written =
-            jsonDecode(prefs.getString('game_history')!)
+            jsonDecode((await prefs.getString('game_history'))!)
                 as Map<String, dynamic>;
         expect(written['version'], currentStorageVersion);
         final game =
@@ -1011,7 +1019,7 @@ void main() {
         final ids = [for (final p in players) p.id];
         // A genuine v5 record: rule variants live at the game root, with
         // non-default values that must survive the move into `ruleVariants`.
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'game_history': jsonEncode({
             'version': 5,
             'games': [
@@ -1044,9 +1052,9 @@ void main() {
         );
 
         // On disk the old top-level keys are gone and the values are nested.
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         final written =
-            jsonDecode(prefs.getString('game_history')!)
+            jsonDecode((await prefs.getString('game_history'))!)
                 as Map<String, dynamic>;
         expect(written['version'], currentStorageVersion);
         final game =
@@ -1079,7 +1087,7 @@ void main() {
           '"scores":{"${ids[0]}":-0.0,"${ids[1]}":0,"${ids[2]}":0,"${ids[3]}":0},'
           '"input":{"counts":[{"${ids[0]}":0,"${ids[1]}":0,"${ids[2]}":0,"${ids[3]}":0}]}'
           '}]}]}';
-      SharedPreferences.setMockInitialValues({'game_history': rawJson});
+      setAsyncPrefs({'game_history': rawJson});
       final c = ProviderContainer();
       addTearDown(c.dispose);
       final list = await c.read(gameHistoryProvider.future);
@@ -1088,9 +1096,10 @@ void main() {
       expect(list.first.rounds[0].scoresByPlayer[ids[0]], 0);
 
       // On disk the value is now a plain int 0.
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = SharedPreferencesAsync();
       final written =
-          jsonDecode(prefs.getString('game_history')!) as Map<String, dynamic>;
+          jsonDecode((await prefs.getString('game_history'))!)
+              as Map<String, dynamic>;
       expect(written['version'], currentStorageVersion);
       final round =
           (((written['games'] as List).first as Map<String, dynamic>)['rounds']
@@ -1110,7 +1119,7 @@ void main() {
         ];
         final ids = [for (final p in players) p.id];
         // A genuine v7 record: no `gameName` key at all.
-        SharedPreferences.setMockInitialValues({
+        setAsyncPrefs({
           'game_history': jsonEncode({
             'version': 7,
             'games': [
@@ -1139,9 +1148,9 @@ void main() {
 
         // On disk the chain reaches the current version; with a null name the
         // key stays omitted (omit-when-null serialization).
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = SharedPreferencesAsync();
         final written =
-            jsonDecode(prefs.getString('game_history')!)
+            jsonDecode((await prefs.getString('game_history'))!)
                 as Map<String, dynamic>;
         expect(written['version'], currentStorageVersion);
         final game =
@@ -1151,14 +1160,29 @@ void main() {
     );
   });
 
+  group('sort ordering', () {
+    test('breaks equal-scoredAt ties deterministically by id', () async {
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      await c.read(gameHistoryProvider.future);
+      final n = c.read(gameHistoryProvider.notifier);
+      final t = DateTime(2024); // identical scoredAt for both sessions
+      // Insertion order is the reverse of the expected id order, so the result
+      // can only be right if the id tiebreak (not insertion / unstable sort)
+      // drives it.
+      await n.saveGame(session(kGameId2, t));
+      await n.saveGame(session(kGameId1, t));
+      final ids = [for (final s in c.read(gameHistoryProvider).value!) s.id];
+      // Ascending id on the tie → kGameId1 (…001) before kGameId2 (…002).
+      expect(ids, [kGameId1, kGameId2]);
+    });
+  });
+
   group('playerNameSuggestions', () {
     test('returns empty list before history is loaded', () {
       final c = ProviderContainer();
       addTearDown(c.dispose);
-      expect(
-        c.read(gameHistoryProvider.notifier).playerNameSuggestions,
-        isEmpty,
-      );
+      expect(c.read(playerNameSuggestionsProvider), isEmpty);
     });
 
     test('ranks names by frequency, descending', () async {
@@ -1187,7 +1211,7 @@ void main() {
           names: ['Alice', 'Gina', 'Hank', 'Iris'],
         ),
       );
-      final suggestions = n.playerNameSuggestions;
+      final suggestions = c.read(playerNameSuggestionsProvider);
       // Alice appears 3x → first.  Bob 2x → second.  Others 1x.
       expect(suggestions.first, 'Alice');
       expect(suggestions[1], 'Bob');
@@ -1212,7 +1236,7 @@ void main() {
           names: ['Alice', 'Eve', 'Frank', 'Gina'],
         ),
       );
-      final s = n.playerNameSuggestions;
+      final s = c.read(playerNameSuggestionsProvider);
       // Alice appears in both sessions but must appear only once in suggestions.
       expect(s.toSet().length, s.length);
     });
@@ -1232,7 +1256,12 @@ void main() {
           names: ['carol', 'Alice', 'bob', 'Dan'],
         ),
       );
-      expect(n.playerNameSuggestions, ['Alice', 'bob', 'carol', 'Dan']);
+      expect(c.read(playerNameSuggestionsProvider), [
+        'Alice',
+        'bob',
+        'carol',
+        'Dan',
+      ]);
     });
   });
 }

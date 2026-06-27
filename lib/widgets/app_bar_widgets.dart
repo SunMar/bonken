@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,13 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/app_version.dart';
 import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
-import '../screens/rules_screen.dart';
-import '../screens/settings_screen.dart';
-import '../state/default_hearts_variant_provider.dart';
-import '../state/default_starter_variant_provider.dart';
+import '../navigation/app_routes.dart';
 import '../state/rules_edit_mode_provider.dart';
+import '../state/settings_provider.dart';
 import '../state/theme_mode_provider.dart';
-import '../utils.dart';
+import '../theme/app_theme_extensions.dart';
 
 /// Small, reusable AppBar building blocks shared across the app's
 /// screens: the [AboutIconButton] leading, the per-screen
@@ -61,13 +61,14 @@ class AboutIconButton extends StatelessWidget {
   }
 }
 
-/// AppBar icon that pushes the [RulesScreen]. By default opens the
-/// full rule book; pass [singleGameId] to scope it to one mini-game.
+/// AppBar icon that opens the rules screen (via [AppRoutes.openRules]). By
+/// default opens the full rule book; pass [singleGameId] to scope it to one
+/// mini-game.
 ///
 /// When [starterVariantOverride] / [heartsVariantOverride] are set, the pushed
 /// route is wrapped in a [ProviderScope] that locks the rules to those
 /// session values: variant-sensitive blocks show only the active text and hide
-/// the settings icon / "Spelregel variant" alternative. Pass them when opening
+/// the settings icon / "Spelregelvariant" alternative. Pass them when opening
 /// rules from within a game.
 class RulesIconButton extends StatelessWidget {
   const RulesIconButton({
@@ -98,31 +99,12 @@ class RulesIconButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Symbols.menu_book),
       tooltip: tooltip ?? 'Spelregels',
-      onPressed: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          // The pushed route is a fresh subtree, so the session's variants are
-          // injected via provider overrides scoped to it (rather than threaded
-          // through every rules widget). The overridden "default" providers
-          // resolve to the session values for the lifetime of this route only.
-          builder: (_) => ProviderScope(
-            overrides: [
-              if (starterVariantOverride != null)
-                defaultStarterVariantProvider.overrideWith(
-                  () => DefaultStarterVariantNotifier(
-                    initialVariant: starterVariantOverride!,
-                  ),
-                ),
-              if (heartsVariantOverride != null)
-                defaultHeartsVariantProvider.overrideWith(
-                  () => DefaultHeartsVariantNotifier(
-                    initialVariant: heartsVariantOverride!,
-                  ),
-                ),
-              rulesEditModeProvider.overrideWithValue(editMode),
-            ],
-            child: RulesScreen(singleGameId: singleGameId),
-          ),
-        ),
+      onPressed: () => AppRoutes.openRules(
+        context,
+        singleGameId: singleGameId,
+        starterVariantOverride: starterVariantOverride,
+        heartsVariantOverride: heartsVariantOverride,
+        editMode: editMode,
       ),
     );
   }
@@ -197,7 +179,7 @@ class TitleWithRules extends StatelessWidget {
   }
 }
 
-/// AppBar action that pushes [SettingsScreen] onto the navigator.
+/// AppBar action that opens the settings screen (via [AppRoutes.openSettings]).
 class SettingsIconButton extends StatelessWidget {
   const SettingsIconButton({super.key});
 
@@ -206,9 +188,7 @@ class SettingsIconButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Symbols.settings),
       tooltip: 'Instellingen',
-      onPressed: () => Navigator.of(
-        context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const SettingsScreen())),
+      onPressed: () => AppRoutes.openSettings(context),
     );
   }
 }
@@ -242,7 +222,7 @@ class ThemeMenuButton extends ConsumerWidget {
                 ? const Icon(Symbols.check, size: 16)
                 : null,
             onPressed: () =>
-                ref.read(themeModeProvider.notifier).setMode(value),
+                ref.read(settingsProvider.notifier).setThemeMode(value),
             child: Text(label),
           ),
       ],
@@ -266,18 +246,12 @@ Future<void> openAboutDialog(BuildContext context) async {
       _AboutLink(
         icon: Symbols.code,
         label: 'Broncode',
-        onTap: () async {
-          final uri = Uri.parse(_aboutRepoUrl);
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        },
+        onTap: () => unawaited(_openExternal(_aboutRepoUrl)),
       ),
       _AboutLink(
         icon: Symbols.privacy_tip,
         label: 'Privacybeleid',
-        onTap: () async {
-          final uri = Uri.parse(_aboutPrivacyUrl);
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        },
+        onTap: () => unawaited(_openExternal(_aboutPrivacyUrl)),
       ),
     ],
   );
@@ -333,6 +307,10 @@ Future<String> resolveAboutVersionLine() async {
 /// so it picks up Material 3's default [MaterialTapTargetSize.padded]
 /// behaviour for free — the visual chrome is small but the tap target
 /// reaches [kMinInteractiveDimension] (48 dp).
+/// Opens [url] in an external browser/app. Shared by the About-dialog links.
+Future<void> _openExternal(String url) =>
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
 class _AboutLink extends StatelessWidget {
   const _AboutLink({
     required this.icon,

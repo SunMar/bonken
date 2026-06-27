@@ -7,7 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/share_service.dart' show kShareUnsupportedMessage;
+import '../services/io_failure.dart';
 import '../state/export_import_notifier.dart';
 import '../state/platform_io_providers.dart';
 import '../utils.dart';
@@ -35,12 +35,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   _BusyAction? _busy;
 
   Future<(Uint8List, String)> _buildExport() async {
-    final (prefs, packageInfo) = await (
-      SharedPreferences.getInstance(),
-      PackageInfo.fromPlatform(),
-    ).wait;
+    final packageInfo = await PackageInfo.fromPlatform();
     final bytes = await exportBackup(
-      prefs: prefs,
+      prefs: SharedPreferencesAsync(),
       appVersion: resolveAppVersion(packageInfo),
       includeGames: _scope != _ExportScope.settingsOnly,
       includeSettings: _scope != _ExportScope.gamesOnly,
@@ -49,34 +46,33 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     return (bytes, 'bonken-backup-$ts.zip');
   }
 
+  /// Clears the busy state and reports a failure. Shared by the share/save
+  /// catch arms: a benign cancellation never reaches here (it returns normally),
+  /// so anything that does is a real failure worth a snackbar.
+  void _onFailure(String message) {
+    if (!mounted) return;
+    setState(() => _busy = null);
+    showTimedSnackBar(ScaffoldMessenger.of(context), content: Text(message));
+  }
+
   Future<void> _exportAndShare() async {
     setState(() => _busy = _BusyAction.share);
     try {
       final (bytes, filename) = await _buildExport();
       if (!mounted) return;
-      final shared = await ref.read(shareFileProvider)(
+      // Returns normally whether the user shared or dismissed the sheet.
+      await ref.read(shareFileProvider)(
         bytes: bytes,
         filename: filename,
         mimeType: 'application/zip',
         subject: 'Bonken-backup',
       );
       if (!mounted) return;
-      if (!shared) {
-        setState(() => _busy = null);
-        showTimedSnackBar(
-          ScaffoldMessenger.of(context),
-          content: const Text(kShareUnsupportedMessage),
-        );
-        return;
-      }
       Navigator.of(context).pop();
+    } on OutOfSpaceException {
+      _onFailure(kOutOfSpaceMessage);
     } on Object {
-      if (!mounted) return;
-      setState(() => _busy = null);
-      showTimedSnackBar(
-        ScaffoldMessenger.of(context),
-        content: const Text('Het is mislukt om de gegevens te exporteren.'),
-      );
+      _onFailure('Het is mislukt om de gegevens te exporteren.');
     }
   }
 
@@ -103,13 +99,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           content: const Text('Export opgeslagen in Bestanden → Bonken'),
         );
       }
+    } on OutOfSpaceException {
+      _onFailure(kOutOfSpaceMessage);
     } on Object {
-      if (!mounted) return;
-      setState(() => _busy = null);
-      showTimedSnackBar(
-        ScaffoldMessenger.of(context),
-        content: const Text('Het is mislukt om de gegevens op te slaan.'),
-      );
+      _onFailure('Het is mislukt om de gegevens op te slaan.');
     }
   }
 
@@ -120,6 +113,23 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       color: Theme.of(context).colorScheme.onPrimary,
     ),
   );
+
+  /// One export button: disabled while any action is busy, showing a spinner in
+  /// place of [icon] when [action] is the running one. Both export buttons share
+  /// this busy/spinner wiring.
+  Widget _exportButton(
+    BuildContext context, {
+    required _BusyAction action,
+    required Widget icon,
+    required String label,
+    required Future<void> Function() onPressed,
+  }) {
+    return FilledButton.icon(
+      onPressed: _busy != null ? null : () => unawaited(onPressed()),
+      icon: _busy == action ? _spinner(context) : icon,
+      label: Text(label),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +156,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                     value: _ExportScope.all,
                   ),
                   RadioListTile<_ExportScope>(
-                    title: Text('Alleen speelgeschiedenis'),
+                    title: Text('Alleen spelgeschiedenis'),
                     value: _ExportScope.gamesOnly,
                   ),
                   RadioListTile<_ExportScope>(
@@ -162,25 +172,21 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (!kIsWeb) ...[
-                FilledButton.icon(
-                  onPressed: _busy != null
-                      ? null
-                      : () => unawaited(_exportAndShare()),
-                  icon: _busy == _BusyAction.share
-                      ? _spinner(context)
-                      : const Icon(Symbols.share),
-                  label: const Text('Export delen'),
+                _exportButton(
+                  context,
+                  action: _BusyAction.share,
+                  icon: const Icon(Symbols.share),
+                  label: 'Export delen',
+                  onPressed: _exportAndShare,
                 ),
                 const SizedBox(height: 8),
               ],
-              FilledButton.icon(
-                onPressed: _busy != null
-                    ? null
-                    : () => unawaited(_exportAndSave()),
-                icon: _busy == _BusyAction.save
-                    ? _spinner(context)
-                    : const Icon(Symbols.upload),
-                label: const Text('Export opslaan'),
+              _exportButton(
+                context,
+                action: _BusyAction.save,
+                icon: const Icon(Symbols.upload),
+                label: 'Export opslaan',
+                onPressed: _exportAndSave,
               ),
             ],
           ),

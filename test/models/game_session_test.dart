@@ -22,6 +22,8 @@ void main() {
     String id = 's1',
     List<RoundRecord>? rounds,
     PendingRound? pending,
+    String? firstDealerId,
+    String? gameName,
   }) {
     final now = DateTime(2024, 1, 1, 12);
     return GameSession(
@@ -30,9 +32,10 @@ void main() {
       updatedAt: now,
       scoredAt: now,
       players: testPlayers,
-      firstDealerId: pa.id,
+      firstDealerId: firstDealerId ?? pa.id,
       rounds: rounds ?? const [],
       pendingRound: pending,
+      gameName: gameName,
     );
   }
 
@@ -95,6 +98,35 @@ void main() {
       );
       expect(tiedZero.winnerIds, unorderedEquals([pa.id, pb.id, pc.id, pd.id]));
     });
+
+    test(
+      'winnerIds + displayedScores resolve under a non-identity dealer rotation',
+      () {
+        // firstDealer = pc (seat 2) → displayedPlayers rotate to [pc, pd, pa, pb],
+        // so display order differs from seat order and the index→id remap in
+        // winnerIds does real work (it would pass trivially under the seat-0
+        // identity rotation every other test uses).
+        final s = sample(
+          firstDealerId: pc.id,
+          rounds: [
+            round(1, {0: 100, 1: 50, 2: 80, 3: 30}),
+          ],
+        );
+        // Seat-keyed totals are rotation-independent.
+        expect(s.finalScoresByPlayer, {
+          pa.id: 100,
+          pb.id: 50,
+          pc.id: 80,
+          pd.id: 30,
+        });
+        // Display order is [pc, pd, pa, pb] → scores rotate with it.
+        expect(s.displayedScores, [80, 30, 100, 50]);
+        // The single leader is pa (100); winnerIds must map the winning display
+        // index back through displayedPlayers, not the seat-ordered players.
+        expect(s.displayedWinnerIndices, [2]);
+        expect(s.winnerIds, [pa.id]);
+      },
+    );
 
     test('finalScoresByPlayer ignores pendingRound', () {
       final s = sample(
@@ -365,6 +397,128 @@ void main() {
       };
       expect(() => GameSession.fromJson(json), throwsStateError);
     });
+
+    test('dangling pendingRound doubles pair id throws on fromJson', () {
+      // A ghost id paired with a real player, stored in canonical order so the
+      // pair-key passes the ordering check and the failure is unambiguously the
+      // dangling-reference branch of the pendingRound doublesJson validation.
+      const ghost = '00000000-0000-4000-8000-000000000000';
+      final pair = [ghost, pb.id]..sort();
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'scoredAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': <dynamic>[],
+        'pendingRound': {
+          // A valid game id so checkGameId passes and validation reaches the
+          // doublesJson branch under test.
+          'gameId': 'duck',
+          'chooserId': pa.id,
+          'input': {'counts': <dynamic>[]},
+          'doublesJson': {
+            '${pair[0]},${pair[1]}': {'state': 'doubled', 'initiator': pa.id},
+          },
+        },
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('comma-less round doubles pair key throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'scoredAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+            // Pair key with no comma separator → malformed.
+            'doublesJson': {
+              '${pa.id}${pb.id}': {'state': 'doubled', 'initiator': pa.id},
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('non-canonical round doubles pair key throws on fromJson', () {
+      // Canonical order is smaller id first; build a guaranteed-reversed key.
+      final ids = [pa.id, pb.id]..sort();
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'scoredAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'king_of_hearts',
+            'chooserId': pa.id,
+            'scores': {pa.id: 0, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': <String, dynamic>{},
+            'doublesJson': {
+              '${ids[1]},${ids[0]}': {'state': 'doubled', 'initiator': pa.id},
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
+
+    test('non-int round input count throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'scoredAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': [
+          {
+            'roundNumber': 1,
+            'gameId': 'clubs',
+            'chooserId': pa.id,
+            'scores': {pa.id: 260, pb.id: 0, pc.id: 0, pd.id: 0},
+            'input': {
+              'counts': [
+                {pa.id: 2.5, pb.id: 0, pc.id: 0, pd.id: 0},
+              ],
+            },
+          },
+        ],
+      };
+      expect(() => GameSession.fromJson(json), throwsA(isA<TypeError>()));
+    });
+
+    test('unknown pendingRound gameId throws on fromJson', () {
+      final json = {
+        'id': 's1',
+        'createdAt': '2024-01-01T00:00:00.000',
+        'updatedAt': '2024-01-01T00:00:00.000',
+        'scoredAt': '2024-01-01T00:00:00.000',
+        'players': [for (final p in testPlayers) p.toJson()],
+        'firstDealerId': pa.id,
+        'rounds': <dynamic>[],
+        'pendingRound': {
+          'gameId': 'no-such-game',
+          'chooserId': pa.id,
+          'input': {'counts': <dynamic>[]},
+        },
+      };
+      expect(() => GameSession.fromJson(json), throwsStateError);
+    });
   });
 
   group('JSON roundtrip', () {
@@ -378,7 +532,7 @@ void main() {
             chooserId: testPlayers[2].id,
             scoresByPlayer: {pa.id: -40, pb.id: -30, pc.id: -50, pd.id: -10},
             input: CountsInput({pa.id: 4, pb.id: 3, pc.id: 5, pd.id: 1}),
-            doubles: DoubleMatrix.empty().withPair(
+            doubles: const DoubleMatrix().withPair(
               pa.id,
               pb.id,
               DoubleState.doubled,
@@ -417,6 +571,17 @@ void main() {
       expect(s.toJson().containsKey('pendingRound'), isFalse);
     });
 
+    test('non-null gameName survives the roundtrip', () {
+      final back = GameSession.fromJson(
+        sample(gameName: 'Kerst 2024').toJson(),
+      );
+      expect(back.gameName, 'Kerst 2024');
+    });
+
+    test('null gameName is omitted from JSON', () {
+      expect(sample().toJson().containsKey('gameName'), isFalse);
+    });
+
     test('RoundRecord toJson includes all expected fields', () {
       final r = round(5, {0: 10, 1: -10, 2: 0, 3: 0});
       final json = r.toJson();
@@ -432,16 +597,19 @@ void main() {
         gameId: 'duck',
         chooserId: testPlayers[2].id,
         input: CountsInput({pa.id: 3, pb.id: 4, pc.id: 0, pd.id: 0}),
-        doublesJson: DoubleMatrix.empty()
-            .withPair(pa.id, pb.id, DoubleState.redoubled, initiator: pb.id)
-            .toJson(),
+        doubles: const DoubleMatrix().withPair(
+          pa.id,
+          pb.id,
+          DoubleState.redoubled,
+          initiator: pb.id,
+        ),
       );
       final back = PendingRound.fromJson(p.toJson());
       expect(back.gameId, p.gameId);
       expect(back.chooserId, p.chooserId);
       expect(back.input, p.input);
-      expect(back.doublesJson, isNotNull);
-      final m = DoubleMatrix.fromJson(back.doublesJson!);
+      expect(back.doubles, isNotNull);
+      final m = back.doubles!;
       expect(m.stateFor(pa.id, pb.id), DoubleState.redoubled);
       expect(m.initiatorFor(pa.id, pb.id), pb.id);
     });
@@ -469,6 +637,16 @@ void main() {
       expect(back.ruleVariants.heartsVariant, HeartsVariant.graduatedUnlock);
     });
 
+    test(
+      'RuleVariants.fromJson throws on a present-but-unknown enum value',
+      () {
+        expect(
+          () => RuleVariants.fromJson(const {'starterVariant': 'notAVariant'}),
+          throwsFormatException,
+        );
+      },
+    );
+
     test('missing ruleVariants object falls back to defaults', () {
       final json = {
         'id': 'no-variants',
@@ -488,7 +666,7 @@ void main() {
       );
     });
 
-    test('unknown variant names inside ruleVariants fall back to defaults', () {
+    test('unknown variant names inside ruleVariants throw on fromJson', () {
       final json = {
         'id': 'bad-variants',
         'createdAt': '2024-01-01T00:00:00.000',
@@ -502,12 +680,10 @@ void main() {
           'heartsVariant': 'alsoNotReal',
         },
       };
-      final session = GameSession.fromJson(json);
-      expect(session.ruleVariants.starterVariant, StarterVariant.dealerStarts);
-      expect(
-        session.ruleVariants.heartsVariant,
-        HeartsVariant.onlyAfterPlayedHeart,
-      );
+      // Strict enumByName: a present-but-unknown variant is corrupt data and
+      // throws (surfaced as CorruptPersistenceException at the load boundary),
+      // rather than silently coercing to the default.
+      expect(() => GameSession.fromJson(json), throwsFormatException);
     });
 
     test('dual 7e/13e round preserves which player won which trick', () {

@@ -9,32 +9,6 @@ import '../models/starter_variant.dart';
 import '../utils.dart';
 import 'settings_migrations.dart';
 import 'storage_exceptions.dart';
-import 'validation.dart';
-
-/// Raised when the stored settings were written by a newer version of the app.
-class UnsupportedSettingsVersionException implements Exception {
-  const UnsupportedSettingsVersionException(this.version);
-
-  final int version;
-
-  @override
-  String toString() =>
-      'Settings were written by a newer version of the app (v$version). '
-      'Please update the app.';
-}
-
-/// Raised when the stored settings can't be read (corrupt JSON, malformed
-/// structure, …). Surfaced to the UI — the user sees an error screen with an
-/// option to reset to defaults.
-class CorruptSettingsException implements Exception, HasCause {
-  const CorruptSettingsException(this.cause);
-
-  @override
-  final Object cause;
-
-  @override
-  String toString() => 'Settings are corrupt and could not be read: $cause';
-}
 
 /// Public constant for the settings SharedPreferences key, exposed so
 /// [home_screen.dart] can read raw data for the error report without depending
@@ -68,7 +42,12 @@ const String _kLegacyThemeModeKey = 'theme_mode';
 const String _kLegacyStarterVariantKey = 'default_starter_variant';
 const String _kLegacyHeartsVariantKey = 'default_hearts_variant';
 
-/// All app settings loaded from persistent storage.
+/// All app settings as a single immutable blob.
+///
+/// This is the in-memory source of truth held by `SettingsNotifier`: every
+/// change produces a new instance which is persisted atomically (see
+/// [persistSettings]). The fresh-install [PersistedSettings.defaults] values
+/// match the per-field fallbacks in [parsePersistedSettings].
 final class PersistedSettings {
   const PersistedSettings({
     required this.themeMode,
@@ -76,9 +55,25 @@ final class PersistedSettings {
     required this.defaultHeartsVariant,
   });
 
+  /// The fresh-install defaults, used when nothing has been persisted yet.
+  const PersistedSettings.defaults()
+    : themeMode = ThemeMode.system,
+      defaultStarterVariant = StarterVariant.dealerStarts,
+      defaultHeartsVariant = HeartsVariant.onlyAfterPlayedHeart;
+
   final ThemeMode themeMode;
   final StarterVariant defaultStarterVariant;
   final HeartsVariant defaultHeartsVariant;
+
+  PersistedSettings copyWith({
+    ThemeMode? themeMode,
+    StarterVariant? defaultStarterVariant,
+    HeartsVariant? defaultHeartsVariant,
+  }) => PersistedSettings(
+    themeMode: themeMode ?? this.themeMode,
+    defaultStarterVariant: defaultStarterVariant ?? this.defaultStarterVariant,
+    defaultHeartsVariant: defaultHeartsVariant ?? this.defaultHeartsVariant,
+  );
 }
 
 /// Loads all persisted settings before [runApp].
@@ -88,19 +83,19 @@ final class PersistedSettings {
 /// the versioned envelope is written back. Unknown or absent values fall back
 /// to their enum defaults.
 ///
-/// Throws [UnsupportedSettingsVersionException] when the stored version is
-/// newer than [currentSettingsVersion], or [CorruptSettingsException] when the
+/// Throws [UnsupportedVersionException] when the stored version is
+/// newer than [currentSettingsVersion], or [CorruptPersistenceException] when the
 /// JSON is unreadable.
 Future<PersistedSettings> loadPersistedSettings() async {
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = SharedPreferencesAsync();
   try {
     Map<String, dynamic> settings;
-    final raw = prefs.getString(settingsStorageKey);
+    final raw = await prefs.getString(settingsStorageKey);
     if (raw != null) {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final version = decoded['version'] as int;
       if (version > currentSettingsVersion) {
-        throw UnsupportedSettingsVersionException(version);
+        throw UnsupportedVersionException(version);
       }
       settings = decoded;
       if (version < currentSettingsVersion) {
@@ -108,96 +103,127 @@ Future<PersistedSettings> loadPersistedSettings() async {
         await prefs.setString(settingsStorageKey, jsonEncode(settings));
       }
     } else {
-      // Bootstrap from legacy flat keys (existing installs pre-versioned envelope).
-      settings = _buildV1FromLegacyKeys(prefs);
+      // Bootstrap from legacy flat keys (existing installs pre-versioned
+      // envelope). Build the literal-v1 body, then migrate it forward through
+      // the chain exactly like any old on-disk blob would be: the genesis
+      // builder must stamp the version it actually produces (1), not a moving
+      // `currentSettingsVersion`, so a future v2 step reshapes the body instead
+      // of it shipping as a v1 shape mislabeled "current".
+      settings = runSettingsMigrations(
+        _buildV1FromLegacyKeys(
+          themeMode: await prefs.getString(_kLegacyThemeModeKey),
+          starterVariant: await prefs.getString(_kLegacyStarterVariantKey),
+          heartsVariant: await prefs.getString(_kLegacyHeartsVariantKey),
+        ),
+        fromVersion: 1,
+      );
       await prefs.setString(settingsStorageKey, jsonEncode(settings));
-      await prefs.remove(_kLegacyThemeModeKey);
-      await prefs.remove(_kLegacyStarterVariantKey);
-      await prefs.remove(_kLegacyHeartsVariantKey);
+      await _removeLegacyKeys(prefs);
     }
-    return _parseSettings(settings);
-  } on UnsupportedSettingsVersionException {
+    return parsePersistedSettings(settings);
+  } on UnsupportedVersionException {
     rethrow;
   } on Object catch (e) {
-    throw CorruptSettingsException(e);
+    throw CorruptPersistenceException(e);
   }
 }
 
-/// Read-modify-write helper called by notifiers when a setting changes.
+/// Persists the full settings blob atomically — a single [SharedPreferences]
+/// write of the whole envelope, built from the in-memory [PersistedSettings].
 ///
-/// [section] is `null` for top-level fields (e.g. `'themeMode'`), or a
-/// sub-object key (e.g. `'ruleVariants'`) for nested fields.
-Future<void> updateSettingsField(
-  String? section,
-  String key,
-  String value,
-) async {
-  final prefs = await SharedPreferences.getInstance();
-  final raw = prefs.getString(settingsStorageKey);
-  final Map<String, dynamic> settings = raw != null
-      ? (jsonDecode(raw) as Map<String, dynamic>)
-      : _buildV1Defaults();
-  if (section != null) {
-    final sub =
-        (settings[section] as Map<String, dynamic>?) ?? <String, dynamic>{};
-    settings[section] = {...sub, key: value};
-  } else {
-    settings[key] = value;
-  }
-  validateMigratedSettings(settings);
-  await prefs.setString(settingsStorageKey, jsonEncode(settings));
+/// Replaces the old per-field read-modify-write (`updateSettingsField`): the
+/// in-memory `SettingsNotifier` is the single source of truth, so a change
+/// rewrites the entire blob from memory and never re-reads or merges the
+/// on-disk copy (closes the stale-blob-merge hazard). A multi-field change —
+/// notably an import — is therefore one atomic write.
+Future<void> persistSettings(PersistedSettings settings) async {
+  final prefs = SharedPreferencesAsync();
+  await prefs.setString(
+    settingsStorageKey,
+    jsonEncode(settingsToJson(settings)),
+  );
 }
 
 /// Removes the [settingsStorageKey] and any still-present legacy flat keys.
 /// Called when the user resets settings from the error screen.
 Future<void> clearSettings() async {
-  final prefs = await SharedPreferences.getInstance();
+  final prefs = SharedPreferencesAsync();
   await prefs.remove(settingsStorageKey);
+  await _removeLegacyKeys(prefs);
+}
+
+/// Removes the three legacy flat settings keys (the pre-versioned-envelope
+/// format). Purged by both the load-bootstrap and [clearSettings]; the keys are
+/// frozen historical names, so the set is named in one place.
+Future<void> _removeLegacyKeys(SharedPreferencesAsync prefs) async {
   await prefs.remove(_kLegacyThemeModeKey);
   await prefs.remove(_kLegacyStarterVariantKey);
   await prefs.remove(_kLegacyHeartsVariantKey);
 }
 
+/// Serialises [settings] into the versioned on-disk envelope.
+///
+/// Stamps the **current** version because the body is current-shaped by
+/// construction (the typed [PersistedSettings] always reflects the latest
+/// schema). This is the live-write analogue of `GameHistoryNotifier._persist`,
+/// not a frozen genesis body, so the moving-version stamp is correct here.
+Map<String, dynamic> settingsToJson(PersistedSettings settings) => {
+  'version': currentSettingsVersion,
+  'themeMode': settings.themeMode.name,
+  'ruleVariants': {
+    'starterVariant': settings.defaultStarterVariant.name,
+    'heartsVariant': settings.defaultHeartsVariant.name,
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-Map<String, dynamic> _buildV1Defaults() => {
-  'version': currentSettingsVersion,
-  'themeMode': ThemeMode.system.name,
-  'ruleVariants': {
-    'starterVariant': StarterVariant.dealerStarts.name,
-    'heartsVariant': HeartsVariant.onlyAfterPlayedHeart.name,
-  },
-};
-
-Map<String, dynamic> _buildV1FromLegacyKeys(SharedPreferences prefs) {
-  final themeMode = enumByName(
+/// Builds the **literal v1** settings body from the (pre-read) legacy flat-key
+/// values. Stamps `version: 1` (the version this body actually is), not the
+/// moving `currentSettingsVersion` — the caller runs it through
+/// `runSettingsMigrations` to reach current, so a future v2 step upgrades it
+/// like any old blob. The values are read by the async caller and passed in so
+/// this stays a pure, synchronous projection.
+Map<String, dynamic> _buildV1FromLegacyKeys({
+  required String? themeMode,
+  required String? starterVariant,
+  required String? heartsVariant,
+}) {
+  // The app only ever wrote valid enum names to these legacy keys, so a
+  // present-but-unknown value is corruption/tampering — strict [enumByName]
+  // throws (→ corrupt screen), consistent with [parsePersistedSettings]. An
+  // absent key (null) falls back to the default.
+  final themeModeValue = enumByName(
     ThemeMode.values,
-    prefs.getString(_kLegacyThemeModeKey),
+    themeMode,
     ThemeMode.system,
   );
-  final starterVariant = enumByName(
+  final starterValue = enumByName(
     StarterVariant.values,
-    prefs.getString(_kLegacyStarterVariantKey),
+    starterVariant,
     StarterVariant.dealerStarts,
   );
-  final heartsVariant = enumByName(
+  final heartsValue = enumByName(
     HeartsVariant.values,
-    prefs.getString(_kLegacyHeartsVariantKey),
+    heartsVariant,
     HeartsVariant.onlyAfterPlayedHeart,
   );
   return {
-    'version': currentSettingsVersion,
-    'themeMode': themeMode.name,
+    'version': 1,
+    'themeMode': themeModeValue.name,
     'ruleVariants': {
-      'starterVariant': starterVariant.name,
-      'heartsVariant': heartsVariant.name,
+      'starterVariant': starterValue.name,
+      'heartsVariant': heartsValue.name,
     },
   };
 }
 
-PersistedSettings _parseSettings(Map<String, dynamic> settings) {
+/// Projects a settings map (already migrated + validated on the import path, or
+/// freshly loaded from disk) into the typed [PersistedSettings]. Per-field
+/// fallbacks match [PersistedSettings.defaults].
+PersistedSettings parsePersistedSettings(Map<String, dynamic> settings) {
   final themeMode = enumByName(
     ThemeMode.values,
     settings['themeMode'] as String?,

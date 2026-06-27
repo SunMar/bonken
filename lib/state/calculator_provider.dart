@@ -203,8 +203,10 @@ class ActiveSession extends CalculatorState {
   /// Position of the chooser within [displayedPlayers] (0–3).
   int get displayedChooserIndex => seatIndexOf(displayedPlayers, chooserId);
 
-  /// 1-based round counter, 1–12. Increments each time a scored game is
-  /// confirmed. Resets to 1 when the first-game dealer is changed.
+  /// 1-based round counter, 1–12: the number of completed rounds + 1.
+  /// Increments each time a scored game is confirmed; never reset by a
+  /// dealer edit (`setDealer` recomputes the dealer from history length and
+  /// leaves the round number untouched).
   final int roundNumber;
 
   /// All completed rounds in order.
@@ -225,6 +227,15 @@ class ActiveSession extends CalculatorState {
 
   /// Whether there is a partially-entered game that was interrupted.
   bool get hasPendingGame => pending is ActivePendingRound && result == null;
+
+  /// Whether the stashed pending round belongs to the game currently in the
+  /// live slot. Parallels [hasPendingGame] but keys on [selectedGame], and
+  /// deliberately omits the `result == null` clause — callers needing that
+  /// check it themselves.
+  bool get hasPendingForSelectedGame {
+    final p = pending;
+    return p is ActivePendingRound && selectedGame?.id == p.game.id;
+  }
 
   /// True when the pending (interrupted) game has meaningful input — i.e. the
   /// user actually entered something beyond the defaults (scores or doubles).
@@ -251,10 +262,6 @@ class ActiveSession extends CalculatorState {
   /// True when the user is re-editing a round that was already scored.
   bool get isEditingExistingRound => editingRoundIndex != null;
 
-  /// True when editing and the round being edited is the last one in history.
-  bool get isEditingLastRound =>
-      editingRoundIndex != null && editingRoundIndex == history.length - 1;
-
   /// Original input/doubles/chooser captured at the start of an edit, used to
   /// detect whether anything actually changed (see [hasActiveChanges]).
   final GameInput? editOriginalInput;
@@ -274,7 +281,7 @@ class ActiveSession extends CalculatorState {
   /// True when there is meaningful active input that would be lost on cancel.
   bool get hasActiveChanges {
     if (selectedGame == null) return false;
-    if (editingRoundIndex != null) {
+    if (isEditingExistingRound) {
       final origInput = editOriginalInput;
       final origDoubles = editOriginalDoubles;
       final origChooser = editOriginalChooserId;
@@ -292,7 +299,7 @@ class ActiveSession extends CalculatorState {
       return true;
     }
     if (doubles.hasAnyDouble) return true;
-    if (chooserId != players[(dealerIndex + 1) % playerCount].id) return true;
+    if (chooserId != players[chooserIndexFor(dealerIndex)].id) return true;
     return false;
   }
 
@@ -390,22 +397,19 @@ class ActiveSession extends CalculatorState {
 class CalculatorNotifier extends Notifier<CalculatorState> {
   @override
   CalculatorState build() {
-    // Cache before onDispose so the closure doesn't need to call ref.read
-    // while the element is being torn down.
+    // Cache before onDispose so the closure doesn't call ref.read while the
+    // element is torn down. gameHistoryProvider is not autoDispose, so its
+    // notifier outlives this one and saveGame stays valid.
     final historyNotifier = ref.read(gameHistoryProvider.notifier);
-    // Riverpod 3.3.2 disallows reading `state` inside onDispose, so we keep
-    // a pre-built snapshot (_pendingSession) that is updated each time an
-    // autosave is scheduled — safe to read without touching `state` at all.
+    _autosave = _AutosaveCoordinator(historyNotifier.saveGame);
     ref.onDispose(() {
-      if (_autosaveTimer == null) return;
-      _autosaveTimer!.cancel();
-      _autosaveTimer = null;
-      final session = _pendingSession;
-      _pendingSession = null;
+      // Riverpod 3.3 forbids reading `state` in onDispose, so flush the
+      // coordinator's pre-built snapshot instead. Future.microtask defers
+      // saveGame() past the onDispose frame so Riverpod's _debugCallbackStack
+      // is back to 0 before GameHistoryNotifier.future calls
+      // _throwIfInvalidUsage().
+      final session = _autosave.takePending();
       if (session == null) return;
-      // Future.microtask defers saveGame() past the onDispose callback frame so
-      // that Riverpod's global _debugCallbackStack is back to 0 before
-      // GameHistoryNotifier.future calls _throwIfInvalidUsage().
       unawaited(
         Future.microtask(
           () => historyNotifier.saveGame(session),
@@ -415,63 +419,34 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     return const NoSession();
   }
 
-  /// Pending debounced autosave timer. We coalesce bursts of state mutations
-  /// (typing in the counts stepper, double-tap on a chip, etc.) into a single
-  /// SharedPreferences write so we don't re-encode the entire saved-games
-  /// JSON on every keystroke.
-  Timer? _autosaveTimer;
-  // Snapshot of the session built at the last _scheduleAutosave call. Updated
-  // on every mutation so onDispose can flush without accessing this.state.
-  GameSession? _pendingSession;
-  static const _autosaveDebounce = Duration(milliseconds: 400);
+  /// Owns the debounced autosave — the timer, the latest snapshot, and the
+  /// single in-flight write. Assigned once in [build]. See
+  /// [_AutosaveCoordinator] for the debounce/flush/race-safety contract.
+  late _AutosaveCoordinator _autosave;
 
-  /// Convenience accessor — only valid while a session is active.
+  /// The active session. **Throws** if the state is [NoSession] — use only on
+  /// paths where an active session is a precondition. Idle-tolerant paths (e.g.
+  /// [buildSession], [_flushOutgoingSession]) must use an explicit
+  /// `state is ActiveSession` guard instead.
   ActiveSession get _session => state as ActiveSession;
 
   @override
   set state(CalculatorState newState) {
     super.state = newState;
-    _scheduleAutosave();
+    // The snapshot must be built here (not in onDispose, which can't read
+    // `state`). Only active sessions are persisted; NoSession transitions are
+    // cleared by their callers (reset / cancelPendingAutosave).
+    if (newState is ActiveSession) _autosave.schedule(buildSession()!);
   }
 
-  void _scheduleAutosave() {
-    if (state is NoSession) return;
-    _autosaveTimer?.cancel();
-    _pendingSession = buildSession(); // snapshot safe here (not in onDispose)
-    _autosaveTimer = Timer(_autosaveDebounce, _autosave);
-  }
-
-  Future<void> _autosave() async {
-    _autosaveTimer = null;
-    final session = _pendingSession;
-    _pendingSession = null;
-    if (session == null) return;
-    try {
-      await ref.read(gameHistoryProvider.notifier).saveGame(session);
-    } on Exception catch (_) {
-      // Best-effort background write; in-memory state is intact and the next
-      // mutation re-triggers an autosave.
-    }
-  }
-
-  /// Flushes a pending debounced autosave for the currently loaded session
-  /// when it is about to be replaced by [incomingId].
-  void _flushPendingAutosaveForOutgoingSession({String? incomingId}) {
-    if (_autosaveTimer == null) return;
+  /// Flushes the outgoing session's pending autosave before it is replaced by a
+  /// switch to [incomingId] (a new game or a different loaded session).
+  /// Re-loading the *same* session leaves its pending autosave armed.
+  void _flushOutgoingSession({String? incomingId}) {
     final s = state;
     if (s is! ActiveSession) return;
     if (incomingId != null && s.sessionId == incomingId) return;
-    _autosaveTimer!.cancel();
-    _autosaveTimer = null;
-    final outgoing = _pendingSession;
-    _pendingSession = null;
-    if (outgoing == null) return;
-    unawaited(
-      ref
-          .read(gameHistoryProvider.notifier)
-          .saveGame(outgoing)
-          .catchError((_) {}),
-    );
+    _autosave.flush();
   }
 
   void setPlayerName(int index, String name) {
@@ -531,7 +506,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
     state = s.copyWith(
       selectedGame: game,
-      chooserId: s.players[(s.dealerIndex + 1) % playerCount].id,
+      chooserId: s.players[chooserIndexFor(s.dealerIndex)].id,
       input: defaults,
       doubles: const DoubleMatrix(),
       clearResult: true,
@@ -556,7 +531,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     final nextDealerIdx =
         (s.firstDealerIndex + newHistory.length) % playerCount;
     final nextDealerId = s.players[nextDealerIdx].id;
-    final nextChooserIdx = (nextDealerIdx + 1) % playerCount;
+    final nextChooserIdx = chooserIndexFor(nextDealerIdx);
     final nextRound = newHistory.length + 1;
     return s.copyWith(
       history: newHistory,
@@ -578,6 +553,19 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     );
   }
 
+  /// Builds a [RoundRecord] from the current slot (selected game + result +
+  /// input + doubles + chooser), tagged with [roundNumber]. The two history-
+  /// committing branches of [deselectGame] differ only in that number.
+  RoundRecord _recordFromSlot(ActiveSession s, {required int roundNumber}) =>
+      RoundRecord(
+        roundNumber: roundNumber,
+        game: s.selectedGame!,
+        chooserId: s.chooserId,
+        scoresByPlayer: Map<String, int>.from(s.result!.scores),
+        input: s.input!,
+        doubles: s.doubles,
+      );
+
   /// Leaves the input slot.
   ///
   /// Four cases, in order:
@@ -594,13 +582,9 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
         cancelEditRound();
         return;
       }
-      final replacement = RoundRecord(
+      final replacement = _recordFromSlot(
+        s,
         roundNumber: s.history[editIndex].roundNumber,
-        game: s.selectedGame!,
-        chooserId: s.chooserId,
-        scoresByPlayer: Map<String, int>.from(s.result!.scores),
-        input: s.input!,
-        doubles: s.doubles,
       );
       final newHistory = [
         ...s.history.sublist(0, editIndex),
@@ -615,14 +599,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       // New round, completed: append and clear the pending stash.
       final appended = [
         ...s.history,
-        RoundRecord(
-          roundNumber: s.roundNumber,
-          game: s.selectedGame!,
-          chooserId: s.chooserId,
-          scoresByPlayer: Map<String, int>.from(s.result!.scores),
-          input: s.input!,
-          doubles: s.doubles,
-        ),
+        _recordFromSlot(s, roundNumber: s.roundNumber),
       ];
       state = _exitSlot(
         s,
@@ -649,13 +626,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// (via [restoreRound]), the history is left unchanged.
   void discardGame() {
     final s = _session;
-    final p = s.pending;
-    final clearPending =
-        p is ActivePendingRound && s.selectedGame?.id == p.game.id;
     state = _exitSlot(
       s,
       newHistory: s.history,
-      overridePending: clearPending ? const NoPendingRound() : null,
+      overridePending: s.hasPendingForSelectedGame
+          ? const NoPendingRound()
+          : null,
     );
   }
 
@@ -669,9 +645,14 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   }
 
   /// Deletes the last completed round from history, rolling dealer/round back.
-  void deleteLastRound() {
+  ///
+  /// [roundNumber] identifies the round the caller means to delete. If the last
+  /// round no longer matches it — e.g. another round was committed while the
+  /// delete-confirm dialog was open — this no-ops rather than silently deleting
+  /// a *different* round than the one the user confirmed.
+  void deleteLastRound(int roundNumber) {
     final s = _session;
-    if (s.history.isEmpty) return;
+    if (s.history.isEmpty || s.history.last.roundNumber != roundNumber) return;
     final newHistory = s.history.sublist(0, s.history.length - 1);
     state = _exitSlot(s, newHistory: newHistory, historyChanged: true);
   }
@@ -753,50 +734,48 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     final game = s.selectedGame;
     if (game == null) return;
 
-    if (s.inputState == InputState.complete) {
-      final result = game.calculateScores(
-        input: s.input!,
-        doubles: s.doubles,
-        players: s.players,
-      );
-      assert(
-        result.scores.values.fold(0, (a, b) => a + b) == game.totalPoints,
-        'Score sum mismatch for ${game.id}: '
-        'got ${result.scores.values.fold(0, (a, b) => a + b)}, '
-        'expected ${game.totalPoints}',
-      );
-      if (s.result == result && s.partialResult == null) return;
-      state = s.copyWith(result: result, clearPartialResult: true);
-    } else if (s.inputState == InputState.partial) {
-      final partial = game.calculateScores(
-        input: s.input!,
-        doubles: s.doubles,
-        players: s.players,
-      );
-      if (s.partialResult == partial && s.result == null) return;
-      state = s.copyWith(clearResult: true, partialResult: partial);
-    } else {
+    if (s.inputState == InputState.none) {
       if (s.result != null || s.partialResult != null) {
         state = s.copyWith(clearResult: true, clearPartialResult: true);
       }
+      return;
+    }
+
+    // Both the complete and partial branches score the same way; only which
+    // slot it lands in (and the complete-only sum assert) differs.
+    final score = game.calculateScores(
+      input: s.input!,
+      doubles: s.doubles,
+      players: s.players,
+    );
+    if (s.inputState == InputState.complete) {
+      assert(
+        score.scores.values.fold(0, (a, b) => a + b) == game.totalPoints,
+        'Score sum mismatch for ${game.id}: '
+        'got ${score.scores.values.fold(0, (a, b) => a + b)}, '
+        'expected ${game.totalPoints}',
+      );
+      if (s.result == score && s.partialResult == null) return;
+      state = s.copyWith(result: score, clearPartialResult: true);
+    } else {
+      if (s.partialResult == score && s.result == null) return;
+      state = s.copyWith(clearResult: true, partialResult: score);
     }
   }
 
   void reset() {
-    _autosaveTimer?.cancel();
-    _autosaveTimer = null;
-    _pendingSession = null;
+    _autosave.cancel();
     state = const NoSession();
   }
 
-  /// Cancels any pending debounced autosave without saving. Used before
-  /// intentional deletion so the timer cannot re-save the about-to-be-deleted
-  /// session after the pop.
-  void cancelPendingAutosave() {
-    _autosaveTimer?.cancel();
-    _autosaveTimer = null;
-    _pendingSession = null;
-  }
+  /// Cancels a pending debounced autosave **and awaits any already-in-flight
+  /// write** before returning, then drops the snapshot. Callers about to mutate
+  /// game history (delete, import-replace) must `await` this: a debounce timer
+  /// that already fired leaves a `saveGame` suspended mid-write, and without the
+  /// join it would resume *after* the delete and re-upsert the removed session
+  /// (the resurrection race). Awaiting forces save-then-delete ordering, so the
+  /// final state is correctly deleted.
+  Future<void> cancelPendingAutosave() => _autosave.cancelAndJoin();
 
   /// Starts a brand-new game session: resets all transient state, applies the
   /// given [players] and [dealerIndex], and assigns a fresh session ID.
@@ -806,7 +785,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     RuleVariants ruleVariants = const RuleVariants(),
     String? gameName,
   }) {
-    _flushPendingAutosaveForOutgoingSession();
+    _flushOutgoingSession();
     final now = DateTime.now();
     state = ActiveSession(
       sessionId: const Uuid().v4(),
@@ -815,7 +794,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       players: List<Player>.from(players),
       firstDealerId: players[dealerIndex].id,
       dealerId: players[dealerIndex].id,
-      chooserId: players[(dealerIndex + 1) % playerCount].id,
+      chooserId: players[chooserIndexFor(dealerIndex)].id,
       ruleVariants: ruleVariants,
       gameName: gameName,
     );
@@ -836,7 +815,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
         gameId: p.game.id,
         chooserId: s.chooserId,
         input: p.input,
-        doublesJson: p.doubles.hasAnyDouble ? p.doubles.toJson() : null,
+        doubles: p.doubles.hasAnyDouble ? p.doubles : null,
       );
     }
 
@@ -856,7 +835,7 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
 
   /// Restores a previously saved [GameSession] into the current state.
   void loadSession(GameSession session) {
-    _flushPendingAutosaveForOutgoingSession(incomingId: session.id);
+    _flushOutgoingSession(incomingId: session.id);
 
     final players = session.players;
     final initialDealerIdx = seatIndexOf(players, session.firstDealerId);
@@ -867,27 +846,26 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
     final nextRound = history.length + 1;
 
     PendingRoundState pendingState = const NoPendingRound();
-    String chooserId = players[(nextDealerIdx + 1) % playerCount].id;
+    String chooserId = players[chooserIndexFor(nextDealerIdx)].id;
     String dealerId = players[nextDealerIdx].id;
 
     final savedPending = session.pendingRound;
     if (savedPending != null) {
-      final matches = allGames.where((g) => g.id == savedPending.gameId);
-      if (matches.isNotEmpty) {
-        final pendingDoubles = savedPending.doublesJson != null
-            ? DoubleMatrix.fromJson(savedPending.doublesJson!)
-            : const DoubleMatrix();
-        pendingState = ActivePendingRound(
-          game: matches.first,
-          input: savedPending.input,
-          doubles: pendingDoubles,
-        );
-        chooserId = savedPending.chooserId;
-        // Derive dealer from chooser per game rules. chooserId is guaranteed
-        // in players by _validateReferences at load time.
-        final chooserIdx = seatIndexOf(players, savedPending.chooserId);
-        dealerId = players[dealerIndexFor(chooserIdx)].id;
-      }
+      // gameById throws on an unknown id — fail loud rather than silently
+      // dropping the stash to "no pending" (matches the error-throwing-lookup
+      // convention; on a real load the id is already validated by
+      // PendingRound.fromJson, so this is also a defensive consistency guard).
+      final pendingDoubles = savedPending.doubles ?? const DoubleMatrix();
+      pendingState = ActivePendingRound(
+        game: gameById(savedPending.gameId),
+        input: savedPending.input,
+        doubles: pendingDoubles,
+      );
+      chooserId = savedPending.chooserId;
+      // Derive dealer from chooser per game rules. chooserId is guaranteed
+      // in players by _validateReferences at load time.
+      final chooserIdx = seatIndexOf(players, savedPending.chooserId);
+      dealerId = players[dealerIndexFor(chooserIdx)].id;
     }
 
     state = ActiveSession(
@@ -930,6 +908,85 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       gameName: name,
       clearGameName: name == null,
       updatedAt: DateTime.now(),
+    );
+  }
+}
+
+/// Owns the debounced "snapshot → persist" autosave for [CalculatorNotifier]:
+/// the debounce timer, the latest pre-built snapshot, and the single in-flight
+/// write. Collapsing this into one object replaces the three hand-written flush
+/// copies the notifier used to carry, gives the snapshot a single owner, and —
+/// crucially — lets a delete/import await any in-flight write so it can't be
+/// overtaken (designs out the resurrection race).
+///
+/// Invariant: at most one write is "in flight" ([_inFlight]); the timer and the
+/// pending snapshot are only ever touched here, so the mutual exclusion the old
+/// `_autosaveTimer == null` guard relied on is structural rather than implicit.
+class _AutosaveCoordinator {
+  _AutosaveCoordinator(this._save);
+
+  /// Persists a snapshot. Supplied by the owner (wraps
+  /// `GameHistoryNotifier.saveGame`) so this coordinator stays free of Riverpod.
+  final Future<void> Function(GameSession session) _save;
+
+  /// Debounce window: coalesce bursts of mutations (counts stepper, chip taps)
+  /// into one SharedPreferences write instead of re-encoding on every keystroke.
+  static const _debounce = Duration(milliseconds: 400);
+
+  Timer? _timer;
+  GameSession? _pending;
+  Future<void>? _inFlight;
+
+  /// (Re)arms the debounce timer with the newest [snapshot].
+  void schedule(GameSession snapshot) {
+    _timer?.cancel();
+    _pending = snapshot;
+    _timer = Timer(_debounce, () {
+      final session = takePending();
+      if (session != null) _run(session);
+    });
+  }
+
+  /// Cancels the debounce timer and returns the not-yet-written snapshot (if
+  /// any), clearing it. Does **not** write — the caller decides how (onDispose
+  /// defers via microtask to dodge the Riverpod dispose-frame constraint).
+  GameSession? takePending() {
+    _timer?.cancel();
+    _timer = null;
+    final session = _pending;
+    _pending = null;
+    return session;
+  }
+
+  /// Writes the pending snapshot immediately (used when switching sessions).
+  /// No-op when nothing is pending.
+  void flush() {
+    final session = takePending();
+    if (session != null) _run(session);
+  }
+
+  /// Drops the pending snapshot and timer without writing (reset path).
+  void cancel() => takePending();
+
+  /// Cancels a pending autosave and awaits any already-in-flight write, so a
+  /// delete/replace that runs next removes whatever was just written rather
+  /// than being overtaken by it.
+  Future<void> cancelAndJoin() async {
+    takePending();
+    await _inFlight;
+  }
+
+  void _run(GameSession session) {
+    // Best-effort background write; in-memory state is intact and the next
+    // mutation re-triggers an autosave. Track the future so cancelAndJoin can
+    // await it; clear the handle when it settles unless a newer write replaced
+    // it.
+    final future = _save(session).catchError((_) {});
+    _inFlight = future;
+    unawaited(
+      future.whenComplete(() {
+        if (identical(_inFlight, future)) _inFlight = null;
+      }),
     );
   }
 }

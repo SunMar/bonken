@@ -4,35 +4,19 @@ import 'package:bonken/models/games/negative_games.dart';
 import 'package:bonken/models/games/positive_games.dart';
 import 'package:bonken/models/input_descriptor.dart';
 import 'package:bonken/models/mini_game.dart';
-import 'package:bonken/models/player.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '_double_matrix_helpers.dart';
+import '_scoring_helpers.dart';
 
 void main() {
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
+  final players = fourTestPlayers();
+  final pa = players[0];
+  final pb = players[1];
+  final pc = players[2];
+  final pd = players[3];
 
-  /// Asserts that all scores in [result] sum to [expectedTotal].
-  void expectTotal(Map<String, int> scores, int expectedTotal) {
-    final sum = scores.values.fold(0, (a, b) => a + b);
-    expect(
-      sum,
-      equals(expectedTotal),
-      reason:
-          'Score total $sum ≠ expected $expectedTotal\n'
-          'Scores: $scores',
-    );
-  }
-
-  final pa = Player(name: 'A');
-  final pb = Player(name: 'B');
-  final pc = Player(name: 'C');
-  final pd = Player(name: 'D');
-  final players = [pa, pb, pc, pd];
-
-  final noDoubles = DoubleMatrix.empty();
+  const noDoubles = DoubleMatrix();
 
   // ---------------------------------------------------------------------------
   // Catalog
@@ -143,7 +127,7 @@ void main() {
     // Tricks:  A=4, B=3, C=5, D=1
     // Expected: A=-30, B=-40, C=-150, D=+90
     test('spec doubles example: A=-30, B=-40, C=-150, D=+90', () {
-      final doubles = DoubleMatrix.empty()
+      final doubles = const DoubleMatrix()
           .withState(pa.id, pb.id, DoubleState.doubled) // A-B = x1
           .withState(pa.id, pc.id, DoubleState.redoubled) // A-C = x2
           // A-D = none (x0) — default

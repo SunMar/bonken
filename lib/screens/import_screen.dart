@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../state/backup_codec.dart';
 import '../state/export_import_notifier.dart';
 import '../state/platform_io_providers.dart';
 import '../utils.dart';
+import '../widgets/amber_warning_box.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/form_section_card.dart';
@@ -50,9 +52,8 @@ final class _Idle extends _ImportState {}
 final class _Analyzing extends _ImportState {}
 
 final class _Analyzed extends _ImportState {
-  _Analyzed(this.analysis, this.zipBytes);
-  final ImportAnalysis analysis;
-  final Uint8List zipBytes;
+  _Analyzed(this.backup);
+  final DecodedBackup backup;
 }
 
 final class _Applying extends _ImportState {}
@@ -76,6 +77,12 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   bool _importGames = false;
   bool _importSettings = false;
 
+  // Guards the confirm → apply lifecycle against re-entrancy: the "Importeer"
+  // button stays in the tree (state is still `_Analyzed`) while the confirm
+  // dialog is awaited, so without this a double-tap could open two dialogs /
+  // fire two commits. Mirrors ExportScreen's `_busy` gate.
+  bool _busy = false;
+
   Future<void> _pickFile() async {
     Uint8List? bytes;
     try {
@@ -95,12 +102,12 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     setState(() => _state = _Analyzing());
 
     try {
-      final analysis = await analyzeBackup(data);
+      final backup = await ref.read(decodeBackupProvider)(data);
       if (!mounted) return;
       setState(() {
-        _state = _Analyzed(analysis, data);
-        _importGames = analysis.canImportGames;
-        _importSettings = analysis.canImportSettings;
+        _state = _Analyzed(backup);
+        _importGames = backup.canImportGames;
+        _importSettings = backup.canImportSettings;
       });
     } on BackupTooNew {
       if (!mounted) return;
@@ -114,6 +121,8 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Future<void> _confirmAndApply(_Analyzed current) async {
+    if (_busy) return;
+    setState(() => _busy = true);
     final what = switch ((_importGames, _importSettings)) {
       (true, true) => 'spellen en instellingen',
       (true, false) => 'spellen',
@@ -129,21 +138,29 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       confirmLabel: 'Vervangen',
       destructive: true,
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      // Cancelled (or unmounted): release the guard so the user can retry.
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
     unawaited(_apply(current));
   }
 
   Future<void> _apply(_Analyzed current) async {
+    // Snapshot both selections symmetrically: the busy state replaces the
+    // checkbox UI, but capturing both makes the intent explicit and keeps the
+    // apply call and the result messaging consistent.
     final importGames = _importGames;
+    final importSettings = _importSettings;
     setState(() => _state = _Applying());
 
     try {
       final result = await ref
           .read(importNotifierProvider.notifier)
           .applyImport(
-            current.zipBytes,
+            current.backup,
             importGames: importGames,
-            importSettings: _importSettings,
+            importSettings: importSettings,
           );
       if (!mounted) return;
       showTimedSnackBar(
@@ -161,14 +178,19 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         contentText: partialImportMessage(
           e,
           importedGames: importGames,
-          importedSettings: _importSettings,
+          importedSettings: importSettings,
         ),
       );
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
     } on Object {
       if (!mounted) return;
-      setState(() => _state = current);
+      // Nothing committed: restore the analyzed view and release the guard so
+      // the user can adjust and retry.
+      setState(() {
+        _state = current;
+        _busy = false;
+      });
       _showError();
     }
   }
@@ -227,7 +249,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             const Icon(Symbols.download, size: 48),
             const SizedBox(height: 16),
             Text(
-              'Kies een backup-bestand om je speelgeschiedenis en '
+              'Kies een backupbestand om je spelgeschiedenis en '
               'instellingen te herstellen.',
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
@@ -249,30 +271,34 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Widget _buildAnalyzed(_Analyzed state) {
-    final analysis = state.analysis;
+    final backup = state.backup;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _BackupInfoCard(analysis: analysis),
+        _BackupInfoCard(backup: backup),
         const SizedBox(height: 12),
         _ImportOptionsCard(
-          analysis: analysis,
+          backup: backup,
           importGames: _importGames,
           importSettings: _importSettings,
-          onGamesChanged: analysis.canImportGames
+          onGamesChanged: backup.canImportGames
               ? (v) => setState(() => _importGames = v ?? false)
               : null,
-          onSettingsChanged: analysis.canImportSettings
+          onSettingsChanged: backup.canImportSettings
               ? (v) => setState(() => _importSettings = v ?? false)
               : null,
         ),
-        if (_importGames && analysis.gamesCount == 0) ...[
+        if (_importGames && backup.gamesCount == 0) ...[
           const SizedBox(height: 8),
-          const _ZeroGamesWarning(),
+          const AmberWarningBox(
+            text:
+                'De backup bevat geen spellen. Importeren verwijdert '
+                'je huidige spelgeschiedenis.',
+          ),
         ],
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: (_importGames || _importSettings)
+          onPressed: (!_busy && (_importGames || _importSettings))
               ? () => unawaited(_confirmAndApply(state))
               : null,
           icon: const Icon(Symbols.download),
@@ -294,9 +320,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 // ---------------------------------------------------------------------------
 
 class _BackupInfoCard extends StatelessWidget {
-  const _BackupInfoCard({required this.analysis});
+  const _BackupInfoCard({required this.backup});
 
-  final ImportAnalysis analysis;
+  final DecodedBackup backup;
 
   @override
   Widget build(BuildContext context) {
@@ -310,13 +336,13 @@ class _BackupInfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (analysis.appVersionThatCreatedIt.isNotEmpty)
+          if (backup.appVersionThatCreatedIt.isNotEmpty)
             Text(
-              'Gemaakt met versie ${analysis.appVersionThatCreatedIt}',
+              'Gemaakt met versie ${backup.appVersionThatCreatedIt}',
               style: subtitleStyle,
             ),
           Text(
-            'Geëxporteerd op ${formatDate(analysis.exportedAt)}',
+            'Geëxporteerd op ${formatDate(backup.exportedAt)}',
             style: subtitleStyle,
           ),
         ],
@@ -327,14 +353,14 @@ class _BackupInfoCard extends StatelessWidget {
 
 class _ImportOptionsCard extends StatelessWidget {
   const _ImportOptionsCard({
-    required this.analysis,
+    required this.backup,
     required this.importGames,
     required this.importSettings,
     required this.onGamesChanged,
     required this.onSettingsChanged,
   });
 
-  final ImportAnalysis analysis;
+  final DecodedBackup backup;
   final bool importGames;
   final bool importSettings;
   final ValueChanged<bool?>? onGamesChanged;
@@ -353,51 +379,21 @@ class _ImportOptionsCard extends StatelessWidget {
       childPadding: EdgeInsets.zero,
       child: Column(
         children: [
-          if (analysis.hasGames)
+          if (backup.hasGames)
             CheckboxListTile(
-              title: Text('Spellen (${analysis.gamesCount})'),
-              subtitle: _streamSubtitle(analysis.gamesStatus),
+              title: Text('Spellen (${backup.gamesCount})'),
+              subtitle: _streamSubtitle(backup.gamesStatus),
               value: importGames,
               onChanged: onGamesChanged,
             ),
-          if (analysis.hasSettings)
+          if (backup.hasSettings)
             CheckboxListTile(
               title: const Text('Instellingen'),
-              subtitle: _streamSubtitle(analysis.settingsStatus),
+              subtitle: _streamSubtitle(backup.settingsStatus),
               value: importSettings,
               onChanged: onSettingsChanged,
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _ZeroGamesWarning extends StatelessWidget {
-  const _ZeroGamesWarning();
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      color: cs.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(Symbols.warning, color: cs.onErrorContainer, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'De backup bevat geen spellen. Importeren verwijdert '
-                'je huidige spelgeschiedenis.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: cs.onErrorContainer),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

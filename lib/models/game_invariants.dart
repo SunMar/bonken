@@ -101,10 +101,18 @@ void assertGameInvariants(GameSession game) {
       );
     }
 
-    // Counts game: Σ input counts == game.total.
+    // Counts game: each count in 0..total, and Σ input counts == game.total.
     if (round.game is CountsMiniGame) {
       final cg = round.game as CountsMiniGame;
       final ci = round.input as CountsInput;
+      for (final count in ci.counts.values) {
+        if (count < 0 || count > cg.total) {
+          throw GameInvariantError(
+            'Game ${game.id} round $n (${cg.id}): count $count is out of '
+            'range 0..${cg.total}.',
+          );
+        }
+      }
       final countSum = ci.counts.values.fold<int>(0, (a, b) => a + b);
       if (countSum != cg.total) {
         throw GameInvariantError(

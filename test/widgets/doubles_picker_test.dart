@@ -1,6 +1,8 @@
 import 'package:bonken/models/double_matrix.dart';
+import 'package:bonken/theme/app_theme_extensions.dart';
 import 'package:bonken/widgets/doubles_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_test/flutter_test.dart';
 
 import '_helpers.dart';
@@ -13,7 +15,7 @@ void main() {
         DoublesPicker(
           players: players,
           chooserIndex: 1, // Bob chose → order: Carol → Dan → Alice → Bob
-          doubles: DoubleMatrix.empty(),
+          doubles: const DoubleMatrix(),
           onChanged: (_) {},
         ),
       );
@@ -28,7 +30,7 @@ void main() {
         DoublesPicker(
           players: players,
           chooserIndex: 0,
-          doubles: DoubleMatrix.empty(),
+          doubles: const DoubleMatrix(),
           onChanged: (_) {},
         ),
       );
@@ -47,7 +49,7 @@ void main() {
         DoublesPicker(
           players: players,
           chooserIndex: 3, // Dan chose → first to double = Alice
-          doubles: DoubleMatrix.empty(),
+          doubles: const DoubleMatrix(),
           onChanged: (m) => captured = m,
         ),
       );
@@ -72,7 +74,7 @@ void main() {
         // Dan(3) is at turnIndex 0; Carol(2) is at turnIndex 3.
         // Since target's turn comes AFTER initiator's, the cycle is
         // none → doubled → redoubled → none.
-        DoubleMatrix matrix = DoubleMatrix.empty();
+        DoubleMatrix matrix = const DoubleMatrix();
         await pumpHost(
           tester,
           StatefulBuilder(
@@ -111,7 +113,7 @@ void main() {
       tester,
     ) async {
       // chooser=0 (Alice). All 3 others doubled Alice with themselves as initiator.
-      DoubleMatrix matrix = DoubleMatrix.empty()
+      DoubleMatrix matrix = const DoubleMatrix()
           .withPair(
             playerIds[0],
             playerIds[1],
@@ -162,7 +164,7 @@ void main() {
       (tester) async {
         // chooser=0 (Alice). (0,1) already redoubled by 1; (0,2) and (0,3) only
         // doubled by 2 and 3.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[0],
               playerIds[1],
@@ -221,7 +223,7 @@ void main() {
     ) async {
       // chooser=0, initiator Bob(1). "Slappe hap" → Bob doubles Carol(2) and
       // Dan(3) but NOT Alice(0, the chooser).
-      DoubleMatrix matrix = DoubleMatrix.empty();
+      DoubleMatrix matrix = const DoubleMatrix();
       await pumpHost(
         tester,
         StatefulBuilder(
@@ -253,7 +255,7 @@ void main() {
         DoublesPicker(
           players: players,
           chooserIndex: 0,
-          doubles: DoubleMatrix.empty(),
+          doubles: const DoubleMatrix(),
           onChanged: (m) => captured = m,
         ),
       );
@@ -277,9 +279,57 @@ void main() {
     });
 
     testWidgets(
+      'forceable target tile reads disabled with a "Forceren" custom action',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpHost(
+          tester,
+          DoublesPicker(
+            players: players,
+            chooserIndex: 0, // Alice is the chooser.
+            doubles: const DoubleMatrix(),
+            onChanged: (_) {},
+          ),
+        );
+
+        // With no initiator selected, target rows are truly inert: presented to
+        // assistive tech as disabled, with no override hint.
+        expect(
+          tester.getSemantics(find.text('Bob').last),
+          isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hint: '',
+          ),
+        );
+
+        // Select the chooser → the Bob target becomes a dimmed-but-tappable
+        // override. Post-fix it is presented as *disabled* (matching its dimmed
+        // look, so WCAG contrast-exempt) but carries the 'Forceren' custom
+        // action + the override hint so a screen-reader user can still force it.
+        await tester.tap(find.text('Alice').first);
+        await tester.pump();
+
+        expect(
+          tester.getSemantics(find.text('Bob').last),
+          isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hint: 'Normaal niet toegestaan; activeer om te forceren',
+            customActions: const [CustomSemanticsAction(label: 'Forceren')],
+          ),
+        );
+
+        handle.dispose();
+      },
+    );
+
+    testWidgets(
       'chooser initiating can be forced via "Toch dubbelen"; re-tap clears it',
       (tester) async {
-        DoubleMatrix matrix = DoubleMatrix.empty();
+        DoubleMatrix matrix = const DoubleMatrix();
         await pumpHost(
           tester,
           StatefulBuilder(
@@ -315,7 +365,7 @@ void main() {
       (tester) async {
         // chooserIndex 3 → order Alice→Bob→Carol→Dan. Alice (turn 0) was
         // doubled by Bob (turn 1), so Alice's turn to go back has passed.
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[0],
           playerIds[1],
           DoubleState.doubled,
@@ -350,7 +400,7 @@ void main() {
     testWidgets('redouble after turn passed: cancel leaves it unchanged', (
       tester,
     ) async {
-      DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+      DoubleMatrix matrix = const DoubleMatrix().withPair(
         playerIds[0],
         playerIds[1],
         DoubleState.doubled,
@@ -379,7 +429,7 @@ void main() {
     testWidgets(
       'forced (turn-passed) redouble can be undone without a prompt',
       (tester) async {
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[0],
           playerIds[1],
           DoubleState.redoubled,
@@ -414,7 +464,7 @@ void main() {
       (tester) async {
         // chooserIndex 3 → order Alice→Bob→Carol→Dan. Alice (turn 0) doubled
         // Bob (turn 1); Bob's turn comes later, so Bob may still go back.
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[0],
           playerIds[1],
           DoubleState.doubled,
@@ -451,7 +501,7 @@ void main() {
         // chooser=0 (Alice) initiated a double on Bob (only possible via the
         // force override); Bob then redoubled. Undoing from the chooser side
         // clears the whole pair.
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[0],
           playerIds[1],
           DoubleState.redoubled,
@@ -483,7 +533,7 @@ void main() {
       (tester) async {
         // chooser=0, Bob(1) initiator. After Slappe hap, (1,2) and (1,3) are
         // doubled. Pressing it again should reset both to none.
-        DoubleMatrix matrix = DoubleMatrix.empty();
+        DoubleMatrix matrix = const DoubleMatrix();
         await pumpHost(
           tester,
           StatefulBuilder(
@@ -520,7 +570,7 @@ void main() {
         // (Carol & Dan); Carol then redoubled Bob. State: (1,2)=redoubled
         // initiator=Bob, (1,3)=doubled initiator=Bob. Slappe hap stays
         // filled, and re-press clears both pairs to none (input correction).
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[1],
               playerIds[2],
@@ -555,12 +605,67 @@ void main() {
     );
 
     testWidgets(
+      '"Slappe hap" re-press demotes a foreign-initiated redouble to doubled '
+      '(not none)',
+      (tester) async {
+        // chooser=0 (Alice). Initiator Dan(3) (turn after Bob, so he may go
+        // back). Bob(1) has already doubled Dan — a FOREIGN double on the
+        // Bob–Dan pair (initiator=Bob). Dan's Slappe hap escalates that pair to
+        // redoubled and doubles Carol(2); re-pressing must demote the Bob–Dan
+        // pair back to Bob's double — NOT wipe it (the bug was clearing to none).
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
+          playerIds[3],
+          playerIds[1],
+          DoubleState.doubled,
+          initiator: playerIds[1],
+        );
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 0,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Dan').first);
+        await tester.pump();
+
+        // First press: Dan doubles Carol and redoubles on Bob's double.
+        await tester.tap(find.text('Slappe hap'));
+        await tester.pump();
+        expect(
+          matrix.stateFor(playerIds[3], playerIds[1]),
+          DoubleState.redoubled,
+        );
+        expect(matrix.initiatorFor(playerIds[3], playerIds[1]), playerIds[1]);
+        expect(
+          matrix.stateFor(playerIds[3], playerIds[2]),
+          DoubleState.doubled,
+        );
+
+        // Re-press: only Dan's contributions are undone — Bob's double on Dan
+        // survives (demoted from redoubled to doubled), Dan's own double clears.
+        await tester.tap(find.text('Slappe hap'));
+        await tester.pump();
+        expect(
+          matrix.stateFor(playerIds[3], playerIds[1]),
+          DoubleState.doubled,
+        );
+        expect(matrix.initiatorFor(playerIds[3], playerIds[1]), playerIds[1]);
+        expect(matrix.stateFor(playerIds[3], playerIds[2]), DoubleState.none);
+      },
+    );
+
+    testWidgets(
       '"Slappe hap" from a partial state (chooser + 1 other doubled) transitions to Slappe hap',
       (tester) async {
         // chooser=2 (Carol), Bob(1) initiator. Bob has already doubled
         // chooser (1,2) and Alice (1,0). Pressing Slappe hap should
         // deselect the chooser pair and ensure Dan (1,3) is also doubled.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[1],
               playerIds[2],
@@ -608,7 +713,7 @@ void main() {
         // chooser=2, Bob(1) initiator. (1,2) is redoubled (Carol redoubled
         // Bob's double). Pressing Slappe hap should demote (1,2) to doubled
         // (initiator=Carol) and double the others.
-        DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[1],
           playerIds[2],
           DoubleState.redoubled,
@@ -649,7 +754,7 @@ void main() {
       tester,
     ) async {
       // chooser=2 (Carol). Bob(1) initiator → Zaal targets all 3 others.
-      DoubleMatrix matrix = DoubleMatrix.empty();
+      DoubleMatrix matrix = const DoubleMatrix();
       await pumpHost(
         tester,
         StatefulBuilder(
@@ -681,7 +786,7 @@ void main() {
       'when "Zaal" is applied, "Slappe hap" is outlined; pressing it clears the chooser pair',
       (tester) async {
         // chooser=2 (Carol). Bob(1) initiator. Apply Zaal → all 3 doubled.
-        DoubleMatrix matrix = DoubleMatrix.empty();
+        DoubleMatrix matrix = const DoubleMatrix();
         await pumpHost(
           tester,
           StatefulBuilder(
@@ -725,7 +830,7 @@ void main() {
       '"Zaal terug" re-press demotes redoubles back to doubled, preserving initiator',
       (tester) async {
         // chooser=0 (Alice). All 3 others doubled Alice.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[0],
               playerIds[1],
@@ -788,7 +893,7 @@ void main() {
         // chooser=0. Bob(1) initiator. Carol(2) doubled Bob — pair is
         // doubled, initiator=Carol. Bob hasn't acted on Carol yet, so
         // Slappe hap should be outlined (not filled).
-        final DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        final DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[1],
           playerIds[2],
           DoubleState.doubled,
@@ -818,7 +923,7 @@ void main() {
         // chooser=0. Bob(1) initiator. Carol(2) doubled Bob → Bob redoubled
         // Carol (state=redoubled, initiator=Carol). Bob doubled Dan(3).
         // Slappe hap targets {2,3} both show initiator-action → filled.
-        final DoubleMatrix matrix = DoubleMatrix.empty()
+        final DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[1],
               playerIds[2],
@@ -853,7 +958,7 @@ void main() {
         // and Dan redoubled Bob back. Button should still be filled because
         // the initiator acted on every pair. Re-press clears everything to
         // none (input correction).
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[1],
               playerIds[0],
@@ -898,7 +1003,7 @@ void main() {
       '"Terug op beide" — chooser doubled by exactly 2 → bulk redouble those two',
       (tester) async {
         // chooser=2 (Carol). Alice and Dan doubled Carol; Bob did not.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[2],
               playerIds[0],
@@ -971,7 +1076,7 @@ void main() {
       '"Terug op beide" outlined when only one of the two doublers has been redoubled',
       (tester) async {
         // chooser=2. Alice doubled; Dan doubled then Carol redoubled Dan.
-        final DoubleMatrix matrix = DoubleMatrix.empty()
+        final DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[2],
               playerIds[0],
@@ -1006,7 +1111,7 @@ void main() {
       'chooser doubled by only one player → Zaal button stays disabled',
       (tester) async {
         // chooser=2. Only Alice doubled Carol.
-        final DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+        final DoubleMatrix matrix = const DoubleMatrix().withPair(
           playerIds[2],
           playerIds[0],
           DoubleState.doubled,
@@ -1042,7 +1147,7 @@ void main() {
         // redoubled Bob → (1,2)=redoubled initiator=Bob. Pressing Slappe
         // hap should clear (1,2) entirely (Bob initiated the whole pair),
         // not just demote to doubled.
-        DoubleMatrix matrix = DoubleMatrix.empty()
+        DoubleMatrix matrix = const DoubleMatrix()
             .withPair(
               playerIds[1],
               playerIds[0],
@@ -1092,7 +1197,7 @@ void main() {
         'matches the surrounding tile rhythm', (tester) async {
       // chooser=2, Carol initiator with one doubled target → "Zaal"
       // and "Slappe hap" both rendered. Pick whichever button shows.
-      final DoubleMatrix matrix = DoubleMatrix.empty().withPair(
+      final DoubleMatrix matrix = const DoubleMatrix().withPair(
         playerIds[2],
         playerIds[0],
         DoubleState.doubled,
@@ -1133,5 +1238,202 @@ void main() {
         );
       }
     });
+
+    testWidgets(
+      'non-initiator target shows "is gedubbeld door" then "gaat terug op"',
+      (tester) async {
+        // Alice doubled Bob (Alice initiated). chooser = Dan(3): order is
+        // Alice→Bob→Carol→Dan, so Bob's turn (1) is after Alice's (0) → Bob may
+        // redouble.
+        DoubleMatrix matrix = const DoubleMatrix().withPair(
+          playerIds[0],
+          playerIds[1],
+          DoubleState.doubled,
+          initiator: playerIds[0],
+        );
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 3,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        // Select Bob (the doubled-upon side) → his Alice target reads the
+        // received-double direction label.
+        await tester.tap(find.text('Bob').first);
+        await tester.pump();
+        expect(find.text('is gedubbeld door'), findsOneWidget);
+        // Bob goes back on Alice → the label flips to the redouble direction.
+        await tester.tap(find.text('Alice').last);
+        await tester.pump();
+        expect(find.text('gaat terug op'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'initiator target shows "dubbelt" then adds "gaat terug" chips',
+      (tester) async {
+        // chooser = Carol(2): order Dan→Alice→Bob→Carol. Dan(turn 0) doubles
+        // Carol(turn 3, later) → may escalate to redoubled.
+        DoubleMatrix matrix = const DoubleMatrix();
+        await pumpHost(
+          tester,
+          StatefulBuilder(
+            builder: (ctx, setState) => DoublesPicker(
+              players: players,
+              chooserIndex: 2,
+              doubles: matrix,
+              onChanged: (m) => setState(() => matrix = m),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Dan').first);
+        await tester.pump();
+        await tester.tap(find.text('Carol').last);
+        await tester.pump();
+        expect(find.text('dubbelt'), findsOneWidget);
+        expect(find.text('gaat terug'), findsNothing);
+        // Redouble → the tile shows both the "dubbelt" and "gaat terug" chips.
+        await tester.tap(find.text('Carol').last);
+        await tester.pump();
+        expect(find.text('dubbelt'), findsOneWidget);
+        expect(find.text('gaat terug'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'initiator badge: count, doubled/redoubled tint, pluralised a11y label',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        late DoubleStateColors dc;
+        // Alice is in 2 pairs (one redoubled by Bob, one doubled on Carol).
+        final matrix = const DoubleMatrix()
+            .withPair(
+              playerIds[0],
+              playerIds[1],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[2],
+              DoubleState.doubled,
+              initiator: playerIds[0],
+            );
+        await pumpHost(
+          tester,
+          Builder(
+            builder: (ctx) {
+              dc = DoubleStateColors.of(ctx);
+              return DoublesPicker(
+                players: players,
+                chooserIndex: 3,
+                doubles: matrix,
+                onChanged: (_) {},
+              );
+            },
+          ),
+        );
+
+        // Alice is in 2 pairs → badge "2", with the redoubled tint (she has a
+        // redoubled pair). _involvedCount skips the self pair.
+        final aliceBadge = tester.widget<Badge>(
+          find.ancestor(of: find.text('2'), matching: find.byType(Badge)),
+        );
+        expect(aliceBadge.backgroundColor, dc.redoubledBackground);
+
+        // Both tints appear across the badges (Carol's pair is doubled-only).
+        final tints = tester
+            .widgetList<Badge>(find.byType(Badge))
+            .map((b) => b.backgroundColor)
+            .toSet();
+        expect(
+          tints,
+          containsAll(<Color?>[dc.doubledBackground, dc.redoubledBackground]),
+        );
+
+        // a11y label pluralises: Alice "2 dubbels"; the two count-1 players
+        // (Bob, Carol) each read "1 dubbel".
+        expect(
+          find.bySemanticsLabel(RegExp('betrokken bij 2 dubbels')),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(RegExp(r'betrokken bij 1 dubbel\b')),
+          findsNWidgets(2),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('targets are disabled before any initiator is selected', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpHost(
+        tester,
+        DoublesPicker(
+          players: players,
+          chooserIndex: 0,
+          doubles: const DoubleMatrix(),
+          onChanged: (_) {},
+        ),
+      );
+      // With nothing selected, every target row is inert — disabled to AT, so
+      // `_selected!` is never dereferenced without a selection.
+      expect(
+        tester.getSemantics(find.text('Bob').last),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      '"Zaal terug" stays outlined when only 2 of 3 doublers are redoubled',
+      (tester) async {
+        // chooser = Alice(0), doubled by all three others; two redoubled, one
+        // still only doubled → the bulk redouble is not yet fully applied.
+        final matrix = const DoubleMatrix()
+            .withPair(
+              playerIds[0],
+              playerIds[1],
+              DoubleState.redoubled,
+              initiator: playerIds[1],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[2],
+              DoubleState.redoubled,
+              initiator: playerIds[2],
+            )
+            .withPair(
+              playerIds[0],
+              playerIds[3],
+              DoubleState.doubled,
+              initiator: playerIds[3],
+            );
+        await pumpHost(
+          tester,
+          DoublesPicker(
+            players: players,
+            chooserIndex: 0,
+            doubles: matrix,
+            onChanged: (_) {},
+          ),
+        );
+        await tester.tap(find.text('Alice').first);
+        await tester.pump();
+        // 3 doublers → "Zaal terug" label; not all redoubled → outlined.
+        expect(
+          find.widgetWithText(OutlinedButton, 'Zaal terug'),
+          findsOneWidget,
+        );
+        expect(find.widgetWithText(FilledButton, 'Zaal terug'), findsNothing);
+      },
+    );
   });
 }

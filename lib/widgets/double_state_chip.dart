@@ -13,6 +13,7 @@ class DoubleStateChip extends StatelessWidget {
     required this.label,
     required this.background,
     required this.foreground,
+    this.semanticLabel,
     super.key,
   });
 
@@ -20,10 +21,15 @@ class DoubleStateChip extends StatelessWidget {
   final Color background;
   final Color foreground;
 
+  /// Spoken label for assistive tech, used when the visible [label] is a compact
+  /// glyph form (e.g. "A ×× B") that must not be read literally. Null → AT reads
+  /// the visible [label] as-is.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
     return Chip(
-      label: Text(label),
+      label: Text(label, semanticsLabel: semanticLabel),
       labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
         color: foreground,
         fontWeight: FontWeight.bold,

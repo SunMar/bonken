@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/double_matrix.dart';
-import '../models/mini_game.dart' show doublingTurnIndex;
+import '../models/game_mechanics.dart' show doublingTurnIndex;
 import '../models/player.dart';
 import '../theme/app_theme_extensions.dart';
 import 'double_state_chip.dart';
@@ -56,12 +56,27 @@ class DoublesChips extends StatelessWidget {
     final chips = <Widget>[];
     for (final (initiator, other, _, _) in active) {
       final state = doubles.stateFor(players[initiator].id, players[other].id);
-      final label = state == DoubleState.redoubled
-          ? '${players[initiator].name} ×× ${players[other].name}'
-          : '${players[initiator].name} × ${players[other].name}';
+      final initiatorName = players[initiator].name;
+      final otherName = players[other].name;
+      // Visible label stays the compact glyph form; the spoken label uses the
+      // app's own doubling terms (the picker legend: "dubbelt" / "gaat terug")
+      // so assistive tech never reads the bare "×"/"××" literally.
+      final (
+        String label,
+        String semanticLabel,
+      ) = state == DoubleState.redoubled
+          ? (
+              '$initiatorName ×× $otherName',
+              '$initiatorName dubbelt $otherName, $otherName gaat terug',
+            )
+          : (
+              '$initiatorName × $otherName',
+              '$initiatorName dubbelt $otherName',
+            );
       chips.add(
         DoubleStateChip(
           label: label,
+          semanticLabel: semanticLabel,
           background: dc.backgroundFor(state)!,
           foreground: dc.foregroundFor(state)!,
         ),
