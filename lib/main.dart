@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'models/hearts_variant.dart';
 import 'models/starter_variant.dart';
@@ -50,11 +51,8 @@ void main() async {
     settingsLoadError = (e, st);
   }
 
-  // Hardcoded false until the new store listings are live. To enable, derive
-  // this from PackageInfo.fromPlatform().packageName == 'com.suninet.bonken'
-  // (package_info_plus is already a dependency) so the legacy build routes to
-  // MigrationScreen.
-  const isLegacyApp = false;
+  final packageInfo = await PackageInfo.fromPlatform();
+  final isLegacyApp = packageInfo.packageName == 'com.suninet.bonken';
 
   runApp(
     ProviderScope(
@@ -82,7 +80,7 @@ void main() async {
             () => SettingsLoadErrorNotifier(initialError: settingsLoadError),
           ),
       ],
-      child: const BonkenApp(isLegacyApp: isLegacyApp),
+      child: BonkenApp(isLegacyApp: isLegacyApp),
     ),
   );
 

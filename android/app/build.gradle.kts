@@ -33,16 +33,7 @@ android {
         // The `legacy` flavor overrides this to com.suninet.bonken so both
         // listings can be built and published from the same repo.
         applicationId = "org.suninet.bonken"
-        // Optional suffix + label override for parallel-installable side
-        // builds (e.g. the `develop` branch APK).  Pass on the command
-        // line:  ./gradlew … -PappIdSuffix=.develop -PappLabel="Bonken (test versie)"
-        // When unset, the regular Play Store identity is used.
-        val appIdSuffix = (project.findProperty("appIdSuffix") as String?).orEmpty()
-        if (appIdSuffix.isNotEmpty()) {
-            applicationIdSuffix = appIdSuffix
-        }
-        manifestPlaceholders["appLabel"] =
-            (project.findProperty("appLabel") as String?) ?: "Bonken"
+        manifestPlaceholders["appLabel"] = "Bonken"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -56,10 +47,16 @@ android {
         create("legacy") {
             dimension = "edition"
             applicationId = "com.suninet.bonken"
+            manifestPlaceholders["appLabel"] = "Bonken (OUD)"
         }
         create("current") {
             dimension = "edition"
             // inherits org.suninet.bonken from defaultConfig
+        }
+        create("develop") {
+            dimension = "edition"
+            applicationIdSuffix = ".develop"
+            manifestPlaceholders["appLabel"] = "Bonken (test versie)"
         }
     }
 

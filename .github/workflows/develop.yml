@@ -1,7 +1,7 @@
 name: Develop
 
 # Builds a side-installable APK from the `develop` branch on every push.
-# The APK uses a different applicationId (com.suninet.bonken.develop) and
+# The APK uses a different applicationId (org.suninet.bonken.develop) and
 # a different launcher label, so it coexists on the device with the
 # Play Store install and can never be overwritten by it.
 #
@@ -64,16 +64,14 @@ jobs:
       - name: Build develop APK
         run: |
           GIT_COMMIT="$(git rev-parse --short HEAD)"
-          flutter build apk --release \
+          flutter build apk --flavor develop --release \
             --build-name=${{ steps.version.outputs.name }} \
             --build-number=${{ steps.version.outputs.code }} \
-            --dart-define=GIT_COMMIT="$GIT_COMMIT" \
-            -PappIdSuffix=.develop \
-            -PappLabel="Bonken (test versie)"
+            --dart-define=GIT_COMMIT="$GIT_COMMIT"
 
       - name: Rename APK
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk \
+          mv build/app/outputs/flutter-apk/app-develop-release.apk \
              "bonken-develop-${{ steps.version.outputs.name }}.apk"
 
       - name: Upload APK artifact

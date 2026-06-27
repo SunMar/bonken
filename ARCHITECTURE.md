@@ -756,8 +756,8 @@ End-to-end journeys, naming the methods that fire (great for tracing a change):
   id (`isLegacyApp`), the initial route is `MigrationScreen` instead of
   `HomeScreen` — a terminal "Bonken is verhuisd" screen (`PopScope(canPop:false)`)
   that links to the new listing and offers a one-off data export so the user can
-  re-import in the new app. `isLegacyApp` is hardcoded `false` until the new
-  listings are live.
+  re-import in the new app. `isLegacyApp` is derived at startup from
+  `PackageInfo.fromPlatform().packageName == 'com.suninet.bonken'`.
 
 ---
 
