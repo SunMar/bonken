@@ -1276,7 +1276,14 @@ AppBar buttons) can trigger navigation without importing `lib/screens`.
   `holdCalculatorAcrossNavigation(context)` (`calculator_keep_alive.dart`) before
   mutating the notifier and pushing — it holds the autoDispose provider alive
   across the load→navigate gap and releases itself after the next frame, once
-  `GameScreen` has subscribed. `_GameSelectionBody`
+  `GameScreen` has subscribed. Because that window is a single frame, both
+  callers push **synchronously** — no awaited I/O may sit between the keep-alive
+  and the navigation. `NewGameScreen` therefore persists the new game in the
+  *background* (after pushing) rather than awaiting `saveGame` first: on mobile a
+  `SharedPreferences` write is a platform-channel round-trip that can span
+  frames, which would otherwise drop the keep-alive before `GameScreen` mounts
+  and leave `activeSessionProvider`'s cast to throw on `NoSession` (a blank grey
+  screen). `_GameSelectionBody`
   separates unplayed and played games per category (negative / positive); played
   games are hidden by default and can be revealed via a per-category toggle in
   `_SectionHeader` — when visible they render disabled ("Spel al gespeeld") and

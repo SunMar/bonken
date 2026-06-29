@@ -1,8 +1,13 @@
+import 'dart:async';
+
+import 'package:bonken/models/game_session.dart';
 import 'package:bonken/models/hearts_variant.dart';
 import 'package:bonken/models/player.dart';
 import 'package:bonken/models/starter_variant.dart';
+import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
+import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/widgets/game_name_field.dart';
 import 'package:bonken/widgets/player_name_field.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +15,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../test_helpers.dart';
+
+/// History notifier whose [saveGame] blocks on a caller-controlled gate, so a
+/// test can hold the persist write "in flight" across rendered frames — the way
+/// a real `SharedPreferences` platform-channel write behaves on mobile.
+class _GatedSaveHistoryNotifier extends GameHistoryNotifier {
+  _GatedSaveHistoryNotifier(this._gate);
+
+  final Future<void> _gate;
+
+  @override
+  Future<List<GameSession>> build() async => [];
+
+  @override
+  Future<void> saveGame(GameSession session) => _gate;
+}
 
 /// Wraps [NewGameScreen] in MaterialApp + ProviderScope and pumps it.
 /// Returns the [ProviderContainer] so tests can inspect state.
@@ -489,4 +509,59 @@ void main() {
     expect(find.text('Invoer verwerpen'), findsNothing);
     expect(find.byType(NewGameScreen), findsNothing);
   });
+
+  testWidgets(
+    'Start reaches GameScreen even when the persist write spans frames '
+    '(regression: the one-frame keep-alive must not drop calculatorProvider '
+    'before GameScreen mounts — on mobile a SharedPreferences write is slow)',
+    (tester) async {
+      // Gate the persist write so it stays in flight across the frames below,
+      // mimicking a platform-channel write that resolves only after several
+      // vsyncs on a real device.
+      final gate = Completer<void>();
+      final container = ProviderContainer(
+        overrides: [
+          gameHistoryProvider.overrideWith(
+            () => _GatedSaveHistoryNotifier(gate.future),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: NewGameScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (int i = 0; i < 4; i++) {
+        await enterName(tester, i, ['Alice', 'Bob', 'Carol', 'Dan'][i]);
+      }
+      await tester.pumpAndSettle();
+      // Pick a real dealer so the random-dealer announcement dialog (incidental
+      // to this bug) doesn't sit in front of the navigation under test.
+      await pickDealer(tester, 'Alice');
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      // Pump several frames while the persist write is still gated — exactly the
+      // window where the one-frame keep-alive used to expire on mobile, leaving
+      // GameScreen to build against a disposed (NoSession) calculatorProvider.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      // Navigation happened up front, so GameScreen is mounted and rendered
+      // without the cast throwing — even though saveGame has not completed.
+      // (NewGameScreen is still animating out behind it; the pushReplacement
+      // transition is independent of the gated write.)
+      expect(find.byType(GameScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Release the gated write and drain the debounced autosave timer.
+      gate.complete();
+      await tester.pump(const Duration(milliseconds: 500));
+    },
+  );
 }

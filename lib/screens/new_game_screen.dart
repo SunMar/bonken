@@ -171,11 +171,21 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       if (!mounted) return;
     }
 
-    // Keep calculatorProvider alive across the load→navigate gap (the await
-    // saveGame() below yields to the microtask queue, where the autoDispose
-    // timer would otherwise dispose it before GameScreen builds). The keep-alive
-    // releases itself after the next frame, so the `!mounted` early-out needs no
-    // manual cleanup.
+    // Capture the history notifier before navigating: it is not autoDispose, so
+    // it outlives this screen, and the background saveGame() below stays valid
+    // after the route replacement tears NewGameScreen down.
+    final historyNotifier = ref.read(gameHistoryProvider.notifier);
+
+    // Keep calculatorProvider alive across the one-frame gap until GameScreen
+    // subscribes, then navigate *synchronously* — before any awaited I/O. The
+    // keep-alive window is a single frame, so awaiting saveGame() here would let
+    // the post-frame close drop the provider before GameScreen mounts: on mobile
+    // a SharedPreferences write is a platform-channel round-trip that can span
+    // frames, after which the cast in activeSessionProvider throws (blank grey
+    // screen). Persist in the background instead — startNewGame() already armed
+    // the debounced autosave; this just writes the brand-new game immediately
+    // too. The keep-alive releases itself after the next frame, so the earlier
+    // `!mounted` early-out needs no manual cleanup.
     holdCalculatorAcrossNavigation(context);
     final notifier = ref.read(calculatorProvider.notifier);
     notifier.startNewGame(
@@ -188,11 +198,8 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
       gameName: normalizeGameName(_nameController.text),
     );
     final session = notifier.buildSession();
-    if (session != null) {
-      await ref.read(gameHistoryProvider.notifier).saveGame(session);
-    }
-    if (!mounted) return;
     unawaited(AppRoutes.replaceWithGame(context));
+    if (session != null) unawaited(historyNotifier.saveGame(session));
   }
 
   @override
