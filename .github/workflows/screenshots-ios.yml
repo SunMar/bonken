@@ -11,7 +11,7 @@ permissions:
 jobs:
   screenshots:
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
