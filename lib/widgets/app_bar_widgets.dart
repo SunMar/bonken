@@ -245,8 +245,9 @@ class ThemeMenuButton extends ConsumerWidget {
             trailingIcon: value == mode
                 ? const Icon(Symbols.check, size: 16)
                 : null,
-            onPressed: () =>
-                ref.read(settingsProvider.notifier).setThemeMode(value),
+            onPressed: () => unawaited(
+              ref.read(settingsProvider.notifier).setThemeMode(value),
+            ),
             child: Text(label),
           ),
       ],

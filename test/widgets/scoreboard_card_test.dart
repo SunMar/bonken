@@ -205,6 +205,66 @@ void main() {
     );
 
     testWidgets(
+      'tappable card: a tap on the decorative title opens the card (regression)',
+      (tester) async {
+        // The title Text sits over the full-card InkWell. A glyph-bearing Text
+        // absorbs the hit, so unless the InkWell is its *ancestor* the tap is
+        // swallowed and the card never opens. Tap the title itself (not the safe
+        // chip/padding area, which masked this) to lock the behaviour in.
+        var taps = 0;
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 4,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            scoredAt: testDate,
+            gameName: 'Avondje bonken',
+            onTap: () => taps++,
+            tapSemanticLabel: 'Open spel',
+          ),
+        );
+
+        await tester.tap(find.text('Avondje bonken'));
+        expect(taps, 1, reason: 'tapping the title must open the card');
+      },
+    );
+
+    testWidgets(
+      'tappable card: the trailing button fires its own action, not the card',
+      (tester) async {
+        // The overlaid trailing button must win its own taps without also
+        // triggering the card's onTap — otherwise the Home delete button would
+        // open the game it is trying to delete.
+        var cardTaps = 0;
+        var deletes = 0;
+        await pumpHost(
+          tester,
+          ScoreboardCard(
+            roundsPlayed: 4,
+            playerNames: playerNames,
+            scores: const [0, 0, 0, 0],
+            winners: const [],
+            scoredAt: testDate,
+            gameName: 'Avondje bonken',
+            onTap: () => cardTaps++,
+            tapSemanticLabel: 'Open spel',
+            headerTrailing: IconButton(
+              icon: const Icon(Symbols.delete),
+              tooltip: 'Verwijderen',
+              onPressed: () => deletes++,
+            ),
+          ),
+        );
+
+        await tester.tap(find.byIcon(Symbols.delete));
+        expect(deletes, 1, reason: 'the trailing button handles its own tap');
+        expect(cardTaps, 0, reason: 'and does not also open the card');
+      },
+    );
+
+    testWidgets(
       'tappable card: headerTrailing action stays reachable to assistive tech',
       (tester) async {
         // Regression: when the card is tappable AND carries a trailing action

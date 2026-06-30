@@ -45,3 +45,24 @@ class CorruptPersistenceException extends PersistenceException
   @override
   String toString() => 'Stored data is corrupt and could not be read: $cause';
 }
+
+/// A local *write* to our own storage failed — e.g. the device is out of space.
+///
+/// Deliberately **not** part of the sealed [PersistenceException] load family:
+/// that domain means stored data is unreadable (→ error screen + reset). A write
+/// fault is the opposite — the in-memory data is intact, the device just can't
+/// accept the write right now, and it recovers once space is freed. So it is
+/// surfaced as the non-blocking save-error banner (`saveHealthyProvider`).
+///
+/// Thrown only by the import path (a deliberate, one-shot action that reports a
+/// clean failure); the incidental writes (autosave, settings, saves) just flag
+/// the banner and keep working from memory.
+class PersistenceWriteException implements Exception, HasCause {
+  const PersistenceWriteException(this.cause);
+
+  @override
+  final Object cause;
+
+  @override
+  String toString() => 'Could not write to local storage: $cause';
+}

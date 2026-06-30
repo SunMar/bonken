@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/hearts_variant.dart';
 import '../models/starter_variant.dart';
+import 'save_health_provider.dart';
 import 'settings_storage.dart';
+import 'storage_exceptions.dart';
 
 /// Single in-memory source of truth for the app settings blob.
 ///
@@ -45,13 +47,32 @@ class SettingsNotifier extends Notifier<PersistedSettings> {
       _update(state.copyWith(defaultHeartsVariant: variant));
 
   /// Atomically replaces the entire settings blob. Used by the import path so
-  /// all three fields commit in a single write rather than three.
-  Future<void> replaceAll(PersistedSettings settings) => _update(settings);
+  /// all three fields commit in a single write rather than three. Passes
+  /// `surfaceFault` so a failed import write reports cleanly (rather than only
+  /// flagging the banner like an incidental change).
+  Future<void> replaceAll(PersistedSettings settings) =>
+      _update(settings, surfaceFault: true);
 
-  Future<void> _update(PersistedSettings next) async {
-    // Persist first so a failed write leaves in-memory state consistent with
-    // storage — no optimistic update that a restart would silently revert.
-    await persistSettings(next);
+  /// Re-persists the current settings to retry after a write fault — e.g. the
+  /// app regained focus after the user freed up storage. A success clears the
+  /// save-error banner (`saveHealthyProvider`); a still-failing write keeps it.
+  Future<void> retryPersist() => _update(state);
+
+  Future<void> _update(
+    PersistedSettings next, {
+    bool surfaceFault = false,
+  }) async {
+    final health = ref.read(saveHealthyProvider.notifier);
+    try {
+      await persistSettings(next);
+      health.markOk();
+    } on PersistenceWriteException {
+      // Environmental write fault (e.g. full disk): apply the change in memory
+      // anyway and flag the sticky save-error banner — the setting isn't lost,
+      // it just isn't on disk yet, and a later successful write clears it.
+      health.markFailed();
+      if (surfaceFault) rethrow;
+    }
     state = next;
   }
 }

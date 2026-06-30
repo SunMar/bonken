@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:shared_preferences_platform_interface/types.dart';
 
 /// Deterministic UUID v4 values for test fixtures that need stable game IDs.
 /// All satisfy the UUID v4 invariants (version nibble = 4, variant = [89ab]).
@@ -16,6 +17,24 @@ const kGameId3 = '00000000-0000-4000-8000-000000000003';
 void setAsyncPrefs([Map<String, Object> data = const {}]) {
   SharedPreferencesAsyncPlatform.instance =
       InMemorySharedPreferencesAsync.withData(data);
+}
+
+/// Installs an async prefs backend whose **writes** throw (reads still work),
+/// to exercise the persistence-write-fault paths (full disk → save-error
+/// banner). Seed with [data] for the reads.
+void setAsyncPrefsWithFailingWrites([Map<String, Object> data = const {}]) {
+  SharedPreferencesAsyncPlatform.instance = _WriteFailingAsyncPrefs(data);
+}
+
+final class _WriteFailingAsyncPrefs extends InMemorySharedPreferencesAsync {
+  _WriteFailingAsyncPrefs(super.data) : super.withData();
+
+  @override
+  Future<bool> setString(
+    String key,
+    String value,
+    SharedPreferencesOptions options,
+  ) async => throw Exception('simulated write fault (full disk)');
 }
 
 /// Call at the top of a test group to reset the `SharedPreferencesAsync` store

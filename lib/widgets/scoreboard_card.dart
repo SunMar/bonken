@@ -111,10 +111,11 @@ class ScoreboardCard extends StatelessWidget {
     final tappable = onTap != null;
 
     // Decorative content (progress glyph, title/date, score chips) is excluded
-    // from semantics when the card is tappable — [tapSemanticLabel] already
-    // names the whole card, so this avoids double-announcing it. [headerTrailing]
-    // is deliberately kept OUT of this wrapper (see the Stack below) so it stays
-    // individually reachable.
+    // from semantics when the card is tappable: [tapSemanticLabel] already names
+    // the whole card, so this avoids double-announcing it. Pointer events need no
+    // special handling — the [InkWell] below *wraps* this content (it is an
+    // ancestor, not a sibling behind it), so a tap on any part of it, including
+    // the glyph-bearing title [Text], is already in the InkWell's hit path.
     Widget decorative(Widget child) =>
         tappable ? ExcludeSemantics(child: child) : child;
 
@@ -180,28 +181,22 @@ class ScoreboardCard extends StatelessWidget {
       margin: margin,
       child: !tappable
           ? body
-          // The card opens on tap, announced as one openable button. The
-          // InkWell sits *behind* [body] (full-card ripple + tap); the
-          // decorative content above is ExcludeSemantics'd and lets taps fall
-          // through to it, while [headerTrailing] — a sibling on top, outside
-          // both the MergeSemantics and the ExcludeSemantics — stays
-          // individually reachable to assistive tech AND wins its own taps.
-          : Stack(
-              children: [
-                Positioned.fill(
-                  child: MergeSemantics(
-                    child: Semantics(
-                      button: true,
-                      label: tapSemanticLabel,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: onTap,
-                      ),
-                    ),
-                  ),
-                ),
-                body,
-              ],
+          // The whole card is one openable button. The [InkWell] *wraps* the
+          // [body], so it is an ancestor of every part of it: a tap anywhere —
+          // including on the title text, which would otherwise absorb the hit —
+          // is already in the InkWell's hit path. Decorative content is
+          // ExcludeSemantics'd so only [tapSemanticLabel] is announced;
+          // [headerTrailing]'s own button(s) sit inline and win their own taps
+          // (an inner button beats the surrounding InkWell in the gesture arena),
+          // staying separately reachable to assistive tech.
+          : Semantics(
+              button: true,
+              label: tapSemanticLabel,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onTap,
+                child: body,
+              ),
             ),
     );
   }

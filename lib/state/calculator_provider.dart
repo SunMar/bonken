@@ -410,6 +410,10 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
       // _throwIfInvalidUsage().
       final session = _autosave.takePending();
       if (session == null) return;
+      // The .catchError tolerates the container being torn down before the
+      // deferred write runs (app shutdown): `saveGame`'s `state =` on a disposed
+      // GameHistoryNotifier would otherwise throw an uncaught error during
+      // teardown. A normal flush (container still alive) writes as usual.
       unawaited(
         Future.microtask(
           () => historyNotifier.saveGame(session),
@@ -777,6 +781,12 @@ class CalculatorNotifier extends Notifier<CalculatorState> {
   /// final state is correctly deleted.
   Future<void> cancelPendingAutosave() => _autosave.cancelAndJoin();
 
+  /// Writes any pending debounced autosave **immediately**, instead of waiting
+  /// out the 400ms window. Called when the app leaves the foreground so an OS
+  /// kill while backgrounded can't drop edits still sitting in the debounce
+  /// (the in-flight write itself is atomic). No-op when nothing is pending.
+  void flushPendingAutosave() => _autosave.flush();
+
   /// Starts a brand-new game session: resets all transient state, applies the
   /// given [players] and [dealerIndex], and assigns a fresh session ID.
   void startNewGame({
@@ -977,10 +987,13 @@ class _AutosaveCoordinator {
   }
 
   void _run(GameSession session) {
-    // Best-effort background write; in-memory state is intact and the next
-    // mutation re-triggers an autosave. Track the future so cancelAndJoin can
-    // await it; clear the handle when it settles unless a newer write replaced
-    // it.
+    // The .catchError is load-bearing, not a careless swallow: [_inFlight] is
+    // awaited by [cancelAndJoin] on the delete/import paths, so a failed
+    // autosave's error must be contained here or `await _inFlight` would rethrow
+    // it inside that unrelated operation. Dropping the write itself is safe —
+    // in-memory state is intact and the next mutation re-triggers an autosave.
+    // Track the future so cancelAndJoin can await it; clear the handle when it
+    // settles unless a newer write replaced it.
     final future = _save(session).catchError((_) {});
     _inFlight = future;
     unawaited(

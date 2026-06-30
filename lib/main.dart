@@ -19,24 +19,18 @@ import 'state/settings_provider.dart';
 import 'state/settings_storage.dart';
 import 'state/theme_mode_provider.dart';
 import 'theme/app_theme.dart';
+import 'widgets/persistence_lifecycle.dart';
 
 /// Package id of the now-retired app. A build reporting this id is the legacy
 /// app and is routed to [MigrationScreen] instead of [HomeScreen] (see §8).
 const legacyPackageName = 'com.suninet.bonken';
 
 void main() {
-  // Run the whole bootstrap inside a guarded zone so an uncaught async error
-  // during startup degrades quietly (§2 "graceful release") instead of taking
-  // the process down. The binding is initialized *inside* the zone (next to
-  // `runApp`) so framework callbacks run in the same zone — the standard
-  // `runZonedGuarded` + Flutter pairing. The zone body is synchronous (it just
-  // kicks off `_bootstrap`) so nothing is awaited at the top level.
-  runZonedGuarded(() => unawaited(_bootstrap()), _reportUncaughtError);
+  unawaited(_bootstrap());
 }
 
 Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
-  _installGlobalErrorNet();
 
   // Fonts (Roboto for text, Arimo for the suit glyphs) are bundled as
   // local assets under assets/google_fonts/<version>/ and loaded via the
@@ -110,7 +104,9 @@ Future<void> _bootstrap() async {
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: BonkenApp(isLegacyApp: isLegacyApp),
+      child: PersistenceLifecycleSync(
+        child: BonkenApp(isLegacyApp: isLegacyApp),
+      ),
     ),
   );
 
@@ -146,22 +142,6 @@ Future<bool> migrateLegacyPrefs() async {
     debugPrint('SharedPreferences async migration failed: $e\n$st');
     return false;
   }
-}
-
-/// Installs the framework + platform-dispatcher error handlers that, together
-/// with the [runZonedGuarded] in [main], form the global error net. Keeps the
-/// in-dev red error box (via `presentError`) while ensuring uncaught async
-/// errors in release are logged and swallowed rather than crashing the app.
-void _installGlobalErrorNet() {
-  FlutterError.onError = FlutterError.presentError;
-  PlatformDispatcher.instance.onError = (error, stack) {
-    _reportUncaughtError(error, stack);
-    return true;
-  };
-}
-
-void _reportUncaughtError(Object error, StackTrace stack) {
-  debugPrint('Uncaught error: $error\n$stack');
 }
 
 class BonkenApp extends ConsumerWidget {

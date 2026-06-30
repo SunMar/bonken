@@ -3,10 +3,14 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:bonken/main.dart' as app;
+import 'package:bonken/models/app_version.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
+import 'package:bonken/state/backup_codec.dart';
+import 'package:bonken/state/export_import_notifier.dart';
 import 'package:bonken/widgets/game_input/game_input_form.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,14 +71,71 @@ Future<void> _tapBack(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+// Boots the real app and waits until its [MaterialApp] is mounted.
+//
+// `app.main()` kicks off an *unawaited* async bootstrap (`_bootstrap`) that
+// awaits the legacy→async prefs migration, the settings load and the package
+// info before it calls `runApp`. So immediately after `main()` there is a window
+// in which no frame is scheduled yet and a bare `pumpAndSettle()` returns on an
+// empty tree — the first session reliably loses this race on a cold device,
+// leaving [_seedGames] with no MaterialApp to read the container from. Pump
+// until the app root has actually mounted before anyone touches the tree.
+Future<void> _bootApp(WidgetTester tester) async {
+  app.main();
+  final deadline = DateTime.now().add(const Duration(seconds: 30));
+  while (find.byType(MaterialApp).evaluate().isEmpty) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw Exception('App did not boot (no MaterialApp mounted) within 30s');
+    }
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  await tester.pumpAndSettle();
+}
+
+// Seeds game history by importing [gamesFixture] through the app's real import
+// pipeline — the same path a user restoring a backup hits. The fixture JSON is
+// encoded to a backup ZIP and run back through [BackupCodec.decode] (so the
+// storage migrations execute: a fixture written at an older `version` is brought
+// up to the current schema) and [ImportNotifier.applyImport] (which cancels any
+// pending autosave before replacing history).
+//
+// Importing into the *live app's* container sets the in-memory state directly,
+// so — unlike writing SharedPreferences before `main()` — it is immune to
+// DataStore read caching and to the legacy→async migration racing the first boot
+// read (both of which can leave the home screen showing stale or empty data).
+Future<void> _seedGames(
+  WidgetTester tester,
+  Map<String, dynamic> gamesFixture,
+) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(MaterialApp)),
+    listen: false,
+  );
+  final zip = BackupCodec.encode(
+    appVersion: const AppVersion(version: '1.0.0', buildNumber: '1'),
+    gamesJson: jsonEncode(gamesFixture),
+  );
+  await container
+      .read(importNotifierProvider.notifier)
+      .applyImport(
+        await BackupCodec.decode(zip),
+        importGames: true,
+        importSettings: false,
+      );
+  await tester.pumpAndSettle();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    // Start every session from an empty store so the app boots to an empty home
+    // screen; each test then seeds its games through the import pipeline (see
+    // [_seedGames]). Clearing the async backend (DataStore on Android) also drops
+    // the previous session's imported games and the legacy→async migration flag.
+    await SharedPreferencesAsync().clear();
   });
 
   // ==========================================================================
@@ -83,10 +144,8 @@ void main() {
   testWidgets(
     'session A: home, new game, final score',
     (tester) async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('game_history', jsonEncode(sessionAFixture));
-      app.main();
-      await tester.pumpAndSettle();
+      await _bootApp(tester);
+      await _seedGames(tester, sessionAFixture);
 
       // Screenshot 1: home screen (game B in-progress at top, game A finished below)
       await _screenshot(tester, '01_home');
@@ -132,10 +191,8 @@ void main() {
   testWidgets(
     'session B: round inputs and rules',
     (tester) async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('game_history', jsonEncode(sessionBFixture));
-      app.main();
-      await tester.pumpAndSettle();
+      await _bootApp(tester);
+      await _seedGames(tester, sessionBFixture);
 
       // ----- Screenshot 3: minigame selection (game screen for game C) ----------
       await tester.tap(find.text('Avondje bonken'));

@@ -28,7 +28,7 @@ const _players = [
 
 const _ruleVariants = {
   "starterVariant": "dealerStarts",
-  "heartsVariant": "anytime",
+  "heartsVariant": "onlyAfterPlayedHeart",
 };
 
 // Twelve completed rounds for game A, one of each mini-game (8 negative + 4

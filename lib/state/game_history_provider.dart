@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/game_constraints.dart';
 import '../models/game_session.dart';
 import 'migrations.dart';
+import 'save_health_provider.dart';
 import 'storage_exceptions.dart';
 import 'validation.dart';
 
@@ -108,7 +109,7 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
   Future<void> replaceAll(List<GameSession> sessions) async {
     final sorted = List<GameSession>.from(sessions)..sort(_byScoredAtThenId);
     state = AsyncValue.data(sorted);
-    await _persist(sorted);
+    await _persist(sorted, surfaceFault: true);
   }
 
   Future<void> deleteGame(String id) async {
@@ -118,15 +119,35 @@ class GameHistoryNotifier extends AsyncNotifier<List<GameSession>> {
     await _persist(updated);
   }
 
-  Future<void> _persist(List<GameSession> sessions) async {
-    final prefs = SharedPreferencesAsync();
-    await prefs.setString(
-      storageKey,
-      jsonEncode({
-        'version': currentStorageVersion,
-        'games': [for (final s in sessions) s.toJson()],
-      }),
-    );
+  /// Re-persists the in-memory history to retry after a write fault — e.g. the
+  /// app regained focus after the user freed up storage. A success clears the
+  /// save-error banner (`saveHealthyProvider`); a still-failing write keeps it.
+  /// No-op while history is loading or in an error state.
+  Future<void> retryPersist() async {
+    if (state.hasValue) await _persist(state.requireValue);
+  }
+
+  Future<void> _persist(
+    List<GameSession> sessions, {
+    bool surfaceFault = false,
+  }) async {
+    // Encode before the write so a `toJson` bug surfaces as the bug it is,
+    // instead of being mistaken for a storage fault.
+    final json = jsonEncode({
+      'version': currentStorageVersion,
+      'games': [for (final s in sessions) s.toJson()],
+    });
+    final health = ref.read(saveHealthyProvider.notifier);
+    try {
+      await SharedPreferencesAsync().setString(storageKey, json);
+      health.markOk();
+    } on Exception catch (e) {
+      // Environmental write fault (e.g. full disk): in-memory state is intact,
+      // so flag the sticky save-error banner and keep working. Only [replaceAll]
+      // (the import path) surfaces it, so a deliberate import reports cleanly.
+      health.markFailed();
+      if (surfaceFault) throw PersistenceWriteException(e);
+    }
   }
 }
 

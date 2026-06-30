@@ -137,11 +137,13 @@ Future<PersistedSettings> loadPersistedSettings() async {
 /// on-disk copy (closes the stale-blob-merge hazard). A multi-field change —
 /// notably an import — is therefore one atomic write.
 Future<void> persistSettings(PersistedSettings settings) async {
-  final prefs = SharedPreferencesAsync();
-  await prefs.setString(
-    settingsStorageKey,
-    jsonEncode(settingsToJson(settings)),
-  );
+  // Encode first so a serialisation bug surfaces as a bug, not a storage fault.
+  final json = jsonEncode(settingsToJson(settings));
+  try {
+    await SharedPreferencesAsync().setString(settingsStorageKey, json);
+  } on Exception catch (e) {
+    throw PersistenceWriteException(e);
+  }
 }
 
 /// Removes the [settingsStorageKey] and any still-present legacy flat keys.
