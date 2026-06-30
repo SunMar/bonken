@@ -56,8 +56,11 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
 
   late StarterVariant _starterVariant;
   late HeartsVariant _heartsVariant;
-  // Listenable that fires on any controller text change — drives the
-  // [ListenableBuilder] that keeps [PopScope.canPop] in sync with [_hasInput].
+  // Listenable that fires on any controller text change. The outer
+  // [ListenableBuilder] keeps [PopScope.canPop] in sync with [_hasInput]; the
+  // scoped inner ones rebuild only the text-dependent pieces (player list,
+  // dealer dropdown labels, Start-button enabled-state) so a keystroke doesn't
+  // rebuild the whole screen — mirrors [EditGameScreen].
   late final Listenable _formChanges;
 
   @override
@@ -69,13 +72,10 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     // resumed) session live in the calculator provider, but surfacing them
     // here is confusing — the user reached this screen by pressing
     // "Nieuw spel", which should mean a clean slate.
-    _fields = List.generate(playerCount, (_) {
-      final controller = TextEditingController();
-      // Rebuild on every keystroke so the duplicate warning, dropdown
-      // labels, and Start-button enabled-state stay in sync.
-      controller.addListener(_onAnyChange);
-      return (controller: controller, focusNode: FocusNode());
-    });
+    _fields = List.generate(
+      playerCount,
+      (_) => (controller: TextEditingController(), focusNode: FocusNode()),
+    );
     _nameController = TextEditingController();
     _formChanges = Listenable.merge([
       for (final f in _fields) f.controller,
@@ -93,17 +93,11 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
   @override
   void dispose() {
     for (final f in _fields) {
-      f.controller
-        ..removeListener(_onAnyChange)
-        ..dispose();
+      f.controller.dispose();
       f.focusNode.dispose();
     }
     _nameController.dispose();
     super.dispose();
-  }
-
-  void _onAnyChange() {
-    if (mounted) setState(() {});
   }
 
   /// True when any field has been touched — used to decide whether closing
@@ -207,8 +201,6 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
     // Derived provider: rebuilds when history changes (including its first
     // load), so suggestions stay current.
     final suggestions = ref.watch(playerNameSuggestionsProvider);
-    final trimmedNames = [for (final c in _controllers) c.text.trim()];
-    final canStart = playerNamesInvalidReason(trimmedNames) == null;
 
     return ListenableBuilder(
       listenable: _formChanges,
@@ -228,11 +220,18 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
             onPressed: _confirmAndCancel,
           ),
         ),
-        bottomBar: FullWidthBottomBarButton(
-          icon: const Icon(Symbols.play_arrow),
-          label: const Text('Start spel'),
-          onPressed: canStart ? _handleStart : null,
-          onDisabledTap: _showStartValidationSnackbar,
+        bottomBar: ListenableBuilder(
+          listenable: _formChanges,
+          builder: (context, _) {
+            final trimmedNames = [for (final c in _controllers) c.text.trim()];
+            final canStart = playerNamesInvalidReason(trimmedNames) == null;
+            return FullWidthBottomBarButton(
+              icon: const Icon(Symbols.play_arrow),
+              label: const Text('Start spel'),
+              onPressed: canStart ? _handleStart : null,
+              onDisabledTap: _showStartValidationSnackbar,
+            );
+          },
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
@@ -240,12 +239,15 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
             FormSectionCard(
               title: kPlayersSectionTitle,
               subtitle: kPlayersSectionSubtitle,
-              child: PlayerListField(
-                controllers: _controllers,
-                focusNodes: _focusNodes,
-                suggestions: suggestions,
-                onReorderItem: _handleReorder,
-                onSubmitted: _handleFieldSubmitted,
+              child: ListenableBuilder(
+                listenable: _formChanges,
+                builder: (context, _) => PlayerListField(
+                  controllers: _controllers,
+                  focusNodes: _focusNodes,
+                  suggestions: suggestions,
+                  onReorderItem: _handleReorder,
+                  onSubmitted: _handleFieldSubmitted,
+                ),
               ),
             ),
 
@@ -254,11 +256,14 @@ class _NewGameScreenState extends ConsumerState<NewGameScreen> {
             FormSectionCard(
               title: kDealerSectionTitle,
               subtitle: kDealerSectionSubtitle,
-              child: DealerDropdownField(
-                controllers: _controllers,
-                value: _dealerIndex,
-                allowRandomDealer: true,
-                onChanged: (v) => setState(() => _dealerIndex = v),
+              child: ListenableBuilder(
+                listenable: _formChanges,
+                builder: (context, _) => DealerDropdownField(
+                  controllers: _controllers,
+                  value: _dealerIndex,
+                  allowRandomDealer: true,
+                  onChanged: (v) => setState(() => _dealerIndex = v),
+                ),
               ),
             ),
 
