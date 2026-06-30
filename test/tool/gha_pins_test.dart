@@ -105,6 +105,39 @@ jobs:
     });
   });
 
+  group('highestMajorBranch', () {
+    test('picks the highest bare vN branch', () {
+      expect(
+        highestMajorBranch([
+          'refs/heads/v1',
+          'refs/heads/v2',
+          'refs/heads/main',
+        ]),
+        2,
+      );
+    });
+
+    test('ignores tags, dotted branches, and non-version branches', () {
+      expect(
+        highestMajorBranch([
+          'refs/tags/v6', // a tag, not a branch
+          'refs/heads/v1.2', // dotted
+          'refs/heads/validate', // starts with v but not vN
+          'refs/heads/v1',
+        ]),
+        1,
+      );
+    });
+
+    test('returns null when no bare vN branch is present', () {
+      expect(highestMajorBranch(['refs/tags/v6', 'refs/heads/main']), isNull);
+    });
+
+    test('returns null for an empty list', () {
+      expect(highestMajorBranch(const []), isNull);
+    });
+  });
+
   group('parseNextLink', () {
     test('extracts the rel="next" url from a multi-rel header', () {
       const header =

@@ -1,13 +1,14 @@
 // Pure parsing/rewriting logic for tool/update_gha.dart, extracted so it can be
 // unit-tested without any network or file I/O.
 //
-// GitHub Actions in .github/**.yml are pinned either to a *major* tag
-// (`uses: actions/checkout@v6`) or to a *specific version* tag
-// (`uses: google/osv-scanner-action/osv-scanner-action@v2.3.8` — some actions,
-// like OSV, never publish a moving `vN`). These helpers locate such pins
-// (including subdirectory actions), pick the highest matching tag from the
-// GitHub API's ref list, follow the API's paginated `Link` header, and rewrite
-// a pin to a newer tag.
+// GitHub Actions in .github/**.yml are pinned either to a *major* ref — usually a
+// `vN` tag (`uses: actions/checkout@v6`), but for an action that ships its moving
+// major as a branch (`uses: ruby/setup-ruby@v1`, which has no `vN` tags) a `vN`
+// branch — or to a *specific version* tag (`uses: google/osv-scanner-action/
+// osv-scanner-action@v2.3.8` — some actions, like OSV, never publish a moving
+// `vN`). These helpers locate such pins (including subdirectory actions), pick the
+// highest matching ref from the GitHub API's ref list, follow the API's paginated
+// `Link` header, and rewrite a pin to a newer ref.
 
 import 'semver.dart';
 
@@ -27,7 +28,11 @@ final RegExp _usesRe = RegExp(
 );
 
 /// Matches a major-version tag ref like `refs/tags/v6` (no dots after the digit).
-final RegExp _majorRefRe = RegExp(r'^refs/tags/v(\d+)$');
+final RegExp _majorTagRefRe = RegExp(r'^refs/tags/v(\d+)$');
+
+/// Matches a major-version *branch* ref like `refs/heads/v1` (no dots) — some
+/// actions (e.g. ruby/setup-ruby) ship their moving major as a branch, not a tag.
+final RegExp _majorBranchRefRe = RegExp(r'^refs/heads/v(\d+)$');
 
 /// Matches a specific-version tag ref like `refs/tags/v2.3.8` (captures the bare
 /// `2.3.8`). Bare major tags (`refs/tags/v2`) and pre-releases do not match.
@@ -43,19 +48,31 @@ List<ActionPin> parseActionPins(String content) => [
 /// to a specific version like `v2.3.8`.
 bool isMajorRef(String ref) => !ref.contains('.');
 
-/// Returns the highest major version among [refNames] that are bare `vN` tags
-/// (`refs/tags/v6`), or null when none qualify. Dotted tags (`refs/tags/v6.1.0`)
-/// and non-version tags are ignored.
-int? highestMajorTag(Iterable<String> refNames) {
+/// Returns the highest major version among [refNames] matching [re] (which
+/// captures the major number as group 1), or null when none qualify.
+int? _highestMajor(Iterable<String> refNames, RegExp re) {
   int? highest;
   for (final name in refNames) {
-    final m = _majorRefRe.firstMatch(name);
+    final m = re.firstMatch(name);
     if (m == null) continue;
     final n = int.parse(m.group(1)!);
     if (highest == null || n > highest) highest = n;
   }
   return highest;
 }
+
+/// Returns the highest major version among [refNames] that are bare `vN` tags
+/// (`refs/tags/v6`), or null when none qualify. Dotted tags (`refs/tags/v6.1.0`)
+/// and non-version tags are ignored.
+int? highestMajorTag(Iterable<String> refNames) =>
+    _highestMajor(refNames, _majorTagRefRe);
+
+/// Returns the highest major version among [refNames] that are bare `vN`
+/// branches (`refs/heads/v1`), or null when none qualify. The branch-based
+/// counterpart of [highestMajorTag], used when an action tracks its moving major
+/// via a branch (ruby/setup-ruby's `v1`) rather than a tag.
+int? highestMajorBranch(Iterable<String> refNames) =>
+    _highestMajor(refNames, _majorBranchRefRe);
 
 /// Returns the highest specific `vX.Y[.Z]` version among [refNames] as the bare
 /// semver string (`2.3.8`), or null when none match. Compared with [isNewer], so
@@ -98,7 +115,7 @@ String applyPinBump(String content, String path, String newRef) {
   return content.replaceAllMapped(re, (m) => '${m.group(1)}@$newRef');
 }
 
-/// Matches a pinned Ubuntu runner like `runs-on: ubuntu-24.04` (captures the
+/// Matches a pinned Ubuntu runner like `runs-on: ubuntu-XX.YY` (captures the
 /// `(major, minor)`). `ubuntu-latest` and non-Ubuntu runners do not match.
 final RegExp _ubuntuRunnerRe = RegExp(r'runs-on:\s*ubuntu-(\d+)\.(\d+)');
 
@@ -110,9 +127,7 @@ Set<(int, int)> parseUbuntuRunners(String content) => {
     (int.parse(m.group(1)!), int.parse(m.group(2)!)),
 };
 
-/// Matches an x64 Ubuntu image readme name in `actions/runner-images`
-/// (`images/ubuntu/Ubuntu2404-Readme.md` → 24.04). The `-Arm64-` variants do
-/// not match, so the project's x64 `ubuntu-NN.NN` pins compare like-for-like.
+/// Matches an x64 Ubuntu image readme name in `actions/runner-images`.
 final RegExp _ubuntuImageRe = RegExp(r'^Ubuntu(\d{2})(\d{2})-Readme\.md$');
 
 /// Returns the highest Ubuntu version among [fileNames] (the entry names of the

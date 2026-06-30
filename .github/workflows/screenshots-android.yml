@@ -10,10 +10,23 @@ permissions:
 
 jobs:
   screenshots:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      # The tablet emulator's userdata partition (~7.4 GB) doesn't fit on the
+      # runner's root filesystem once Flutter, the Android system image, and the
+      # phone run's leftovers are there. Reclaim the large preinstalled
+      # toolchains we never use (.NET, Haskell/GHC) for headroom. Don't touch
+      # the Android SDK (/usr/local/lib/android) or Flutter
+      # (/opt/hostedtoolcache/flutter) — the emulator and screenshot script need
+      # them.
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
 
       - uses: ./.github/actions/setup-build
         with:
@@ -37,7 +50,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # ubuntu-24.04 doesn't ship libpulse, which the emulator's QEMU binary
+      # ubuntu-26.04 doesn't ship libpulse, which the emulator's QEMU binary
       # links at load time, so install it or the emulator can't start.
       - name: Install emulator runtime libraries
         run: sudo apt-get update && sudo apt-get install -y libpulse0

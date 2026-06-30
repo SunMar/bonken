@@ -3,11 +3,13 @@
 
 // Check the project's GitHub-Actions CI toolchain for available updates:
 //
-//   1. Pinned GitHub Actions (`uses: owner/repo[/sub]@v…`) — reports a newer tag
+//   1. Pinned GitHub Actions (`uses: owner/repo[/sub]@v…`) — reports a newer ref
 //      and, unless `--check` is given, APPLIES the bump in place. An action
-//      pinned to a bare major (`@v6`) tracks the highest major tag; one pinned
-//      to a specific version (`@v2.3.8`, e.g. OSV, which has no moving `vN`)
-//      tracks the highest `vX.Y.Z` tag.
+//      pinned to a bare major (`@v6`) tracks the highest `vN` tag — or, for an
+//      action that ships its moving major as a branch (`ruby/setup-ruby@v1`,
+//      which has no `vN` tags), the highest `vN` branch; one pinned to a specific
+//      version (`@v2.3.8`, e.g. OSV, which has no moving `vN`) tracks the highest
+//      `vX.Y.Z` tag.
 //   2. fastlane (`gem "fastlane", "~> N"` in the Gemfiles) — REPORTS a new major
 //      only; a major bump may need Fastfile changes, so it stays manual.
 //   3. The Ubuntu runner (`runs-on: ubuntu-N.N`) — REPORTS a newer LTS image
@@ -109,14 +111,14 @@ Future<bool> _checkActions(
   var updates = 0;
   for (final usage
       in byPath.values.toList()..sort((a, b) => a.path.compareTo(b.path))) {
-    final refs = await _fetchTagRefs(usage.repo, token, client);
-    if (refs == null) continue; // already warned
+    final tagRefs = await _fetchMatchingRefs(usage.repo, 'tags', token, client);
+    if (tagRefs == null) continue; // already warned
 
     // A specific-version pin (any ref with a dot) tracks the highest vX.Y.Z
-    // tag; a bare-major pin tracks the highest vN tag.
+    // tag; a bare-major pin tracks the highest vN tag (or vN branch).
     final bump = usage.refs.any((r) => !isMajorRef(r))
-        ? _versionBump(usage, refs)
-        : _majorBump(usage, refs);
+        ? _versionBump(usage, tagRefs)
+        : await _majorBump(usage, tagRefs, token, client);
     if (bump == null) continue; // up to date, or warned
 
     final (current, latest) = bump;
@@ -147,15 +149,37 @@ Future<bool> _checkActions(
 }
 
 /// `(currentRef, latestRef)` when the bare-major-pinned [usage] is behind the
-/// highest `vN` tag, else null (after printing the up-to-date / warning line).
-(String, String)? _majorBump(_ActionUsage usage, List<String> refs) {
+/// highest `vN` tag — or, for an action with no `vN` tags, the highest `vN`
+/// branch (ruby/setup-ruby ships its moving major as the `v1` branch) — else null
+/// (after printing the up-to-date / warning line).
+Future<(String, String)?> _majorBump(
+  _ActionUsage usage,
+  List<String> tagRefs,
+  String? token,
+  HttpClient client,
+) async {
   final current = usage.refs
       .map((r) => int.parse(r.substring(1)))
       .reduce((a, b) => a > b ? a : b);
-  final latest = highestMajorTag(refs);
+
+  // Prefer a `vN` release tag; only when the action publishes none (it tracks
+  // its moving major via a branch) fall back to the matching `vN` heads — so a
+  // tag-based action is never bumped onto a stray work-in-progress `vN` branch.
+  var latest = highestMajorTag(tagRefs);
+  if (latest == null) {
+    final branchRefs = await _fetchMatchingRefs(
+      usage.repo,
+      'heads',
+      token,
+      client,
+    );
+    if (branchRefs == null) return null; // already warned
+    latest = highestMajorBranch(branchRefs);
+  }
   if (latest == null) {
     stderr.writeln(
-      '  WARNING: ${usage.repo} has no vN major-version tags — skipping.',
+      '  WARNING: ${usage.repo} has no vN major-version tags or branches '
+      '— skipping.',
     );
     return null;
   }
@@ -469,16 +493,18 @@ List<String> _collectYaml() {
   ];
 }
 
-/// Paginates the `v…` tag refs for [repo] (`refs/tags/v2.3.8`, …), or `null`
-/// (with a warning) if it could not be queried.
-Future<List<String>?> _fetchTagRefs(
+/// Paginates the `v…` [refType] (`tags` or `heads`) refs for [repo]
+/// (`refs/tags/v2.3.8`, `refs/heads/v1`, …), or `null` (with a warning) if it
+/// could not be queried.
+Future<List<String>?> _fetchMatchingRefs(
   String repo,
+  String refType,
   String? token,
   HttpClient client,
 ) async {
   final refs = <String>[];
   String? nextUrl =
-      'https://api.github.com/repos/$repo/git/matching-refs/tags/v'
+      'https://api.github.com/repos/$repo/git/matching-refs/$refType/v'
       '?per_page=100';
 
   while (nextUrl != null) {

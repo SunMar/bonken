@@ -76,7 +76,10 @@
         || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
       if (isAndroid) {
-        window.location.replace(document.getElementById('android').href);
+        // Jump straight to the Play Store app rather than the web listing, which
+        // makes the browser show an "open in Play Store?" prompt first. The badge
+        // link stays https for desktop visitors who can't handle market://.
+        window.location.replace('market://details?id=org.suninet.bonken');
       } else if (isIOS) {
         window.location.replace(document.getElementById('ios').href);
       }

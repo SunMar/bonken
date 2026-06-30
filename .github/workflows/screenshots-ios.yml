@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # setup-build installs Flutter (from .fvmrc), runs pub get, and generates
       # launcher icons.  On macOS it uses brew for rsvg-convert + fontconfig

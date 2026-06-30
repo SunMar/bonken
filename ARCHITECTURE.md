@@ -1601,16 +1601,19 @@ reproducibility boundary; do not add a lockfile.
 
 ### GitHub Actions & runners
 
-Actions are pinned either to a major tag (`@v6`) or, for actions without a moving
-`vN` (e.g. the OSV scanner), to a specific version (`@v2.3.8`). Runner images are
+Actions are pinned to a moving major — a `vN` tag (`@v6`), or for an action that
+ships its major as a branch (`ruby/setup-ruby@v1`, which publishes no `vN` tags) a
+`vN` branch — or, for actions without any moving `vN` (e.g. the OSV scanner), to a
+specific version (`@v2.3.8`). Runner images are
 likewise pinned to a specific version in each job's `runs-on` (Linux for the
 build/test jobs, macOS for the iOS jobs), so CI stays reproducible and a new image
 — including the Xcode the macOS image bundles — is adopted deliberately rather
 than silently.
 
 `fvm dart run tool/update_gha.dart` checks the whole CI toolchain in one pass: it
-bumps any out-of-date **action** in place — to the newest major for major pins,
-the newest `vX.Y.Z` for version pins, including subdirectory actions (`--check`
+bumps any out-of-date **action** in place — to the newest major (`vN` tag, or for
+a branch-tracked major a `vN` branch) for major pins, the newest `vX.Y.Z` for
+version pins, including subdirectory actions (`--check`
 only reports) — and **reports** (never changes) when a newer **Ubuntu LTS runner**
 image or **fastlane major** is available, since those bumps are deliberate (a
 fastlane major may need Fastfile edits; a new Ubuntu image can rename packages).

@@ -27,13 +27,13 @@ jobs:
   # or platform SDK — just Flutter — so it stays fast and platform-agnostic.
   # =====================================================================
   verify:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     outputs:
       name: ${{ steps.version.outputs.name }}
       code: ${{ steps.version.outputs.code }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-build
 
@@ -73,11 +73,11 @@ jobs:
   release-android:
     needs: verify
     if: ${{ vars.ANDROID_RELEASE_ENABLED == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     environment: play-store
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-build
         with:
@@ -162,7 +162,7 @@ jobs:
     timeout-minutes: 60
     environment: apple-app-store
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-build
 
@@ -195,13 +195,13 @@ jobs:
   # =====================================================================
   release-github:
     needs: verify
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     environment: play-store
     permissions:
       contents: write   # needed to create the GitHub Release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-build
         with:
