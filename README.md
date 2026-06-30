@@ -6,13 +6,21 @@ Een app voor het invoeren van scores en het berekenen van uitslagen van het kaar
 
 ## Downloaden
 
+### Native app
+
 <p>
   <a href="https://play.google.com/store/apps/details?id=org.suninet.bonken"><img alt="Ontdek het op Google Play" height="56" src="assets/store/3.0x/google_play_badge_nl.png"></a>
   &nbsp;
   <a href="https://apps.apple.com/nl/app/bonken-kaartspel-scores/id6782449672"><img alt="Download in de App Store" height="56" src="assets/store/3.0x/app_store_badge_nl.png"></a>
 </p>
 
-### Of als web-app (PWA)
+Of via een QR-code:
+
+<p>
+  <a href="https://sunmar.github.io/bonken/download.html"><img alt="QR-code om Bonken te downloaden" width="180" src="docs/qr-download.png"></a>
+</p>
+
+### Web-app (PWA)
 
 | Platform | Hoe |
 |---|---|

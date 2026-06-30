@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- Bonken logo, used as:
        - Play Store icon
-       - Web favicon (32 px, rendered by generate_icons.sh)
        - Non-maskable PWA icons (Icon-192.png / Icon-512.png, via flutter_launcher_icons)
        - Web HTML loading screen icon (Icon-192.png referenced by index.html)
        - Native iOS launcher icon source (via flutter_launcher_icons)

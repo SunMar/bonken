@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#131316">
+  <title>Bonken downloaden</title>
+  <link rel="icon" href="favicon.png">
+  <style>
+    /* Material 3 dark scheme seeded from Colors.indigo (#3F51B5), matching the app. */
+    :root {
+      color-scheme: dark;
+      --bg: #131316;
+      --surface: #2b2930;       /* card */
+      --on-surface: #e6e1e5;
+      --on-surface-muted: #c8c5d0;
+      --primary: #bcc2ff;       /* M3 dark primary from the indigo seed */
+      --outline: #46464f;
+      --shadow: rgba(0, 0, 0, .45);
+    }
+
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg); color: var(--on-surface);
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background: var(--surface);
+      padding: 36px 28px 28px;
+      border-radius: 28px;                 /* M3 extra-large container */
+      text-align: center;
+      box-shadow: 0 8px 28px var(--shadow);
+      max-width: 360px; width: calc(100% - 32px);
+    }
+    .logo {
+      width: 96px; height: 96px;           /* squircle baked into the PNG */
+      filter: drop-shadow(0 3px 8px var(--shadow));
+    }
+    h1 {
+      margin: 16px 0 24px;
+      font-size: 1.5rem; font-weight: 500; /* Roboto Medium, M3 headline */
+    }
+    .stores { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .stores img { height: 56px; width: auto; display: block; }
+    .hint {
+      margin: 24px 0 0; padding-top: 20px;
+      border-top: 1px solid var(--outline);
+      font-size: .85rem; color: var(--on-surface-muted);
+    }
+    .hint a { color: var(--primary); text-decoration: none; font-weight: 500; }
+    .hint a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="download-logo.png" alt="Bonken">
+    <h1>Bonken downloaden</h1>
+    <div class="stores">
+      <a id="android" href="https://play.google.com/store/apps/details?id=org.suninet.bonken"><img src="google_play_badge_nl.png" alt="Ontdek het op Google Play"></a>
+      <a id="ios" href="https://apps.apple.com/nl/app/bonken-kaartspel-scores/id6782449672"><img src="app_store_badge_nl.png" alt="Download in de App Store"></a>
+    </div>
+    <p class="hint">Of open de web-app op <a href="https://sunmar.github.io/bonken/">sunmar.github.io/bonken</a>.</p>
+  </main>
+
+  <script>
+    (function () {
+      const userAgent = navigator.userAgent || '';
+
+      const isAndroid = /Android/.test(userAgent);
+
+      // iPadOS 13+ defaults to "Desktop Class Browsing" and reports as "MacIntel" with a touch screen
+      const isIOS = /iPad|iPhone|iPod/.test(userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      if (isAndroid) {
+        window.location.replace(document.getElementById('android').href);
+      } else if (isIOS) {
+        window.location.replace(document.getElementById('ios').href);
+      }
+      // Desktop / unknown: stay on the page and let the visitor pick a store.
+    })();
+  </script>
+</body>
+</html>

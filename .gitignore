@@ -45,6 +45,12 @@ app.*.map.json
 /web/favicon.png
 /web/icons/Icon-*.png
 
+# Download-page assets staged into web/ for web/download.html (logo rendered from
+# the squircle SVG; store badges copied from the committed assets/store/ artwork).
+/web/download-logo.png
+/web/app_store_badge_nl.png
+/web/google_play_badge_nl.png
+
 # FVM Version Cache
 .fvm/
 

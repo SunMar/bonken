@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!-- Bonken logo, squircle variant — the rounded-corner app-icon shape, used
-       for the About-dialog icon and the share-card icon. Identical to
-       icon_bonken.svg except the background rect has rounded corners, so the
-       icon reads as a self-contained app icon instead of a hard-edged square.
-       Everything outside the rounded rect is transparent.
+       for the About-dialog icon, the share-card icon and the web favicon.
+       Identical to icon_bonken.svg except the background rect has rounded
+       corners, so the icon reads as a self-contained app icon instead of a
+       hard-edged square. Everything outside the rounded rect is transparent.
        Corner radius = 22.37%: a rounded-rect approximation of the iOS app-icon
        squircle (also a fine Android rounded-square mask) — the single corner
        ratio used app-wide. Keep it in sync with the splash icon's
        `border-radius` in web/index.html. (NB: a true iOS icon is a continuous
        superellipse; this circular-arc rounded rect is the common approximation.)
-       generate_icons.sh renders it to
-       icon_bonken_about.png at 48/96/144 px (×1/×2/×3, the 48dp dialog icon)
-       and to icon_bonken_share.png at 72 px (the share-card icon) — both
-       pre-sized so Flutter never resizes at runtime.
+       generate_icons.sh renders it pre-sized (so Flutter never resizes at
+       runtime) to icon_bonken_about.png at 48/96/144 px (×1/×2/×3, the 48dp
+       dialog icon), icon_bonken_share.png at 72 px (the share-card icon), and
+       web/favicon.png at 32 px (the browser-tab favicon).
        The card geometry below MUST stay identical across icon_bonken.svg,
        icon_bonken_flat.svg, icon_bonken_padded.svg, icon_bonken_adaptive_fg.svg
        and this file — only the viewBox, background and corner radius differ. -->

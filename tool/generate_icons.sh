@@ -155,8 +155,20 @@ echo "==> Rendering flat-background icon for home-screen shortcut (apple-touch-i
 # icon_bonken_flat.svg has the brand colour baked into the background rect.
 rsvg-convert -w 192 assets/icon/icon_bonken_flat.svg -o web/icons/Icon-apple-touch.png
 
-echo "==> Rendering web favicon (32px)"
-rsvg-convert -w 32 assets/icon/icon_bonken.svg -o web/favicon.png
+echo "==> Rendering web favicon (32px, squircle)"
+# Squircle source so the browser-tab icon matches the app / About / share /
+# splash rounded-corner treatment (the favicon isn't masked by the browser).
+rsvg-convert -w 32 assets/icon/icon_bonken_squircle.svg -o web/favicon.png
+
+echo "==> Staging download-page assets (web/download.html)"
+# web/download.html is a static store-redirect page outside the Flutter app, so it
+# cannot reach Flutter's bundled assets. Stage stable sibling URLs under web/ (all
+# gitignored, like the favicon): the squircle app icon rendered from the SVG at 2x
+# its 96px display size, plus copies of the committed official store badges
+# (assets/store/ — vendored PNGs, no SVG source, so cp rather than rsvg-convert).
+rsvg-convert -w 192 -h 192 assets/icon/icon_bonken_squircle.svg -o web/download-logo.png
+cp assets/store/3.0x/app_store_badge_nl.png   web/app_store_badge_nl.png
+cp assets/store/3.0x/google_play_badge_nl.png web/google_play_badge_nl.png
 
 echo "==> Rendering iOS splash images"
 rsvg-convert -w 200 assets/icon/icon_bonken_adaptive_fg.svg \
