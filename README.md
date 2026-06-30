@@ -1,10 +1,18 @@
 # Bonken
 
-Een app voor het invoeren van scores en het berekenen van uitslagen van het kaartspel **Bonken**, gebouwd met Flutter. Installeerbaar als web-app op elk apparaat.
+Een app voor het invoeren van scores en het berekenen van uitslagen van het kaartspel **Bonken**, gebouwd met Flutter. Beschikbaar als native app voor iOS en Android, en als web-app op elk apparaat.
 
 ---
 
-## Spelen
+## Downloaden
+
+<p>
+  <a href="https://play.google.com/store/apps/details?id=org.suninet.bonken"><img alt="Ontdek het op Google Play" height="56" src="assets/store/3.0x/google_play_badge_nl.png"></a>
+  &nbsp;
+  <a href="https://apps.apple.com/nl/app/bonken-kaartspel-scores/id6782449672"><img alt="Download in de App Store" height="56" src="assets/store/3.0x/app_store_badge_nl.png"></a>
+</p>
+
+### Of als web-app (PWA)
 
 | Platform | Hoe |
 |---|---|

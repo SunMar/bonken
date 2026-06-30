@@ -52,12 +52,14 @@
       transition: opacity 200ms ease-out;
     }
     #loading.hide { opacity: 0; pointer-events: none; }
-    /* Round the splash icon's corners so it reads as a "launcher icon"
-       (matches the rounded-square treatment on the Android / iOS
-       launcher icon masks). 22% is the Android adaptive-icon mask
-       ratio. */
+    /* Round the splash icon's corners so it reads as a "launcher icon".
+       22.37% is the app-wide corner ratio — a rounded-rect approximation of
+       the iOS app-icon squircle (also a fine Android rounded-square mask),
+       kept in sync with rx/ry in assets/icon/icon_bonken_squircle.svg. The
+       box-shadow follows this border-radius (so the rounding stays CSS here —
+       see ARCHITECTURE.md "Store badges / icons"). */
     #loading img {
-      border-radius: 22%;
+      border-radius: 22.37%;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
     }
     #loading .bar {

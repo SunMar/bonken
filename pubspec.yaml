@@ -144,6 +144,17 @@ flutter:
     - assets/google_fonts/8.1.0/
     - assets/icon/icon_bonken.png
     - assets/icon/icon_bonken_share.png
+    # About-dialog app icon: pre-sized to its 48dp display size with a baked-in
+    # squircle and 2.0x/3.0x variants (assets/icon/{2.0x,3.0x}/), so it renders
+    # 1:1 per devicePixelRatio instead of downscaling the 1024px launcher source.
+    - assets/icon/icon_bonken_about.png
+    # Official App Store / Google Play badge artwork, shown as store links in
+    # the About dialog (web only) — see lib/widgets/app_bar_widgets.dart.
+    # Pre-sized to the display height so Flutter never resizes at runtime;
+    # the 1x files are listed here and the 2.0x/3.0x resolution variants
+    # (assets/store/{2.0x,3.0x}/) are picked up automatically per devicePixelRatio.
+    - assets/store/app_store_badge_nl.png
+    - assets/store/google_play_badge_nl.png
     # The app's own AGPL-3.0 license, bundled so it resolves at runtime
     # and is aggregated into the build-time NOTICES asset that
     # `showLicensePage()` reads.

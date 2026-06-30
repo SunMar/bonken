@@ -118,10 +118,20 @@ done
 
 echo "==> Rendering source SVGs to PNGs"
 rsvg-convert -w 1024 assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken.png
-rsvg-convert -w 72   assets/icon/icon_bonken.svg              -o assets/icon/icon_bonken_share.png
+rsvg-convert -w 72   assets/icon/icon_bonken_squircle.svg     -o assets/icon/icon_bonken_share.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_padded.svg       -o assets/icon/icon_bonken_padded.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_fg.svg  -o assets/icon/icon_bonken_adaptive_fg.png
 rsvg-convert -w 1024 assets/icon/icon_bonken_adaptive_bg.svg  -o assets/icon/icon_bonken_adaptive_bg.png
+
+echo "==> Rendering About-dialog icon (pre-sized 48dp + @2x/@3x, squircle)"
+# Dedicated squircle variant, pre-rendered at its exact 48dp display size with
+# 2.0x/3.0x resolution variants so Flutter never downscales it at runtime (see
+# StoreBadges/_aboutIconAsset in lib/widgets/app_bar_widgets.dart). Listed as a
+# 1x asset in pubspec.yaml; the Nx files are picked up per devicePixelRatio.
+mkdir -p assets/icon/2.0x assets/icon/3.0x
+rsvg-convert -w 48  -h 48  assets/icon/icon_bonken_squircle.svg -o assets/icon/icon_bonken_about.png
+rsvg-convert -w 96  -h 96  assets/icon/icon_bonken_squircle.svg -o assets/icon/2.0x/icon_bonken_about.png
+rsvg-convert -w 144 -h 144 assets/icon/icon_bonken_squircle.svg -o assets/icon/3.0x/icon_bonken_about.png
 
 echo "==> Generating Android + iOS launcher icons"
 "${dart_cmd[@]}" run flutter_launcher_icons

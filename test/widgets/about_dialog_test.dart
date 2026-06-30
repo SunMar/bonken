@@ -44,11 +44,22 @@ void main() {
       // resolveAboutVersionLine() takes the kDebugMode branch.)
       expect(find.text('Bonken'), findsWidgets);
       expect(find.text('Ontwikkelversie'), findsOneWidget);
-      // Icon (Image.asset) is present in the dialog header.
+      // Header shows the dedicated, pre-sized About-dialog app icon.
       expect(find.byType(Image), findsOneWidget);
+      expect(
+        tester.widget<Image>(find.byType(Image)).image,
+        isA<AssetImage>().having(
+          (a) => a.assetName,
+          'assetName',
+          'assets/icon/icon_bonken_about.png',
+        ),
+      );
       // Custom children: repo and privacy links.
       expect(find.text('Broncode'), findsOneWidget);
       expect(find.text('Privacybeleid'), findsOneWidget);
+      // Store badges are web-only; `flutter test` runs with kIsWeb == false,
+      // so the kIsWeb gate keeps them out of the dialog here.
+      expect(find.byType(StoreBadges), findsNothing);
 
       // Localized footer buttons.
       final loc = _loc(tester);

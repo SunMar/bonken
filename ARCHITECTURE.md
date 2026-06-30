@@ -39,9 +39,10 @@ trick), then computes per-round and cumulative scores.
 
 Key characteristics:
 
-- **Platform:** Flutter. Ships as an offline-first **PWA** (web, installable on
-  Android/iOS/desktop) and as native **Android** (APK/AAB on Google Play) and
-  **iOS/iPadOS** (universal app on the App Store / TestFlight) builds.
+- **Platform:** Flutter. Primarily ships as native **Android** (APK/AAB on
+  Google Play) and **iOS/iPadOS** (universal app on the App Store / TestFlight)
+  builds, plus an offline-first **PWA** (web, installable on Android/iOS/desktop;
+  used mainly for testing).
 - **Fully offline / local-only:** no backend, no accounts, no network in the
   core flow. All data is in `SharedPreferences`. Fonts and licenses are bundled
   as assets so the app works with zero connectivity. (The only network use is an
@@ -388,8 +389,11 @@ lib/
                              settings via AppRoutes.openSettings),
                              ThemeMenuButton (MenuAnchor cycling light/dark/system;
                              AlignmentDirectional.bottomEnd — the M3 overflow-menu
-                             pattern), and resolveAboutVersionLine() /
-                             openAboutDialog() (@visibleForTesting).
+                             pattern), StoreBadges (web-only App Store / Google Play
+                             badges in the About dialog, gated behind kIsWeb — native
+                             builds came from a store; artwork in assets/store/), and
+                             resolveAboutVersionLine() / openAboutDialog()
+                             (@visibleForTesting).
     game_rules_card.dart     Tappable "Spelregels" card for new-game and edit-game; summarises
                              how the per-game rules deviate from the player's configured
                              defaults (one row per differing rule, else a "standaardregels"
@@ -1152,10 +1156,14 @@ and **keeps the validated objects**. It returns a `DecodedBackup` whose per-stre
 `DecodedBackup` and offers only the `StreamValid` streams.
 `ImportNotifier.applyImport(backup, …)` then commits exactly those pre-validated
 payloads — it does **not** re-decode or re-validate. The codec stays pure and
-synchronous; production runs the decode off the UI frame through the
-`decodeBackupProvider` seam (`Isolate.run`), since the decoded `DecodedBackup` is
-plain data that transfers back across the isolate boundary. Widget tests override
-that seam to decode inline (their fake-async clock can't drive a real isolate). Validation runs once, at the
+synchronous; on the primary native (Android/iOS) targets production runs the
+decode off the UI frame through the `decodeBackupProvider` seam (`Isolate.run`),
+since the decoded `DecodedBackup` is plain data that transfers back across the
+isolate boundary. **Web has no `Isolate.spawn`** — `Isolate.run` throws
+`UnsupportedError` there — so the web build decodes inline instead (the 10 MB
+input cap keeps that cheap); the seam guards this with `kIsWeb`. Widget tests
+override that seam to decode inline (their fake-async clock can't drive a real
+isolate). Validation runs once, at the
 decode trust boundary; the commit trusts the typed result — the
 **validate-at-the-boundary** principle (§2) (a corrupt stream is
 `StreamCorrupt`, never importable, so it can't reach a write). The two streams
@@ -1723,8 +1731,73 @@ maxima are inset 6.9 % / viewBox 1236 (only ~9 % / ~3.6 % bigger — marginal), 
 the gap cannot be meaningfully reduced without sacrificing the no-clip guarantee.
 This was a deliberate decision; keep it.
 
-`icon_bonken.svg` (gradient) also serves as the Play Store listing icon and the
-About-dialog icon.
+`icon_bonken.svg` (gradient) also serves as the Play Store listing icon.
+
+The **squircle icon** has its own SVG source, `icon_bonken_squircle.svg` — the
+same card geometry as `icon_bonken.svg` but with rounded background corners so it
+reads as a self-contained app icon rather than a hard-edged square. It is the
+source for two pre-sized renders (`generate_icons.sh`), both rendered at their
+exact display size so Flutter never resizes at runtime:
+
+- **About-dialog icon** — `icon_bonken_about.png` at the 48 dp display size with
+  `2.0x/3.0x` resolution variants (96 / 144 px), listed as a 1x asset in
+  `pubspec.yaml`. Flutter picks the variant matching `devicePixelRatio`, so the
+  header icon renders 1:1 — previously it downscaled the 1024 px launcher PNG
+  ~21× and looked soft.
+- **Share-card icon** — `icon_bonken_share.png` at 72 px (3× its 24 dp display
+  size in `ShareResultCard`). The baked-in squircle corners replace the former
+  runtime `ClipRRect`.
+
+**Corner ratio (single source of truth): 22.37 %.** This is a rounded-rect
+approximation of the iOS app-icon squircle — a continuous superellipse in
+reality — and doubles as a reasonable Android rounded-square mask; it is *not*
+two separate platform standards. The same 22.37 % is used everywhere the app
+rounds its own icon, and the two literals must be kept in sync:
+
+- `rx`/`ry` on the background rect in `icon_bonken_squircle.svg` (covers the
+  About-dialog + share-card icons, baked in at generation time), and
+- `border-radius` on the splash `#loading img` in `web/index.html`. The web
+  splash keeps the rounding in **CSS** (not a baked asset) on purpose: it's a
+  resolution-independent vector clip — no downscaling to fix, unlike the Flutter
+  raster icons — and `border-radius` is what drives the icon's `box-shadow`.
+
+### Store badges
+
+The About dialog (web only, via `StoreBadges` in `app_bar_widgets.dart`) and the
+README link to the native builds with the **official** store badge artwork in
+`assets/store/`:
+
+- **App Store** — `app_store_badge_nl.png`: Apple's "Download on the App Store"
+  badge, **black** style, **Dutch** (`nl-nl`) locale, from the Apple Marketing
+  Toolbox (`toolbox.marketingtools.apple.com/.../download-on-the-app-store/black/nl-nl`).
+  Apple ships it as SVG, rendered to PNG with `rsvg-convert` (the app bundles no SVG
+  renderer — `flutter_svg` is intentionally not a dependency).
+- **Google Play** — `google_play_badge_nl.png`: Google's "Ontdek het op Google
+  Play" web-generic badge, **Dutch** (`nl`) locale — the official PNG from
+  `play.google.com/intl/.../badges/nl_badge_web_generic.png` (Google publishes no
+  SVG). Its built-in transparent vertical padding is trimmed first so it aligns
+  with the tight App Store badge at equal display height.
+
+**Sizing — pre-sized, no runtime resize.** Both badges are rendered to the exact
+display height (`_storeBadgeHeight`, 56 logical px) with `2.0x/` and `3.0x/`
+resolution variants (112 / 168 px tall) under `assets/store/`. Listing the 1x
+files in `pubspec.yaml` makes Flutter auto-pick the variant matching the device's
+`devicePixelRatio`, so the badge (which contains fine wordmark text) renders 1:1
+with no runtime downscaling — a high-res single asset shrunk at runtime looked
+mushy on 1x displays. The README points at the `3.0x/` files so browsers downscale
+the high-res copy crisply at any DPR. If `_storeBadgeHeight` changes, regenerate
+all three sizes (Apple from the SVG, Google by Lanczos-downscaling the trimmed PNG).
+
+Unlike the launcher icons (SVG sources → PNGs generated by `generate_icons.sh` and
+gitignored), these badge PNGs are **committed** as vendored third-party artwork:
+they aren't derived from our SVGs, and Google ships no vector, so there's nothing
+to regenerate them from offline. They are the only committed PNGs in the repo.
+
+Both are the Dutch badges — the app's only language, and the store wordmark is part
+of the artwork, so there is no locale-neutral badge. To localise for another
+language, fetch the same badges for that locale (Apple Toolbox `/{locale}`, Google
+`{locale}_badge_web_generic.png`) and pick by locale in `StoreBadges`; the listing
+URLs themselves are locale-agnostic.
 
 ### Store screenshots
 

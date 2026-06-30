@@ -29,14 +29,38 @@ const _aboutRepoUrl = 'https://github.com/SunMar/bonken';
 /// Privacy policy URL shown as a link in the About dialog.
 const _aboutPrivacyUrl = 'https://sunmar.github.io/bonken/privacy.html';
 
+/// App Store / Google Play listing URLs for the native builds. Shown as
+/// tappable store badges in the About dialog for web users (native builds
+/// were already installed from a store, so they hide them). Both links are
+/// locale-agnostic — only the badge artwork below is localized.
+const _appStoreUrl =
+    'https://apps.apple.com/nl/app/bonken-kaartspel-scores/id6782449672';
+const _googlePlayUrl =
+    'https://play.google.com/store/apps/details?id=org.suninet.bonken';
+
+/// Official App Store / Google Play badge artwork (Dutch — the app's only
+/// shipped language). There is no locale-neutral official badge: the store
+/// wordmark is part of the artwork. Most apps just ship one language's badge;
+/// a multi-language Bonken would either keep these or swap the asset per
+/// locale (Apple Marketing Toolbox / Google both publish per-locale variants).
+const _appStoreBadgeAsset = 'assets/store/app_store_badge_nl.png';
+const _googlePlayBadgeAsset = 'assets/store/google_play_badge_nl.png';
+
 /// Compile-time commit hash injected by the deploy-to-Pages workflow.
 /// Empty for local / store builds. Consumed by [resolveAppVersion], which feeds
 /// both the About dialog and the export manifest — hence not About-specific.
 @visibleForTesting
 const gitCommit = String.fromEnvironment('GIT_COMMIT');
 
-/// Asset path of the launcher icon shown in the About dialog header.
-const _aboutIconAsset = 'assets/icon/icon_bonken.png';
+/// App icon shown in the About dialog header. A dedicated asset pre-sized to
+/// [_aboutIconSize] (with 2.0x/3.0x variants) and with the squircle corners
+/// baked in — rather than the 1024px launcher source downscaled ~21× at
+/// runtime, which looked soft.
+const _aboutIconAsset = 'assets/icon/icon_bonken_about.png';
+
+/// Display size (logical px) of the About-dialog app icon; the asset is
+/// pre-rendered at this size (×1/×2/×3) so Flutter never resizes it.
+const _aboutIconSize = 48.0;
 
 /// Theme-mode entries for the "Thema" menu (single source of truth).
 const _themeModeEntries = <(ThemeMode, IconData, String)>[
@@ -241,7 +265,11 @@ Future<void> openAboutDialog(BuildContext context) async {
     context: context,
     applicationName: 'Bonken',
     applicationVersion: versionLine,
-    applicationIcon: Image.asset(_aboutIconAsset, width: 48, height: 48),
+    applicationIcon: Image.asset(
+      _aboutIconAsset,
+      width: _aboutIconSize,
+      height: _aboutIconSize,
+    ),
     children: [
       _AboutLink(
         icon: Symbols.code,
@@ -253,6 +281,10 @@ Future<void> openAboutDialog(BuildContext context) async {
         label: 'Privacybeleid',
         onTap: () => unawaited(_openExternal(_aboutPrivacyUrl)),
       ),
+      // Native builds came from a store already; only web users need the
+      // store links. `flutter test` runs with kIsWeb == false, so this branch
+      // is exercised directly via the [StoreBadges] widget test.
+      if (kIsWeb) const StoreBadges(),
     ],
   );
 }
@@ -310,6 +342,72 @@ Future<String> resolveAboutVersionLine() async {
 /// Opens [url] in an external browser/app. Shared by the About-dialog links.
 Future<void> _openExternal(String url) =>
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
+/// Tappable App Store / Google Play badges shown in the About dialog. The
+/// caller gates these behind [kIsWeb] (native builds already came from a
+/// store). Public so the web-only branch can be widget-tested directly, since
+/// `flutter test` runs with `kIsWeb == false`.
+class StoreBadges extends StatelessWidget {
+  const StoreBadges({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _StoreBadge(
+          asset: _googlePlayBadgeAsset,
+          label: 'Ontdek het op Google Play',
+          url: _googlePlayUrl,
+        ),
+        _StoreBadge(
+          asset: _appStoreBadgeAsset,
+          label: 'Download in de App Store',
+          url: _appStoreUrl,
+        ),
+      ],
+    );
+  }
+}
+
+/// Display height (logical px) of a store badge, matching the README's badges.
+const _storeBadgeHeight = 56.0;
+
+/// A single store badge: the official artwork wrapped in a tappable target.
+/// The image carries no text for screen readers, so the [Semantics] supplies
+/// the [label] (and the shared "Opent in browser" hint).
+class _StoreBadge extends StatelessWidget {
+  const _StoreBadge({
+    required this.asset,
+    required this.label,
+    required this.url,
+  });
+
+  final String asset;
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      hint: 'Opent in browser',
+      child: InkWell(
+        onTap: () => unawaited(_openExternal(url)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          // The artwork is pre-sized to _storeBadgeHeight with 2.0x/3.0x
+          // resolution variants (see assets/store/), so Flutter renders it
+          // 1:1 per devicePixelRatio with no runtime resize — text stays crisp.
+          child: ExcludeSemantics(
+            child: Image.asset(asset, height: _storeBadgeHeight),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _AboutLink extends StatelessWidget {
   const _AboutLink({

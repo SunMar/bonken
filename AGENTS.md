@@ -1,7 +1,8 @@
 # AGENTS.md
 
-Bonken — offline score calculator (Flutter PWA + Android + iOS/iPadOS) for the
-Dutch 4-player card game Bonken. Pure Dart domain → Riverpod state → Material 3 UI.
+Bonken — offline score calculator for the Dutch 4-player card game Bonken.
+Primarily a native Flutter app for Android + iOS/iPadOS, with a web PWA build
+too (used mainly for testing). Pure Dart domain → Riverpod state → Material 3 UI.
 
 **Full architecture & rationale: [ARCHITECTURE.md](ARCHITECTURE.md).** Player-facing docs
 (Dutch): [README.md](README.md).

@@ -9,9 +9,10 @@ import '../state/calculator_provider.dart';
 import '../theme/app_theme_extensions.dart';
 import '../utils.dart';
 
-/// Embedded Bonken icon shown on the share card. Pre-cached before an
-/// off-screen capture (which only waits one frame — too short for a cold asset
-/// decode) so the first share never captures a blank icon.
+/// Embedded Bonken icon shown on the share card — the squircle app-icon shape
+/// (rendered from icon_bonken_squircle.svg at 72px, 3× its 24dp display size).
+/// Pre-cached before an off-screen capture (which only waits one frame — too
+/// short for a cold asset decode) so the first share never captures a blank icon.
 const String shareIconAsset = 'assets/icon/icon_bonken_share.png';
 
 /// Players ranked highest score first for the share views. Ties keep the
@@ -89,10 +90,7 @@ class ShareResultCard extends ConsumerWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: Image.asset(shareIconAsset, width: 24, height: 24),
-                ),
+                Image.asset(shareIconAsset, width: 24, height: 24),
                 const SizedBox(width: 8),
                 Text(
                   'Uitslag',

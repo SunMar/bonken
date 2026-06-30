@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -66,14 +67,21 @@ typedef DecodeBackupFn = Future<DecodedBackup> Function(Uint8List bytes);
 
 /// Seam for the analyze phase of import. [BackupCodec.decode]'s ZIP-inflate +
 /// SHA-256 + JSON-parse work runs synchronously on whichever isolate calls it;
-/// for a large backup that can jank the UI frame. Production therefore runs it
-/// through `Isolate.run`, moving that CPU work to a background isolate — the
-/// returned [DecodedBackup] is plain data, so it transfers back across the
-/// isolate boundary. Widget tests override this to decode inline: the tester's
-/// fake-async clock can't drive a real `Isolate.run`, which would hang.
+/// for a large backup that can jank the UI frame. On the primary native
+/// (Android/iOS) targets, production runs it through `Isolate.run`, moving that
+/// CPU work to a background isolate — the returned [DecodedBackup] is plain
+/// data, so it transfers back across the isolate boundary.
+///
+/// Web has no `Isolate.spawn`, so `Isolate.run` throws `UnsupportedError`
+/// there; the web build therefore decodes inline (the 10 MB input cap keeps
+/// that cheap). Without this guard every web import fails at the decode step,
+/// surfacing as a spurious "corrupt backup" error. Widget tests override this
+/// seam to decode inline regardless: the tester's fake-async clock can't drive
+/// a real `Isolate.run`, which would hang.
 final decodeBackupProvider = Provider<DecodeBackupFn>(
-  (ref) =>
-      (bytes) => Isolate.run(() => BackupCodec.decode(bytes)),
+  (ref) => kIsWeb
+      ? BackupCodec.decode
+      : (bytes) => Isolate.run(() => BackupCodec.decode(bytes)),
 );
 
 // ---------------------------------------------------------------------------

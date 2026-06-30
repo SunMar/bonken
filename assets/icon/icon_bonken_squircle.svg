@@ -1,18 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Bonken logo, used as:
-       - Play Store icon
-       - Web favicon (32 px, rendered by generate_icons.sh)
-       - Non-maskable PWA icons (Icon-192.png / Icon-512.png, via flutter_launcher_icons)
-       - Web HTML loading screen icon (Icon-192.png referenced by index.html)
-       - Native iOS launcher icon source (via flutter_launcher_icons)
-       (The About-dialog and share-card icons use the squircle variant
-       icon_bonken_squircle.svg.)
+  <!-- Bonken logo, squircle variant — the rounded-corner app-icon shape, used
+       for the About-dialog icon and the share-card icon. Identical to
+       icon_bonken.svg except the background rect has rounded corners, so the
+       icon reads as a self-contained app icon instead of a hard-edged square.
+       Everything outside the rounded rect is transparent.
+       Corner radius = 22.37%: a rounded-rect approximation of the iOS app-icon
+       squircle (also a fine Android rounded-square mask) — the single corner
+       ratio used app-wide. Keep it in sync with the splash icon's
+       `border-radius` in web/index.html. (NB: a true iOS icon is a continuous
+       superellipse; this circular-arc rounded rect is the common approximation.)
+       generate_icons.sh renders it to
+       icon_bonken_about.png at 48/96/144 px (×1/×2/×3, the 48dp dialog icon)
+       and to icon_bonken_share.png at 72 px (the share-card icon) — both
+       pre-sized so Flutter never resizes at runtime.
        The card geometry below MUST stay identical across icon_bonken.svg,
        icon_bonken_flat.svg, icon_bonken_padded.svg, icon_bonken_adaptive_fg.svg
-       and icon_bonken_squircle.svg — only the viewBox, background and corner
-       radius differ.
-       icon_bonken_flat.svg shares this exact viewBox (0 0 1024 1024) but
-       substitutes a solid #283593 background for the gradient. -->
+       and this file — only the viewBox, background and corner radius differ. -->
   <defs>
     <radialGradient id="bg" cx="50%" cy="40%" r="75%">
       <stop offset="0%" stop-color="#5C6BC0"/>
@@ -30,7 +33,8 @@
     </filter>
   </defs>
 
-  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+  <!-- rx/ry = 22.37% (the app-wide corner ratio; matches web/index.html). -->
+  <rect x="0" y="0" width="1024" height="1024" rx="22.37%" ry="22.37%" fill="url(#bg)"/>
 
   <!-- ===== shared card + suit geometry (keep in sync across icon_bonken*.svg) ===== -->
   <g filter="url(#cardShadow)">

@@ -39,8 +39,9 @@ app.*.symbols
 app.*.map.json
 
 # Generated launcher icons and splash images (produced by tool/generate_icons.sh).
-# The SVG sources in assets/icon/ are the source of truth.
-/assets/icon/*.png
+# The SVG sources in assets/icon/ are the source of truth. The glob also covers
+# the resolution-variant subdirs (assets/icon/{2.0x,3.0x}/*.png).
+/assets/icon/**/*.png
 /web/favicon.png
 /web/icons/Icon-*.png
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -366,6 +367,30 @@ void main() {
       expect(a.canImportSettings, isTrue);
       expect(a.games, hasLength(1));
       expect(a.settings, isNotNull);
+    });
+
+    test('decodeBackupProvider guards Isolate.run behind kIsWeb '
+        '(web has no Isolate.spawn)', () {
+      // `flutter test` runs on the VM (kIsWeb is a compile-time false), so the
+      // web branch can't be exercised here — and `Isolate.run` throws
+      // UnsupportedError on web, which would make every web import fail as a
+      // spurious "corrupt backup". Source-scan the seam so a future refactor
+      // can't drop the inline-on-web fallback (ARCHITECTURE.md §9).
+      final source = File(
+        'lib/state/export_import_notifier.dart',
+      ).readAsStringSync();
+      expect(
+        source,
+        contains('Isolate.run'),
+        reason: 'native should still offload decode to a background isolate',
+      );
+      expect(
+        source,
+        contains('kIsWeb'),
+        reason:
+            'Isolate.run is unsupported on web; the seam must fall back to '
+            'inline decode when kIsWeb',
+      );
     });
 
     group('valid backup — All', () {
