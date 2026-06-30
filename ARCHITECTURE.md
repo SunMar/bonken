@@ -1450,6 +1450,15 @@ mid-test reseed; `initializeWidgets()` ensures the binding.
   hide (close icon, swipe, the undo action, or a replacing bar), so testing the
   undo action by **tapping the widget** is safe — hiding the bar cancels the
   timer, leaving none to drain and no second `close` on an already-gone bar.
+- **`tap()` misses are fatal** —
+  [`test/flutter_test_config.dart`](test/flutter_test_config.dart) sets
+  `WidgetController.hitTestWarningShouldBeFatal = true` for the whole suite, so a
+  tap whose derived centre doesn't hit-test onto the finder's widget *fails the
+  test* instead of logging a stderr warning. The usual cause is a **truly
+  disabled** Mechanism-A control (`onPressed: null`): the disabled button isn't
+  the hit target — its transparent `DisabledTapDetector` overlay is — so tap the
+  `DisabledTappableButton` / `DisabledTapDetector` (the overlay), not the
+  disabled `FilledButton`/`IconButton` underneath.
 - Construct fixtures with real model objects (e.g. `const Dominoes()`,
   `RoundRecord(...)`), not hand-rolled JSON, so they stay in sync with the code.
 - **Platform side-effects are injected via providers, never via test-only

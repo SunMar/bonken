@@ -13,6 +13,7 @@ import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/screens/edit_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/widgets/amber_warning_box.dart';
+import 'package:bonken/widgets/disabled_tappable_button.dart';
 import 'package:bonken/widgets/game_name_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,18 @@ import 'package:flutter_test/flutter_test.dart';
 import '../test_helpers.dart';
 
 const _names = ['Alice', 'Bob', 'Carol', 'Dan'];
+
+/// Taps the bottom-bar "Opslaan" action.
+///
+/// When the form is invalid the FilledButton is *truly disabled* (Mechanism A)
+/// and a transparent [DisabledTapDetector] overlay — not the button — receives
+/// the tap. Tapping the disabled FilledButton directly makes flutter_test
+/// derive a centre that hit-tests onto that overlay rather than the button,
+/// tripping the "derived an Offset that would not hit test" warning. Targeting
+/// the [DisabledTappableButton] hits the overlay (disabled) or the button
+/// (enabled) cleanly in both states.
+Future<void> tapSave(WidgetTester tester) =>
+    tester.tap(find.byType(DisabledTappableButton));
 
 Future<ProviderContainer> _pumpEditPlayers(
   WidgetTester tester, {
@@ -78,7 +91,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Aaron');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pumpAndSettle();
 
       expect(find.byType(EditGameScreen), findsNothing);
@@ -154,7 +167,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, '');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -177,7 +190,7 @@ void main() {
       await tester.enterText(find.byType(TextField).at(1), 'alice');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -210,7 +223,7 @@ void main() {
       // Dismiss the sheet, then commit.
       await tester.tap(find.byTooltip('Sluiten'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pumpAndSettle();
 
       expect(find.byType(EditGameScreen), findsNothing);
@@ -239,7 +252,7 @@ void main() {
 
     await tester.enterText(nameField(), 'Avondje kaarten');
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+    await tapSave(tester);
     await tester.pumpAndSettle();
 
     expect(find.byType(EditGameScreen), findsNothing);
@@ -261,7 +274,7 @@ void main() {
 
     await tester.enterText(nameField(), '');
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+    await tapSave(tester);
     await tester.pumpAndSettle();
 
     expect(find.byType(EditGameScreen), findsNothing);
@@ -295,7 +308,7 @@ void main() {
       );
 
       await changeDealerToBob(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pumpAndSettle();
 
       expect(find.text('Lopend spel wijzigen'), findsOneWidget);
@@ -315,7 +328,7 @@ void main() {
       final container = await _pumpEditPlayers(tester, gameInProgress: true);
 
       await changeDealerToBob(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pumpAndSettle();
 
       expect(find.text('Lopend spel wijzigen'), findsOneWidget);
@@ -353,7 +366,7 @@ void main() {
         findsWidgets,
       );
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Opslaan'));
+      await tapSave(tester);
       await tester.pumpAndSettle();
       // Mid-game reorder routes through the confirm gate.
       expect(find.text('Lopend spel wijzigen'), findsOneWidget);

@@ -8,6 +8,7 @@ import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/widgets/disabled_tappable_button.dart';
 import 'package:bonken/widgets/game_name_field.dart';
 import 'package:bonken/widgets/player_name_field.dart';
 import 'package:flutter/material.dart';
@@ -58,6 +59,18 @@ Finder playerNameTextField(int index) => find.descendant(
   of: find.byType(PlayerNameField).at(index),
   matching: find.byType(TextField),
 );
+
+/// Taps the bottom-bar "Start spel" action.
+///
+/// When the form is invalid the FilledButton is *truly disabled* (Mechanism A)
+/// and a transparent [DisabledTapDetector] overlay — not the button — receives
+/// the tap. Tapping the disabled FilledButton directly makes flutter_test
+/// derive a centre that hit-tests onto that overlay rather than the button,
+/// tripping the "derived an Offset that would not hit test" warning. Targeting
+/// the [DisabledTappableButton] hits the overlay (disabled) or the button
+/// (enabled) cleanly in both states.
+Future<void> tapStart(WidgetTester tester) =>
+    tester.tap(find.byType(DisabledTappableButton));
 
 /// Opens the dealer dropdown and picks the menu item with the given label.
 Future<void> pickDealer(WidgetTester tester, String name) async {
@@ -149,7 +162,7 @@ void main() {
       }
       expect(find.text('Willekeurige deler'), findsWidgets);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       await tester.pump();
 
       expect(find.text('Vul alle spelersnamen in.'), findsOneWidget);
@@ -183,7 +196,7 @@ void main() {
 
       expect(find.text('Twee spelers hebben dezelfde naam.'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       await tester.pump();
 
       expect(find.text('Spelersnamen moeten uniek zijn.'), findsOneWidget);
@@ -201,7 +214,7 @@ void main() {
     await enterName(tester, 2, 'Carol');
     // slot 3 left empty
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+    await tapStart(tester);
     await tester.pump();
 
     expect(find.text('Vul alle spelersnamen in.'), findsOneWidget);
@@ -268,7 +281,7 @@ void main() {
       await pickDealer(tester, 'Bob');
       await pickDealer(tester, 'Willekeurige deler');
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       await tester.pumpAndSettle();
 
       // Random-dealer announcement dialog appears (same as if Bob had
@@ -304,7 +317,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await pickDealer(tester, 'Alice');
-    await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+    await tapStart(tester);
     await tester.pumpAndSettle();
 
     expect(
@@ -325,7 +338,7 @@ void main() {
 
       await pickDealer(tester, 'Carol');
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       await tester.pumpAndSettle();
 
       final s = container.read(calculatorProvider) as ActiveSession;
@@ -345,7 +358,7 @@ void main() {
       await enterName(tester, 3, 'Dan');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       await tester.pumpAndSettle();
 
       // Random-dealer announcement dialog is shown (sentence visible).
@@ -421,7 +434,7 @@ void main() {
       await tester.tap(find.byTooltip('Sluiten'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       await tester.pumpAndSettle();
 
       final s = container.read(calculatorProvider) as ActiveSession;
@@ -544,7 +557,7 @@ void main() {
       // to this bug) doesn't sit in front of the navigation under test.
       await pickDealer(tester, 'Alice');
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start spel'));
+      await tapStart(tester);
       // Pump several frames while the persist write is still gated — exactly the
       // window where the one-frame keep-alive used to expire on mobile, leaving
       // GameScreen to build against a disposed (NoSession) calculatorProvider.

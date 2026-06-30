@@ -75,15 +75,25 @@
       const isIOS = /iPad|iPhone|iPod/.test(userAgent)
         || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+      const android = document.getElementById('android');
+      const ios = document.getElementById('ios');
+
       if (isAndroid) {
-        // Jump straight to the Play Store app rather than the web listing, which
-        // makes the browser show an "open in Play Store?" prompt first. The badge
-        // link stays https for desktop visitors who can't handle market://.
-        window.location.replace('market://details?id=org.suninet.bonken');
+        // Show only the Play Store badge and point it at the Play Store app, so
+        // tapping it launches the app directly (a user gesture, which Chrome
+        // allows — unlike the programmatic redirect below). The auto-redirect
+        // still fires and shows the "open in Play Store?" prompt; if the visitor
+        // dismisses it, the badge tap is the direct, popup-free fallback.
+        ios.hidden = true;
+        android.href = 'market://details?id=org.suninet.bonken';
+        window.location.replace(android.href);
       } else if (isIOS) {
-        window.location.replace(document.getElementById('ios').href);
+        // Show only the App Store badge; its apps.apple.com link opens the App
+        // Store app on tap.
+        android.hidden = true;
+        window.location.replace(ios.href);
       }
-      // Desktop / unknown: stay on the page and let the visitor pick a store.
+      // Desktop / unknown: stay on the page and show both badges (https links).
     })();
   </script>
 </body>

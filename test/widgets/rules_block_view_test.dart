@@ -4,6 +4,7 @@ import 'package:bonken/models/starter_variant.dart';
 import 'package:bonken/state/rules_edit_mode_provider.dart';
 import 'package:bonken/state/settings_provider.dart';
 import 'package:bonken/state/settings_storage.dart';
+import 'package:bonken/widgets/disabled_tap_detector.dart';
 import 'package:bonken/widgets/rules_block_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,6 +80,15 @@ Future<void> _pump(
   );
   await tester.pumpAndSettle();
 }
+
+/// Taps the *disabled* settings cog. The disabled cog [IconButton] is truly
+/// disabled (Mechanism A) and a transparent [DisabledTapDetector] overlay — not
+/// the icon — receives the tap. Tapping the cog icon directly makes
+/// flutter_test derive a centre that hit-tests onto that overlay rather than
+/// the icon, tripping the "derived an Offset that would not hit test" warning,
+/// so target the overlay (the sole [DisabledTapDetector] in the pumped block).
+Future<void> tapDisabledCog(WidgetTester tester) =>
+    tester.tap(find.byType(DisabledTapDetector));
 
 void main() {
   setUpPrefs();
@@ -273,7 +283,7 @@ void main() {
         starterOverride: StarterVariant.dealerStarts,
         editMode: RulesEditMode.disabled,
       );
-      await tester.tap(find.byIcon(Symbols.settings));
+      await tapDisabledCog(tester);
       await tester.pump();
       expect(find.text('Spelregelvariant'), findsNothing);
       expect(find.textContaining('Spel bewerken'), findsOneWidget);
@@ -290,7 +300,7 @@ void main() {
         starterOverride: StarterVariant.dealerStarts,
         editMode: RulesEditMode.disabled,
       );
-      await tester.tap(find.byIcon(Symbols.settings));
+      await tapDisabledCog(tester);
       await tester.pump();
       expect(find.text('Spelregelvariant'), findsNothing);
       expect(find.textContaining('Spel bewerken'), findsOneWidget);
