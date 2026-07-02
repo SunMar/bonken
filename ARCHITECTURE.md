@@ -345,6 +345,19 @@ lib/
     validation.dart          ValidationError + validateManifest / validateMigratedGames /
                              validateMigratedSettings — state-layer gate between raw JSON and
                              live providers. Catches GameInvariantError from the models layer.
+    games_envelope_codec.dart  GamesEnvelopeCodec — the shared {version, games:[…]} envelope + the
+                             validate-once boundary (runStorageMigrations + validateMigratedGames)
+                             behind the importable-data transports (QR + backup games stream).
+                             Typed GamesEnvelopeResult; pure, holds no transport framing.
+    game_qr_codec.dart       GameQrCodec — the QR transport over GamesEnvelopeCodec: gzip+base45 of the
+                             envelope + `BONKEN:G:1:` prefix + single-game constraint. Typed result
+                             (GameQrOk/GameQrTooNew/GameQrInvalid).
+    base45.dart              RFC 9285 Base45 encode/decode — packs bytes into QR's denser alphanumeric
+                             character set (lower QR version than base64). Used by game_qr_codec.
+    game_import.dart         classifyGameImport + sameGameData — the shared new/identical/conflict import
+                             decision (by game id), used by the QR scanner.
+    highlight_game_provider.dart  Transient one-shot "flash this game on Home" signal (game id); set by
+                             the QR scanner after a declined overwrite, consumed + cleared by the list.
 
   screens/                   Full-screen routes (all use AppScaffold).
     home_screen.dart         Start: saved-games list, "Nieuw spel", theme menu; resume/delete+undo.
@@ -367,6 +380,10 @@ lib/
     boot_error_screen.dart   Terminal startup-error screen shown when the app id could not
                              be read (isLegacyApp == null), so neither HomeScreen nor
                              MigrationScreen can be chosen safely (see §8).
+    qr_display_screen.dart   Shares the current game as a QR code (QrCodeView) + read-only scorecard +
+                             inline optional game-name editor; drives screen brightness to max while shown.
+    qr_scanner_screen.dart   Camera QR scanner (qrScannerViewProvider seam) → GameQrCodec decode + import
+                             decision (new / identical / overwrite); snackbars for invalid/too-new/no-camera.
 
   navigation/app_routes.dart  AppRoutes — the imperative in-app navigation layer: every
                              Navigator.push/pushReplacement goes through one helper, which owns
@@ -386,12 +403,18 @@ lib/
     score_result_view.dart   Per-player score outcome card (final or partial);
                              trophy Opacity for stable layout, doubles chips.
                              Used in RoundInputScreen.
-    share_result_action.dart The finished-game *Deel uitslag* AppBar action + its whole subsystem:
+    share_result_action.dart The *Deel uitslag* AppBar action (disabled until the game is finished)
+                             + its whole subsystem:
                              off-screen capture pipeline, format/destination dispatch (share/save/
                              copy, image/text), the format-picker dialog, and the screen-reader
                              custom actions. Extracted from game_screen.dart.
     share_result_card.dart   The result artifact rendered off-screen for PNG capture
                              (ShareResultCard) + the pure rankScores / buildShareText helpers.
+    share_qr_action.dart     The *Deel via QR* AppBar action (any open game) → opens QrDisplayScreen.
+    qr_code_view.dart        Renders a QR string as a black-on-white CustomPaint (the `qr` package's
+                             matrix); quiet zone + low error-correction. `qr` ships no widget.
+    qr_scanner_view.dart     qrScannerViewProvider seam + the production MobileScanner camera preview
+                             (overridden with a fake in tests — a real camera can't run under tests).
     doubles_picker.dart      Two-panel interactive doubling editor (initiators × targets).
     doubles_chips.dart       Read-only doubling summary chips (history view).
     double_state_chip.dart   Shared M3 chip for double/redouble state pills
@@ -484,9 +507,13 @@ lib/
                              `LSSupportsOpeningDocumentsInPlace` in
                              `ios/Runner/Info.plist` make it visible in Files app
                              (On My iPhone → Bonken).
+  services/screen_brightness_service.dart  ScreenBrightness (setMax/reset) over a self-written
+                             MethodChannel (window brightness on Android, UIScreen on iOS; no permission,
+                             no dependency; web/unsupported = no-op). Channel name derived from the
+                             runtime app id. Used by qr_display_screen via screenBrightnessProvider.
   state/platform_io_providers.dart  shareFileProvider / shareTextProvider / pickBackupBytesProvider /
-                             saveZipFileProvider / saveImageFileProvider — DI seams over the
-                             services; overridden in tests (see §11).
+                             saveZipFileProvider / saveImageFileProvider / screenBrightnessProvider — DI
+                             seams over the services; overridden in tests (see §11).
 ```
 
 ---
@@ -1256,6 +1283,50 @@ as `StorageMigration` / `SettingsMigration`. Currently empty (`backupMigrations
 = []`, `currentBackupVersion = 1`). Append a `BackupMigration` step here when
 the ZIP envelope structure changes (never reorder or remove).
 
+### Sharing importable game data ([`games_envelope_codec.dart`](lib/state/games_envelope_codec.dart))
+
+Everything that moves *importable game data* between installs sits on one shared
+core, so the formats can't drift apart. `GamesEnvelopeCodec` owns the
+`{version, games:[…]}` envelope and the **validate-once boundary**: `decode` runs
+`runStorageMigrations` + `validateMigratedGames` and returns a typed
+`GamesEnvelopeResult` (`GamesEnvelopeOk` / `GamesEnvelopeTooNew` /
+`GamesEnvelopeInvalid`; it never throws), so a shared game is migrated and
+validated exactly once — as an imported backup already was. It is pure and
+transport-neutral: no gzip, base64, prefix, or ZIP.
+
+Transports wrap that envelope, each adding only its own framing:
+
+- **Single-game QR** ([`game_qr_codec.dart`](lib/state/game_qr_codec.dart)) — `GameQrCodec` gzips the envelope (the
+  repeated player UUIDs compress heavily, so a full 12-round game fits a QR),
+  [Base45](lib/state/base45.dart)-encodes it, and prefixes a scheme tag + transport-format version:
+  `BONKEN:G:1:<base45>`. Base45 (RFC 9285) is used over base64 because its output
+  is confined to QR's *alphanumeric* character set, which the `qr` package packs at
+  ~5.5 bits/char instead of the 8 bits/char that base64's lowercase letters force
+  (byte mode) — same payload, a lower QR version, an easier scan (worst-case full
+  game: v16/81² vs v19/93²). It enforces the single-game constraint and maps the
+  shared result onto `GameQrOk` / `GameQrTooNew` / `GameQrInvalid`. Bump the trailing
+  `1` (and branch in `decode`) only if the QR framing changes; the inner storage
+  `version` still rides the normal storage migrations. A `game_qr_codec_test`
+  asserts a worst-case game's QR **module count** stays modest (the real
+  scannability metric, not raw string length — base45 trades more characters for a
+  smaller code).
+- **Backup games stream** — `BackupCodec._decodeGamesStream` decodes the same
+  envelope and maps the result onto its `StreamStatus` vocabulary (see the backup
+  subsection above).
+
+A new transport adds only its own framing over the envelope; the migrate/validate
+core stays in one place.
+
+Every accepted game funnels through one import decision. `classifyGameImport`
+([`game_import.dart`](lib/state/game_import.dart)) sorts an incoming game against history by id —
+`GameImportNew` / `GameImportIdentical` / `GameImportConflict`, using the
+canonical-JSON `sameGameData` compare — and the caller commits with
+`gameHistoryProvider.saveGame` (upsert by id). The Home QR scanner uses it today.
+
+This is the *importable-data* lane only. The *human-readable* result share
+(`ShareResultAction` — a scoreboard PNG/text to the OS share sheet, §10) is a
+separate lane with a different payload and is unrelated to this seam.
+
 ---
 
 ## 10. UI layer
@@ -1278,9 +1349,12 @@ AppBar buttons) can trigger navigation without importing `lib/screens`.
 
 **Screens** (what they watch / do):
 - **`HomeScreen`** — watches `gameHistoryProvider`; renders the saved-games list
-  (`ScoreboardCard` per game), the "Nieuw spel" button, theme menu, rules/about.
-  Handles resume (tap), delete + undo snackbar, and the storage-error screen
-  (unsupported version or corrupt data — see §9).
+  (`ScoreboardCard` per game), a QR-scan icon button + the "Nieuw spel" button,
+  theme menu, rules/about. Handles resume (tap), delete + undo snackbar, and the
+  storage-error screen (unsupported version or corrupt data — see §9). The scan
+  button opens `QrScannerScreen`; the list also consumes a one-shot
+  `highlightGameProvider` to scroll-to and briefly flash a game (set by the
+  scanner after a declined overwrite — see below).
 - **`NewGameScreen`** — local working state only; seeds `StarterVariant` /
   `HeartsVariant` from the default providers; commits via `startNewGame`.
 - **`SettingsScreen`** — app-wide default `StarterVariant` + `HeartsVariant`
@@ -1324,9 +1398,13 @@ AppBar buttons) can trigger navigation without importing `lib/screens`.
   hides when the toggle is on (the played tiles themselves provide the content).
   Per-chooser quota disabling and pending-round blocking
   remain as soft disables. Also contains `_LiveScoreboard`, a round-history list,
-  and edit-game / delete-game actions. When the game is **finished**, the app bar
-  shows a *Deel uitslag* (share) action — the self-contained `ShareResultAction`
-  widget (`lib/widgets/`), which owns the whole result-sharing subsystem out of
+  and edit-game / delete-game actions. The app bar always shows a *Deel uitslag*
+  (share) action — the self-contained `ShareResultAction`
+  widget (`lib/widgets/`) — but while the game is **unfinished** it renders as a
+  Mechanism-A disabled button (`enabled: false` → truly disabled icon +
+  transparent overlay), and tapping it explains via a snackbar
+  (`kShareUnfinishedMessage`) that only a finished game can be shared. Once every
+  round is scored it becomes active and owns the whole result-sharing subsystem out of
   the screen: it exports the result as a rendered PNG (an off-screen
   `ShareResultCard`, captured via `RepaintBoundary.toImage`); a popup dialog
   offers an explicit image/text choice and a `CustomSemanticsAction` exposes it
@@ -1339,7 +1417,9 @@ AppBar buttons) can trigger navigation without importing `lib/screens`.
   A genuine failure shows a snackbar: `OutOfSpaceException` → the actionable
   `kOutOfSpaceMessage`, anything else → a generic "mislukt" message. The services
   throw rather than returning a lossy bool, so the UI never has to guess whether
-  a non-success meant "cancelled" or "errored".
+  a non-success meant "cancelled" or "errored". To the **left** of *Deel uitslag*
+  — and shown for **any** open game, not just finished ones — is a *Deel via QR*
+  action (`ShareQrAction`) that opens `QrDisplayScreen`.
 - **`RoundInputScreen`** — composed of focused `ConsumerWidget` cards
   (`_ChooserSelectorCard`, `_DoublesCard`, `_InputFormCard`,
   `_ScoreResultSection`), each declaring its own narrow `select`. Game-specific
@@ -1356,6 +1436,22 @@ AppBar buttons) can trigger navigation without importing `lib/screens`.
   (`enabled`), is hidden
   (`hidden`), or shows a snackbar directing to 'Spel bewerken'
   (`disabled`).
+- **`QrDisplayScreen`** — shares the current game as a QR code (`GameQrCodec` +
+  the `QrCodeView` painter); shows a read-only `ScoreboardCard` and an inline,
+  *optional* game-name editor (persists via `setGameName`, which regenerates the
+  QR from the watched session). Drives screen brightness to max while visible via
+  the `screenBrightnessProvider` seam, restoring it on leave / background / while
+  the rename dialog is open.
+- **`QrScannerScreen`** — camera scanner (`mobile_scanner`, behind the
+  `qrScannerViewProvider` seam) that decodes a scanned game via `GameQrCodec` and
+  runs the import decision: unknown id → save + open; same id + identical data
+  (canonical-JSON compare) → open the existing game; same id + different data →
+  confirm overwrite (accept → replace + open; decline → return Home and flash the
+  existing game via `highlightGameProvider`). Invalid / too-new codes show a
+  snackbar and keep scanning; a denied/absent camera shows a snackbar and returns
+  Home. The camera permission is declared in `AndroidManifest.xml`
+  (`android.permission.CAMERA`) and `Info.plist` (`NSCameraUsageDescription`), and
+  requested at runtime only when the scanner opens.
 
 **The doubles picker** (`doubles_picker.dart`) deserves special note — it is the
 most intricate widget. Two stacked panels: an **initiator** list (the 4 players
@@ -1904,6 +2000,51 @@ Quickboot snapshot). `integration_test` and `flutter_driver` are declared as
 `dev_dependencies` with `sdk: flutter` — they live in the Flutter SDK and are
 skipped by `update_deps.dart` (no version field in `pubspec.lock`).
 
+### Dependency policy
+
+A third-party dependency is a standing liability: it widens the supply-chain
+attack surface, and its author can abandon it at any time. Every new one therefore
+has to clear a tiered bar:
+
+- **Official Google packages** (`flutter.dev` / `dart.dev` / `material.io` /
+  `tools.dart.dev`) — accepted, provided they stay maintained and not deprecated.
+- **Verified-publisher third parties** — accepted only when the package is
+  actively maintained, ideally widely used, and earns its keep with a real cut in
+  the complexity or maintenance we would otherwise carry ourselves. The verified
+  badge is necessary but not sufficient.
+- **Unverified-publisher packages** — never, no exceptions.
+
+To date nothing in the project comes from an unverified uploader. If no package
+qualifies, we build the capability ourselves.
+
+A decision that isn't self-evident is explained here; `pubspec.yaml` only records
+what each package is used for.
+
+The QR-sharing feature is the worked precedent — QR generation, QR scanning, and
+screen brightness each lack a first-party package, and the bar resolved each
+differently:
+
+- **`qr`** — verified-publisher and pure-Dart, encode-only (it produces the module
+  matrix; we paint it ourselves). Chosen over the stale `qr_flutter`. We feed it a
+  [Base45](lib/state/base45.dart) payload so it auto-selects its denser alphanumeric
+  segment mode (see §9).
+- **`mobile_scanner`** — verified-publisher, and the one dependency here we can't
+  avoid: decoding a live camera QR needs the platform-native barcode engines it
+  wraps, and nothing we already carry can do it — `camera` only streams frames,
+  `qr` only encodes.
+
+  On Android its bundled ML Kit registers barcode components reflectively, so the
+  R8 shrinking Flutter enables for release builds strips them and the scanner
+  crashes at start — **release only**, since debug doesn't shrink. The keep rules
+  in [`android/app/proguard-rules.pro`](android/app/proguard-rules.pro) (wired into
+  the release build type in [`android/app/build.gradle.kts`](android/app/build.gradle.kts))
+  prevent that; keep them when bumping `mobile_scanner` or Flutter. On iOS/macOS
+  `mobile_scanner` uses Apple's Vision framework (no ML Kit, no R8), so it is
+  unaffected.
+- **Screen brightness** — no dependency at all. Its only package option
+  (`screen_brightness`) was an unverified uploader, so it's a small self-written
+  platform channel instead (mechanics in §4 / §10).
+
 ### Dependency updates
 
 `fvm dart run tool/update_deps.dart` runs `fvm flutter pub upgrade` and rewrites
@@ -2055,6 +2196,10 @@ Things to *not* break:
 | Opslaan / Verwerpen | Save / Discard |
 | Ongedaan maken | Undo |
 | Spel bewerken / Spel verwijderen | Edit game / Delete game |
+| Deel via QR / Deel spel | Share via QR / Share game (QR screen) |
+| QR-code scannen | Scan QR code (import a shared game) |
+| Spelnaam | Game name (optional) |
+| Overschrijven | Overwrite (an existing game on import) |
 
 **Mini-game names** (ids in §5): Klaveren=Clubs, Ruiten=Diamonds, Harten=Hearts,
 Schoppen=Spades, Zonder troef=No Trump, Harten Heer=King of Hearts,

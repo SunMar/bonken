@@ -27,6 +27,8 @@ import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
 import 'package:bonken/state/platform_io_providers.dart';
 import 'package:bonken/utils.dart';
+import 'package:bonken/widgets/share_result_action.dart'
+    show ShareResultAction, kShareUnfinishedMessage;
 import 'package:bonken/widgets/share_result_card.dart'
     show buildShareText, rankScores;
 import 'package:flutter/material.dart';
@@ -350,12 +352,26 @@ void main() {
       expect(text, isNot(contains('null')));
     });
 
-    testWidgets('share action is absent until the game is finished', (
-      tester,
-    ) async {
+    testWidgets('share action is present but disabled until the game is '
+        'finished, and explains why on tap', (tester) async {
       final players = mkPlayers();
       await _pump(tester, session: _session(players: players));
-      expect(find.byIcon(Symbols.share), findsNothing);
+      // The icon is present but truly disabled (Mechanism A).
+      expect(find.byIcon(Symbols.share), findsOneWidget);
+      final button = tester.widget<IconButton>(
+        find.descendant(
+          of: find.byType(ShareResultAction),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(button.onPressed, isNull);
+
+      // Tapping the transparent overlay explains why nothing happened.
+      await tester.tap(find.byType(ShareResultAction));
+      await tester.pump();
+      expect(find.text(kShareUnfinishedMessage), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5)); // drain the snackbar timer
+      await tester.pumpAndSettle();
     });
 
     testWidgets('finished game shows the share action; long-press opens the '

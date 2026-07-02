@@ -8,9 +8,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/game_session.dart';
 import '../navigation/app_routes.dart';
+import '../screens/qr_scanner_screen.dart' show kScanQrTitle;
 import '../state/calculator_keep_alive.dart';
 import '../state/calculator_provider.dart';
 import '../state/game_history_provider.dart';
+import '../state/highlight_game_provider.dart';
 import '../state/settings_provider.dart';
 import '../state/settings_storage.dart';
 import '../state/storage_exceptions.dart';
@@ -74,6 +76,11 @@ class HomeScreen extends ConsumerWidget {
       appBar: appBar,
       bottomBar: historyAsync.hasValue
           ? FullWidthBottomBarButton(
+              leading: IconButton(
+                icon: const Icon(Symbols.qr_code_scanner),
+                tooltip: kScanQrTitle,
+                onPressed: () => unawaited(AppRoutes.openScanQr(context)),
+              ),
               icon: const Icon(Symbols.add),
               label: const Text('Nieuw spel'),
               onPressed: () {
@@ -88,18 +95,14 @@ class HomeScreen extends ConsumerWidget {
       // above. hasValue covers skipLoadingOnReload: a reload keeps the existing
       // list rather than flashing the spinner.
       body: historyAsync.hasValue
-          ? _sessionsBody(context, ref, historyAsync.requireValue)
+          ? _sessionsBody(context, historyAsync.requireValue)
           : const Center(child: CircularProgressIndicator()),
     );
   }
 
-  Widget _sessionsBody(
-    BuildContext context,
-    WidgetRef ref,
-    List<GameSession> sessions,
-  ) {
-    final cs = Theme.of(context).colorScheme;
+  Widget _sessionsBody(BuildContext context, List<GameSession> sessions) {
     if (sessions.isEmpty) {
+      final cs = Theme.of(context).colorScheme;
       return Center(
         child: Text(
           'Nog geen gespeelde spellen',
@@ -109,7 +112,82 @@ class HomeScreen extends ConsumerWidget {
         ),
       );
     }
+    return _SessionsList(sessions: sessions);
+  }
+}
+
+/// The past-games list. Stateful so it can honour a one-shot
+/// [highlightGameProvider] request (set by the QR scanner when the user declines
+/// an overwrite): it scrolls the matching card into view and briefly flashes it.
+class _SessionsList extends ConsumerStatefulWidget {
+  const _SessionsList({required this.sessions});
+
+  final List<GameSession> sessions;
+
+  @override
+  ConsumerState<_SessionsList> createState() => _SessionsListState();
+}
+
+class _SessionsListState extends ConsumerState<_SessionsList> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _flashKey = GlobalKey();
+  String? _flashId;
+  Timer? _flashTimer;
+
+  @override
+  void dispose() {
+    _flashTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _startFlash(String id) {
+    // Only react if the game is actually in the current list.
+    if (!widget.sessions.any((s) => s.id == id)) {
+      ref.read(highlightGameProvider.notifier).clear();
+      return;
+    }
+    _flashTimer?.cancel();
+    setState(() => _flashId = id);
+    // Consume the one-shot signal now that it's captured in local state.
+    ref.read(highlightGameProvider.notifier).clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _flashKey.currentContext;
+      if (ctx != null) {
+        unawaited(
+          Scrollable.ensureVisible(
+            ctx,
+            alignment: 0.15,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeInOut,
+          ),
+        );
+      }
+    });
+    _flashTimer = Timer(const Duration(milliseconds: 1400), () {
+      if (mounted) setState(() => _flashId = null);
+    });
+  }
+
+  Future<void> _delete(GameSession session) async {
+    // Capture the messenger BEFORE any awaits, so we don't depend on a context
+    // that may change.
+    final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context, listen: false);
+    await ref.read(gameHistoryProvider.notifier).deleteGame(session.id);
+    showGameDeletedSnackBar(messenger, container, session);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    ref.listen<String?>(highlightGameProvider, (_, next) {
+      if (next != null) _startFlash(next);
+    });
+
+    final sessions = widget.sessions;
     return ListView.separated(
+      controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       // +1 for the "Spellen" header at index 0.
       itemCount: sessions.length + 1,
@@ -133,16 +211,12 @@ class HomeScreen extends ConsumerWidget {
           );
         }
         final session = sessions[index - 1];
+        final isFlashing = session.id == _flashId;
         return _GameSessionCard(
+          key: isFlashing ? _flashKey : null,
           session: session,
-          onDelete: () async {
-            // Capture the messenger BEFORE any awaits, so we don't depend on a
-            // context that may change.
-            final messenger = ScaffoldMessenger.of(context);
-            final container = ProviderScope.containerOf(context, listen: false);
-            await ref.read(gameHistoryProvider.notifier).deleteGame(session.id);
-            showGameDeletedSnackBar(messenger, container, session);
-          },
+          highlight: isFlashing,
+          onDelete: () => unawaited(_delete(session)),
         );
       },
     );
@@ -537,10 +611,18 @@ String _buildEmailBody(String debugReport) {
 // =============================================================================
 
 class _GameSessionCard extends ConsumerWidget {
-  const _GameSessionCard({required this.session, required this.onDelete});
+  const _GameSessionCard({
+    super.key,
+    required this.session,
+    required this.onDelete,
+    this.highlight = false,
+  });
 
   final GameSession session;
   final VoidCallback onDelete;
+
+  /// When true, a brief tinted overlay flags this card (see [_SessionsList]).
+  final bool highlight;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -569,7 +651,7 @@ class _GameSessionCard extends ConsumerWidget {
         : 'Lopend spel ${namePart}met $names — ronde ${session.rounds.length + 1} '
               'van ${GameSession.totalRounds} — $date';
 
-    return Theme(
+    final card = Theme(
       data: mutedIconTheme,
       child: ScoreboardCard(
         tapSemanticLabel: tapLabel,
@@ -590,6 +672,37 @@ class _GameSessionCard extends ConsumerWidget {
           onPressed: onDelete,
         ),
       ),
+    );
+
+    // Brief "look here" flash after a declined overwrite: an animated coloured
+    // outline around the card — the Material 3 way to draw attention without
+    // obscuring its content. The border is always present so it animates both in
+    // (on highlight) and out (fade to transparent when the flash clears);
+    // ExcludeSemantics + IgnorePointer keep it purely decorative and tap-through,
+    // and it sits in a Stack so the always-on 2px border never shifts the card's
+    // layout.
+    return Stack(
+      children: [
+        card,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ExcludeSemantics(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: highlight
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.primary.withValues(alpha: 0),
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -14,10 +14,20 @@ import '../services/io_failure.dart';
 import '../state/calculator_provider.dart';
 import '../state/platform_io_providers.dart';
 import '../utils.dart';
+import 'disabled_tappable_button.dart';
 import 'share_result_card.dart';
 import 'timed_snackbar.dart';
 
 enum _ShareDialogResult { shareImage, shareText, saveImage, copyText }
+
+/// Tooltip / accessible label for the share action, used by both its enabled
+/// and disabled (unfinished-game) states.
+const String kShareResultTooltip = 'Deel uitslag';
+
+/// Snackbar shown when the disabled share action is tapped on an unfinished
+/// game — sharing a result only makes sense once every round is scored.
+const String kShareUnfinishedMessage =
+    'Je kunt alleen een afgerond spel delen.';
 
 // Generic failure messages — shown only when something actually went wrong (a
 // benign share/save cancellation surfaces nothing). The one user-fixable case,
@@ -27,16 +37,26 @@ const String _kSaveFailedMessage =
     'Het is mislukt om de afbeelding op te slaan.';
 const String _kCopyFailedMessage = 'Het is mislukt om de tekst te kopiëren.';
 
-/// The finished-game share action: an AppBar [IconButton] that owns the whole
+/// The result-share action: an AppBar [IconButton] that owns the whole
 /// result-sharing subsystem (off-screen capture, format dispatch, share / save
 /// / copy I/O via the platform providers, and the format-picker dialog).
+///
+/// Always present in the game screen's app bar, but inert until the game is
+/// finished: with [enabled] `false` it renders as a Mechanism-A disabled button
+/// (see the `build` guard) since there's no result to share yet.
 ///
 /// A plain tap shares the result as an image (web browsers without the Web
 /// Share API fall back to a PNG download — handled by `share_plus`, not here); a
 /// long-press (touch) or a screen-reader custom action opens the format picker
 /// — a niche affordance, so it stays out of the way of the common case.
 class ShareResultAction extends ConsumerStatefulWidget {
-  const ShareResultAction({super.key});
+  const ShareResultAction({super.key, this.enabled = true});
+
+  /// When `false` the action renders truly disabled (native M3 disabled colours)
+  /// with a transparent overlay that explains — via [kShareUnfinishedMessage] —
+  /// that only a finished game can be shared. Set from the game screen so the
+  /// button is always present but only active once every round is scored.
+  final bool enabled;
 
   @override
   ConsumerState<ShareResultAction> createState() => _ShareResultActionState();
@@ -45,6 +65,20 @@ class ShareResultAction extends ConsumerStatefulWidget {
 class _ShareResultActionState extends ConsumerState<ShareResultAction> {
   @override
   Widget build(BuildContext context) {
+    // Unfinished game: a Mechanism-A disabled button (ARCHITECTURE §2) — the
+    // icon is truly disabled while a transparent overlay catches taps and
+    // explains why. No long-press / share affordances until the game is done.
+    if (!widget.enabled) {
+      return DisabledTappableButton(
+        onPressed: null,
+        onDisabledTap: () => _snack(kShareUnfinishedMessage),
+        builder: (onPressed) => IconButton(
+          icon: const Icon(Symbols.share),
+          tooltip: kShareResultTooltip,
+          onPressed: onPressed,
+        ),
+      );
+    }
     return TooltipTheme(
       // `manual` disables only the *touch* trigger, so a long-press opens the
       // dialog without the tooltip racing it; mouse hover still shows it.
@@ -68,7 +102,7 @@ class _ShareResultActionState extends ConsumerState<ShareResultAction> {
           },
           child: IconButton(
             icon: const Icon(Symbols.share),
-            tooltip: 'Deel uitslag',
+            tooltip: kShareResultTooltip,
             onPressed: () => unawaited(_shareImage()),
             onLongPress: () => unawaited(_showShareDialog()),
           ),

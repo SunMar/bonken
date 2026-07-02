@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera is used only to scan a game-sharing QR code (mobile_scanner).
+         The permission is requested at runtime the first time the user opens the
+         scanner, never at launch. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="${appLabel}"
         android:name="${applicationName}"

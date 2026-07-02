@@ -37,10 +37,10 @@ dependencies:
   # Persistent local storage for settings and game state.
   shared_preferences: ^2.5.5
 
-  # Read app version/build info at runtime (shown in the About dialog).
+  # Read app version/build info at runtime.
   package_info_plus: ^10.2.0
 
-  # Open external URLs (the GitHub link in the About dialog).
+  # Open external URLs.
   url_launcher: ^6.3.2
 
   # Cross-platform share sheet (Android intent / iOS share / Web Share API).
@@ -73,6 +73,13 @@ dependencies:
   # references it directly; every icon in the app is a `Symbols.xxx`
   # from this package.
   material_symbols_icons: ^4.2951.0
+
+  # QR-code generator (encode-only, pure Dart) — produces the module matrix,
+  # which we render with our own CustomPainter (the package ships no widget).
+  qr: ^4.0.0
+
+  # Camera-based QR-code scanning; wraps the platform-native barcode decoders.
+  mobile_scanner: ^7.2.0
 
 dev_dependencies:
   flutter_test:

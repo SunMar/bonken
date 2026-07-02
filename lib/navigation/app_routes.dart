@@ -8,6 +8,8 @@ import '../screens/export_screen.dart';
 import '../screens/game_screen.dart';
 import '../screens/import_screen.dart';
 import '../screens/new_game_screen.dart';
+import '../screens/qr_display_screen.dart';
+import '../screens/qr_scanner_screen.dart';
 import '../screens/round_input_screen.dart';
 import '../screens/rules_screen.dart';
 import '../screens/settings_screen.dart';
@@ -67,6 +69,14 @@ abstract final class AppRoutes {
   /// Backup import flow.
   static Future<void> openImport(BuildContext context) =>
       _push(context, const ImportScreen());
+
+  /// QR-code display for sharing the current game.
+  static Future<void> openShowQr(BuildContext context) =>
+      _push(context, const QrDisplayScreen());
+
+  /// Camera QR scanner for importing a shared game.
+  static Future<void> openScanQr(BuildContext context) =>
+      _push(context, const QrScannerScreen());
 
   /// App-wide settings.
   static Future<void> openSettings(BuildContext context) =>

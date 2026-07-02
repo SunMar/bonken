@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/app_updater.dart';
 import '../services/file_pick_service.dart';
 import '../services/save_service.dart';
+import '../services/screen_brightness_service.dart';
 import '../services/share_service.dart';
 
 /// Dependency-injection seams for platform side-effects (the system share sheet,
@@ -46,6 +47,14 @@ typedef PickBackupBytesFn = Future<Uint8List?> Function();
 /// Picks a backup file and returns its bytes. Defaults to [pickBackupBytes].
 final pickBackupBytesProvider = Provider<PickBackupBytesFn>(
   (ref) => pickBackupBytes,
+);
+
+/// Screen-brightness control for the QR-display screen (raise to max while a QR
+/// is shown, restore afterwards). Defaults to the real platform channel;
+/// overridden with a spy in tests. A stateful object rather than a function
+/// because setMax/reset share the saved-brightness state. See ARCHITECTURE.md.
+final screenBrightnessProvider = Provider<ScreenBrightness>(
+  (ref) => PlatformScreenBrightness(),
 );
 
 typedef CheckForAndroidUpdateFn = Future<void> Function();

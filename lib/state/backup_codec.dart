@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart';
 import '../models/app_version.dart';
 import '../models/game_session.dart';
 import 'backup_migrations.dart';
-import 'migrations.dart';
+import 'games_envelope_codec.dart';
 import 'settings_migrations.dart';
 import 'validation.dart';
 
@@ -176,10 +176,11 @@ class DecodedBackup {
 /// structure. Holds no Riverpod / prefs / platform state — the effectful gather
 /// (export) and commit (import) live in `export_import_notifier.dart`.
 ///
-/// Per-stream migrate + validate is delegated to the owners' existing pure
-/// functions (`runStorageMigrations` + `validateMigratedGames`,
-/// `runSettingsMigrations` + `validateMigratedSettings`, `runBackupMigrations` +
-/// `validateManifest`), so this layer owns *format* logic only.
+/// Per-stream migrate + validate is delegated: the games stream to the shared
+/// `GamesEnvelopeCodec` (the same envelope the QR transport uses), and
+/// settings/manifest to their owners' pure functions (`runSettingsMigrations` +
+/// `validateMigratedSettings`, `runBackupMigrations` + `validateManifest`), so
+/// this layer owns *format* logic only.
 abstract final class BackupCodec {
   /// Encodes already-serialized stream envelopes into a shareable ZIP archive.
   ///
@@ -384,55 +385,40 @@ abstract final class BackupCodec {
 
   /// Decodes, migrates and validates the games stream, returning its status and
   /// the game count (reported even when the stream is unimportable).
+  ///
+  /// The `{version, games:[…]}` envelope, migration and validation are the shared
+  /// [GamesEnvelopeCodec]'s job (identical to the QR transport); this only reads
+  /// the ZIP entry bytes and maps the typed result onto the backup [StreamStatus]
+  /// vocabulary. Content is only transit-hash-verified, never trusted, so any
+  /// failure stays a soft [StreamCorrupt] rather than throwing out of `decode()`.
   static (StreamStatus, int) _decodeGamesStream(
     Archive archive, {
     required bool present,
   }) {
     if (!present) return (const StreamNotPresent(), 0);
 
-    // Everything past presence operates on content that is only
-    // transit-hash-verified, never trusted: the manifest author picks both the
-    // bytes and their hash. So the whole parse → migrate → validate pipeline is
-    // wrapped — any failure becomes a soft StreamCorrupt instead of an untyped
-    // throw escaping decode(), keeping the other stream independently importable.
-    var count = 0;
+    final String json;
     try {
-      final envelope =
-          jsonDecode(utf8.decode(archive.findFile('games.json')!.content))
-              as Map<String, dynamic>;
-      final rawVersion = envelope['version'];
-      final versionError = _streamVersionError(rawVersion, 'Games');
-      if (versionError != null) return (versionError, 0);
-      final version = rawVersion as int;
-      final rawList = envelope['games'];
-      if (rawList is! List) {
-        return (
-          const StreamCorrupt('Games stream: "games" must be an array.'),
-          0,
-        );
-      }
-      final rawGames = List<dynamic>.from(rawList);
-      count = rawGames.length;
+      json = utf8.decode(archive.findFile('games.json')!.content);
+    } on Object catch (e) {
+      return (StreamCorrupt('Games stream could not be decoded: $e'), 0);
+    }
 
-      if (version > currentStorageVersion) {
-        return (
+    return switch (GamesEnvelopeCodec.decode(json)) {
+      GamesEnvelopeOk(:final games) => (StreamValid(games), games.length),
+      GamesEnvelopeTooNew(:final version, :final maxSupported, :final count) =>
+        (
           StreamVersionTooNew(
             streamVersion: version,
-            maxSupported: currentStorageVersion,
+            maxSupported: maxSupported,
           ),
           count,
-        );
-      }
-
-      final migrated = version < currentStorageVersion
-          ? runStorageMigrations(rawGames, fromVersion: version)
-          : rawGames;
-      return (StreamValid(validateMigratedGames(migrated)), count);
-    } on ValidationError catch (e) {
-      return (StreamCorrupt('Games content invalid: ${e.message}'), count);
-    } on Object catch (e) {
-      return (StreamCorrupt('Games stream could not be decoded: $e'), count);
-    }
+        ),
+      GamesEnvelopeInvalid(:final debugReason, :final count) => (
+        StreamCorrupt(debugReason),
+        count,
+      ),
+    };
   }
 
   /// Decodes, migrates and validates the settings stream, returning its status.

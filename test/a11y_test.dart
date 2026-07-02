@@ -29,6 +29,8 @@ import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/screens/import_screen.dart';
 import 'package:bonken/screens/migration_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
+import 'package:bonken/screens/qr_display_screen.dart';
+import 'package:bonken/screens/qr_scanner_screen.dart';
 import 'package:bonken/screens/round_input_screen.dart';
 import 'package:bonken/screens/rules_screen.dart';
 import 'package:bonken/screens/settings_screen.dart';
@@ -40,9 +42,11 @@ import 'package:bonken/state/migrations.dart' show currentStorageVersion;
 import 'package:bonken/state/platform_io_providers.dart';
 import 'package:bonken/state/settings_storage.dart';
 import 'package:bonken/widgets/doubles_picker.dart';
+import 'package:bonken/widgets/qr_scanner_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -104,8 +108,9 @@ Future<void> _pump(
   Widget home, {
   GameSession? load,
   MiniGame? select,
+  List<Override> overrides = const [],
 }) async {
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: overrides);
   addTearDown(container.dispose);
   await _setGateSurface(tester);
   await container.read(gameHistoryProvider.future);
@@ -177,6 +182,34 @@ void main() {
     final players = [for (final n in _names) Player(name: n)];
     // Finished state surfaces the share action in the app bar.
     await _pump(tester, const GameScreen(), load: _finishedSession(players));
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('QrDisplayScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    final players = [for (final n in _names) Player(name: n)];
+    await _pump(
+      tester,
+      const QrDisplayScreen(),
+      load: _session(players),
+      overrides: [
+        screenBrightnessProvider.overrideWithValue(FakeScreenBrightness()),
+      ],
+    );
+    await _expectA11y(tester);
+    handle.dispose();
+  });
+
+  testWidgets('QrScannerScreen meets a11y guidelines', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      const QrScannerScreen(),
+      overrides: [
+        qrScannerViewProvider.overrideWithValue(FakeScannerView().builder),
+      ],
+    );
     await _expectA11y(tester);
     handle.dispose();
   });

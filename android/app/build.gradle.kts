@@ -79,6 +79,13 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Flutter enables R8 shrinking for release. Layer our own keep rules
+            // (proguard-rules.pro) on top of the default so mobile_scanner's ML Kit
+            // classes, which are instantiated reflectively, survive shrinking.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

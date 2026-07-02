@@ -27,6 +27,7 @@ import '../widgets/game_deleted_snackbar.dart';
 import '../widgets/info_banner.dart';
 import '../widgets/round_meta_line.dart';
 import '../widgets/scoreboard_card.dart';
+import '../widgets/share_qr_action.dart';
 import '../widgets/share_result_action.dart';
 
 // =============================================================================
@@ -63,7 +64,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           heartsVariantOverride: heartsVariant,
           editMode: RulesEditMode.disabled,
         ),
-        actions: [if (isFinished) const ShareResultAction()],
+        actions: [
+          const ShareQrAction(),
+          ShareResultAction(enabled: isFinished),
+        ],
       ),
       body: const _GameSelectionBody(),
     );

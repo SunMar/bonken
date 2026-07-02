@@ -17,6 +17,7 @@ class FullWidthBottomBarButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.onDisabledTap,
+    this.leading,
   });
 
   final Widget icon;
@@ -24,11 +25,16 @@ class FullWidthBottomBarButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final VoidCallback? onDisabledTap;
 
+  /// Optional compact widget (e.g. an [IconButton]) placed to the left of the
+  /// full-width button, so the primary action stays visually dominant.
+  final Widget? leading;
+
   @override
   Widget build(BuildContext context) {
     return BottomAppBar(
       child: Row(
         children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 8)],
           Expanded(
             child: DisabledTappableButton(
               onPressed: onPressed,

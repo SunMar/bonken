@@ -68,6 +68,7 @@ Bonken is een kaartspel voor vier spelers. Een spel bestaat uit twaalf rondes; e
 - **Pauzeren en hervatten** — lopende spellen worden automatisch opgeslagen; sluit de app, veeg hem weg of ga ergens anders heen en ga later precies verder waar je gebleven was. Onderbroken rondes worden gemarkeerd en blokkeren andere spelvormen totdat de vorige score is ingevuld of verworpen.
 - **Nieuw spel met dezelfde spelers** — als een spel afgelopen is, start je met één tik een nieuw spel met dezelfde opstelling.
 - **Deel uitslag** — de einduitslag snel en makkelijk met anderen delen via een deelknop.
+- **Deel een spel via QR** — deel een heel spel (lopend of afgelopen) met een QR-code; iemand anders scant hem in de app en gaat er direct mee verder. Werkt volledig offline, zonder account of server.
 - **Spelgeschiedenis** — afgelopen spellen worden lokaal opgeslagen en getoond op het beginscherm, inclusief de eindstand van het spel.
 - **Exporteer & importeer** — maak een backup van alle spelgeschiedenis en instellingen en herstel ze op hetzelfde of een ander apparaat.
 - **Licht / donker thema** — volgt de systeemvoorkeur, of kan handmatig worden aangepast in de app.

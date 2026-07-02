@@ -11,11 +11,14 @@ import 'package:bonken/models/round_record.dart';
 import 'package:bonken/screens/game_screen.dart';
 import 'package:bonken/screens/home_screen.dart';
 import 'package:bonken/screens/new_game_screen.dart';
+import 'package:bonken/screens/qr_scanner_screen.dart';
 import 'package:bonken/state/calculator_provider.dart';
 import 'package:bonken/state/game_history_provider.dart';
+import 'package:bonken/state/highlight_game_provider.dart';
 import 'package:bonken/state/settings_storage.dart';
 import 'package:bonken/state/storage_exceptions.dart';
 import 'package:bonken/widgets/app_bar_widgets.dart';
+import 'package:bonken/widgets/qr_scanner_view.dart';
 import 'package:bonken/widgets/scoreboard_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -732,6 +735,41 @@ void main() {
 
       expect(report, contains('=== Cause ==='));
       expect(report, contains('dangling player id'));
+    });
+  });
+
+  group('QR sharing', () {
+    testWidgets('shows a QR-scan button that opens the scanner', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [
+          qrScannerViewProvider.overrideWithValue(FakeScannerView().builder),
+        ],
+      );
+      addTearDown(container.dispose);
+      await _pumpHome(tester, container);
+
+      expect(find.byTooltip(kScanQrTitle), findsOneWidget);
+      await tester.tap(find.byTooltip(kScanQrTitle));
+      await tester.pumpAndSettle();
+      expect(find.byType(QrScannerScreen), findsOneWidget);
+    });
+
+    testWidgets('consumes a highlight request (flashes, then clears it)', (
+      tester,
+    ) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await _pumpHome(tester, container, saved: [_session(kGameId1)]);
+
+      container.read(highlightGameProvider.notifier).flash(kGameId1);
+      await tester.pump();
+      // The list captured the one-shot signal and cleared it.
+      expect(container.read(highlightGameProvider), isNull);
+      // Let the flash animation + its timer complete cleanly.
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pumpAndSettle();
     });
   });
 }

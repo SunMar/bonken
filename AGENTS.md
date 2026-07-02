@@ -54,6 +54,7 @@ for testing conventions (timer stubs, provider overrides, fixture helpers).
 - **Append a `BackupMigration` step + bump `currentBackupVersion`** when changing the ZIP envelope structure (same frozen/sequenced rules — [`lib/state/backup_migrations.dart`](lib/state/backup_migrations.dart)) — [ARCHITECTURE.md §9](ARCHITECTURE.md).
 - **`lib/models/game_constraints.dart` (pure) is the single source of truth for valid game data** — name-length consts + the rules as predicates/normalizers (trim, non-empty, case-insensitive uniqueness). The engine asserts, the `validation.dart` import/write gate, and the create/edit UI all compose these; never re-derive a rule or re-declare a limit — [ARCHITECTURE.md §9](ARCHITECTURE.md).
 - **Validate untrusted data once, at the boundary, then trust the typed result** — imports and stored JSON are validated where they are decoded (`BackupCodec.decode` / `validation.dart` + `assertGameInvariants`); downstream code (e.g. `applyImport`) does not re-decode or re-validate. Don't add defensive re-checks past the boundary — [ARCHITECTURE.md §2](ARCHITECTURE.md).
+- **New dependencies clear a tiered bar** — official Google packages (`flutter.dev`/`dart.dev`/`material.io`/`tools.dart.dev`), else a verified-publisher third party that's actively maintained, ideally widely used, and a net win over self-implementing; never an unverified publisher. If nothing qualifies, self-implement — [ARCHITECTURE.md §12](ARCHITECTURE.md).
 - **Persistence failures split by cause; never globally swallow** — a data bug (bad `toJson`) propagates and crashes loud (encode *before* the write so it can't be mistaken for a fault); an environmental write fault (full disk) flags `saveHealthyProvider` → the sticky `SaveErrorBanner` in `AppScaffold` (in-memory state keeps working; `PersistenceLifecycleSync` flushes the pending autosave on background and retries on resume); only the import path passes `surfaceFault` to report a clean failure — [ARCHITECTURE.md §2](ARCHITECTURE.md).
 
 ## ARCHITECTURE.md reference index
@@ -71,6 +72,7 @@ Look up the relevant section before touching that area:
 | Game-rule variants (`RuleVariants`, per-session + app-wide defaults) | §5, §7 |
 | End-to-end user flows (tracing a change through layers) | §8 |
 | Storage format, migration rules, backup/import | §9 |
+| Sharing importable game data — shared envelope/import seam (`games_envelope_codec`, `game_import`) + QR transport/screens, brightness channel | §9, §10, §12 |
 | UI layer (routing, screen responsibilities, doubles picker) | §10 |
 | Testing conventions (timers, provider overrides, fixture construction) | §11 |
 | Build, run & release (commands, CI gates, versioning, fonts/icons/splash, screenshots, deps) | §12 |

@@ -1,3 +1,5 @@
+import 'package:bonken/services/screen_brightness_service.dart';
+import 'package:bonken/widgets/qr_scanner_view.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -48,3 +50,37 @@ void setUpPrefs([Map<String, Object> initial = const {}]) =>
 /// Call at the top of a test group to ensure the Flutter widget bindings are
 /// initialized before any test runs.
 void initializeWidgets() => setUpAll(WidgetsFlutterBinding.ensureInitialized);
+
+/// Test double for [ScreenBrightness] (the QR-display screen's brightness seam):
+/// records call counts and touches no platform.
+class FakeScreenBrightness implements ScreenBrightness {
+  int setMaxCount = 0;
+  int resetCount = 0;
+
+  @override
+  Future<void> setMax() async => setMaxCount++;
+
+  @override
+  Future<void> reset() async => resetCount++;
+}
+
+/// Test double for the camera scanner seam ([qrScannerViewProvider]). Renders a
+/// non-interactive placeholder (no real camera) and captures the screen's
+/// callbacks so a test can simulate a scan via [emit] or a camera failure via
+/// [fail].
+class FakeScannerView {
+  void Function(String raw)? _onDetect;
+  VoidCallback? _onUnavailable;
+
+  QrScannerView get builder => ({required onDetect, required onUnavailable}) {
+    _onDetect = onDetect;
+    _onUnavailable = onUnavailable;
+    return const ColoredBox(color: Color(0xFF000000), child: SizedBox.expand());
+  };
+
+  /// Simulate scanning a code whose raw decoded value is [raw].
+  void emit(String raw) => _onDetect?.call(raw);
+
+  /// Simulate the camera being denied or unavailable.
+  void fail() => _onUnavailable?.call();
+}
